@@ -1,0 +1,53 @@
+# Canonical type: PersonIncidentAssociation
+#
+# Spec §4.1, §4.6. Declared as a platform extension and therefore living in the extension
+# namespace, NOT because NIEM lacks person-to-activity association machinery -- it plainly has
+# it -- but because we cannot yet cite the exact NIEM 6.0 association type by name. Asserting a
+# NIEM provenance we have not verified would be exactly the silent misattribution the provenance
+# rule exists to prevent, so this is modelled honestly as an extension and re-based onto the
+# NIEM type once verified. See docs/decisions/0011-niem-reference-verification.md.
+
+type: PersonIncidentAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/extension/core/1.0"
+version: "1.0.0"
+doc: "Links a person to an incident in a stated role, e.g. victim, suspect, witness."
+
+extension:
+  justification: >
+    Pending verification of the exact NIEM 6.0 person-to-incident association type. NIEM
+    association semantics are intended here and the shape follows NIEM's association pattern
+    (a first-class type with named roles rather than a foreign key), so re-basing onto the NIEM
+    type is a provenance change, not a structural one. Tracked as a known gap for Phase 1
+    sign-off.
+
+roles:
+  - name: person
+    target: Person
+    doc: "The person involved in the incident."
+    extension:
+      justification: >
+        Role of the extension association above; inherits its provenance gap. Corresponds to
+        the person endpoint of NIEM's association pattern.
+
+  - name: incident
+    target: Incident
+    doc: "The incident the person is involved in."
+    extension:
+      justification: >
+        Role of the extension association above; inherits its provenance gap. Corresponds to
+        the activity endpoint of NIEM's association pattern.
+
+fields:
+  - name: involvementCode
+    type: code
+    required: true
+    codeList: ["VICTIM", "SUSPECT", "WITNESS", "REPORTING_PARTY", "OTHER"]
+    doc: "How the person was involved in the incident."
+    extension:
+      justification: >
+        Source CAD systems express involvement as a single role code on the person-incident
+        link. NIEM models victim, subject, and witness as distinct association types rather
+        than as a code on one association. Collapsing them to a code is a deliberate deviation
+        that keeps the Phase 1 slice to one association type; splitting into NIEM's separate
+        association types is a content-version migration, not a platform change.

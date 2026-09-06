@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+build-logic/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local runtime state -- bronze/silver/gold data produced by local runs is never committed.
+/local-data/
+/var/

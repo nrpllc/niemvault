@@ -1,0 +1,63 @@
+# Canonical type: Incident
+#
+# Spec §4.1. NIEM-derived. Two fields have no NIEM equivalent and are declared as extensions:
+# both are agency-local operational concepts that NIEM deliberately does not standardise.
+#
+# KNOWN GAP: the NIEM references below are asserted, not verified. See
+# docs/decisions/0011-niem-reference-verification.md.
+
+type: Incident
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A reported event that an agency opened a record against."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+  niemType: "nc:IncidentType"
+
+fields:
+  - name: incidentNumber
+    type: string
+    required: true
+    doc: "Agency-assigned incident number. Unique within the reporting agency, not globally."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:ActivityIdentification"
+
+  - name: reportedDateTime
+    type: dateTime
+    required: true
+    doc: "When the incident was reported, normalised to UTC."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:ActivityDate"
+
+  - name: locationAddressText
+    type: string
+    doc: "Free-text incident address as asserted by the source. Not geocoded in Phase 1."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:AddressFullText"
+
+  - name: callTypeCode
+    type: code
+    codeList: ["BURG", "THEFT", "ASSLT", "MVA", "DIST", "SUSP", "WELCK", "OTHER"]
+    doc: "Normalised CAD call type. Agency call-type vocabularies are mapped onto this list."
+    extension:
+      justification: >
+        CAD call types are agency-local dispatch vocabularies with no NIEM equivalent; NIEM's
+        offence and activity category code lists describe what was ultimately charged or
+        classified, not what the call was dispatched as. Preserving the dispatch-time category
+        separately is required for CAD-to-RMS reconciliation, so it is modelled explicitly
+        rather than forced into a NIEM offence code that would misrepresent it.
+
+  - name: beat
+    type: string
+    doc: "Agency patrol beat or district identifier."
+    extension:
+      justification: >
+        Patrol beat is an agency-local geographic subdivision that changes on local
+        redistricting schedules. NIEM has no equivalent and should not: it is operational
+        geography, not an interchange concept. Retained because every downstream law
+        enforcement consumer filters and aggregates on it.

@@ -1,0 +1,57 @@
+# Version catalogue. Air-gapped delivery (spec §6) means every dependency here must be
+# mirrorable into an offline repository -- no dynamic versions, no snapshots.
+[versions]
+java              = "21"
+flink             = "1.20.1"
+jackson           = "2.18.2"
+snakeyaml         = "2.3"
+neo4jDriver       = "5.28.5"
+parquet           = "1.15.0"
+picocli           = "4.7.6"
+slf4j             = "2.0.16"
+logback           = "1.5.15"
+junit             = "5.11.4"
+assertj           = "3.27.0"
+testcontainers    = "1.20.4"
+
+[libraries]
+# --- Flink (runtime engine, spec §2 / §5) ---
+flink-core                 = { module = "org.apache.flink:flink-core",                 version.ref = "flink" }
+flink-streaming-java       = { module = "org.apache.flink:flink-streaming-java",       version.ref = "flink" }
+flink-clients              = { module = "org.apache.flink:flink-clients",              version.ref = "flink" }
+flink-connector-files      = { module = "org.apache.flink:flink-connector-files",      version.ref = "flink" }
+flink-test-utils           = { module = "org.apache.flink:flink-test-utils",           version.ref = "flink" }
+flink-runtime-tests        = { module = "org.apache.flink:flink-runtime",              version.ref = "flink" }
+
+# --- Serialisation / config ---
+jackson-databind           = { module = "com.fasterxml.jackson.core:jackson-databind",              version.ref = "jackson" }
+jackson-datatype-jsr310    = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",   version.ref = "jackson" }
+jackson-dataformat-yaml    = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+snakeyaml                  = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+
+# --- Storage ---
+parquet-hadoop             = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
+
+# --- Projections ---
+neo4j-driver               = { module = "org.neo4j.driver:neo4j-java-driver", version.ref = "neo4jDriver" }
+
+# --- CLI ---
+picocli                    = { module = "info.picocli:picocli",           version.ref = "picocli" }
+picocli-codegen            = { module = "info.picocli:picocli-codegen",   version.ref = "picocli" }
+
+# --- Logging ---
+slf4j-api                  = { module = "org.slf4j:slf4j-api",              version.ref = "slf4j" }
+logback-classic            = { module = "ch.qos.logback:logback-classic",   version.ref = "logback" }
+
+# --- Test ---
+junit-bom                  = { module = "org.junit:junit-bom",                 version.ref = "junit" }
+junit-jupiter              = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher    = { module = "org.junit.platform:junit-platform-launcher" }
+assertj-core               = { module = "org.assertj:assertj-core",            version.ref = "assertj" }
+testcontainers-bom         = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-junit       = { module = "org.testcontainers:junit-jupiter" }
+testcontainers-neo4j       = { module = "org.testcontainers:neo4j" }
+
+[bundles]
+jackson = ["jackson-databind", "jackson-datatype-jsr310", "jackson-dataformat-yaml"]
+flink-embedded = ["flink-core", "flink-streaming-java", "flink-clients"]

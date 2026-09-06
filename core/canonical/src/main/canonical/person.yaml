@@ -1,0 +1,71 @@
+# Canonical type: Person
+#
+# Spec §4.1. NIEM-derived; NIEM provenance is declared on the type and on every field that
+# has one. Fields with no NIEM equivalent are declared as extensions with a justification --
+# this is NIEM's augmentation pattern, and the reason a NIEM-sourced type may carry extension
+# fields while itself living outside the extension namespace.
+#
+# KNOWN GAP: the NIEM references below are asserted, not verified. No NIEM 6.0 release is on
+# disk to check them against. See docs/decisions/0011-niem-reference-verification.md.
+
+type: Person
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A human being known to the platform, resolved to a single identity across sources."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+  niemType: "nc:PersonType"
+
+fields:
+  - name: givenName
+    type: string
+    doc: "First name."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonGivenName"
+
+  - name: middleName
+    type: string
+    doc: "Middle name or initial as asserted by the source."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonMiddleName"
+
+  - name: surName
+    type: string
+    required: true
+    doc: "Family name. Required: identity resolution cannot cluster without it."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonSurName"
+
+  - name: birthDate
+    type: date
+    doc: "Date of birth."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonBirthDate"
+
+  - name: sexCode
+    type: code
+    codeList: ["M", "F", "X", "U"]
+    doc: "Sex as asserted by the source. U covers both 'unknown' and 'not recorded'."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonSexCode"
+
+  - name: driverLicenseId
+    type: string
+    doc: "Driver licence number. A tier-1 identity resolution key."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DriverLicenseIdentification"
+
+  - name: socialSecurityId
+    type: string
+    doc: "US Social Security Number. A tier-1 identity resolution key."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:PersonSSNIdentification"
