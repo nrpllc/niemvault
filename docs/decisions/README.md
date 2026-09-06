@@ -27,3 +27,4 @@ deciding stated) · **Superseded**.
 | [0015](0015-records-redact-values.md) | Record `toString` never exposes values | Accepted |
 | [0016](0016-single-tenant-phase1.md) | Phase 1 assumes one tenant per deployment | Proposed |
 | [0017](0017-observability-module.md) | Observability events live in their own module | Accepted |
+| [0018](0018-storage-module.md) | Storage zones live in their own module | Accepted |

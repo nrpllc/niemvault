@@ -20,6 +20,7 @@ include(
     "core:contracts",
     "core:observability",
     "core:lineage",
+    "storage",
     "runtime:engine",
     "runtime:transforms",
     "runtime:replay",

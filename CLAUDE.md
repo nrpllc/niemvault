@@ -151,7 +151,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] Hop contracts and validation (§4.2)
 - [x] Observability event taxonomy (§4.7)
 - [ ] Connector SPI and file drop connector (§4.3)
-- [ ] Bronze landing (§4.4)
+- [x] Bronze landing (§4.4)
 - [ ] Identity resolution (§4.5)
 - [ ] Mapping DAG on embedded Flink (§5)
 - [ ] Graph projection to Neo4j (§4.6)
