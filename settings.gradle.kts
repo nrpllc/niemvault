@@ -18,6 +18,7 @@ rootProject.name = "niem-platform"
 include(
     "core:canonical",
     "core:contracts",
+    "core:observability",
     "core:lineage",
     "runtime:engine",
     "runtime:transforms",

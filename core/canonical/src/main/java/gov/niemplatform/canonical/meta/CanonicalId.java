@@ -10,7 +10,7 @@ import java.io.Serializable;
  * it is derived deterministically from the source key so that replay reproduces it exactly
  * (§5, acceptance criterion 6).
  */
-public record CanonicalId(String value) implements Serializable, Comparable<CanonicalId> {
+public record CanonicalId(String value) implements Serializable {
 
     public CanonicalId {
         if (value == null || value.isBlank()) {
@@ -20,11 +20,6 @@ public record CanonicalId(String value) implements Serializable, Comparable<Cano
 
     public static CanonicalId of(String value) {
         return new CanonicalId(value);
-    }
-
-    @Override
-    public int compareTo(CanonicalId other) {
-        return value.compareTo(other.value);
     }
 
     @Override

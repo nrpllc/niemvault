@@ -17,3 +17,6 @@ Thumbs.db
 # Local runtime state -- bronze/silver/gold data produced by local runs is never committed.
 /local-data/
 /var/
+
+# Zen sidecar working directory (generated test reports, index cache).
+.zen/
