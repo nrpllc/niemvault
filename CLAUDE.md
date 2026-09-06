@@ -50,6 +50,8 @@ Docker is available (needed for testcontainers integration tests, e.g. Neo4j).
 | `build-logic/` | Included build. Convention plugins + the canonical model code generator. |
 | `gradle/libs.versions.toml` | Single source of dependency versions. No dynamic versions, no snapshots — an air-gapped mirror cannot resolve either. |
 | `core/canonical/` | Canonical DSL sources, generated types, and the generic `Record`. |
+| `core/observability/` | The §4.7 event taxonomy and its emitters. Depended on by `contracts`. |
+| `core/contracts/` | Hop contracts, the schema validator, quarantine, and the on-disk contract loader. |
 | `docs/decisions/` | One ADR per pinned decision and per decision taken during implementation. |
 
 Convention plugins are applied explicitly per module. There is deliberately no `allprojects`
@@ -146,7 +148,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] Gradle multi-module scaffold, version catalogue, convention plugins, wrapper
 - [x] Canonical DSL, validator, code generator, `Person` / `Incident` / association
 - [x] ADRs for every pinned §2 decision and every decision taken since
-- [ ] Hop contracts and validation (§4.2)
+- [x] Hop contracts and validation (§4.2)
 - [x] Observability event taxonomy (§4.7)
 - [ ] Connector SPI and file drop connector (§4.3)
 - [ ] Bronze landing (§4.4)

@@ -35,6 +35,16 @@ public record PipelineContext(String sourceId, String runId, String hopId, Strin
         return new PipelineContext(sourceId, runId, hopId, mappingVersion);
     }
 
+    /**
+     * Returns a copy located at a specific hop.
+     *
+     * <p>Lets a run-level context be created once and narrowed per hop, so a source identifier
+     * cannot drift between the events emitted by different hops of the same run.
+     */
+    public PipelineContext withHop(String atHopId, String atMappingVersion) {
+        return new PipelineContext(sourceId, runId, atHopId, atMappingVersion);
+    }
+
     /** Flattened form for structured sinks. */
     public Map<String, Object> attributes() {
         Map<String, Object> attributes = new LinkedHashMap<>();

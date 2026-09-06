@@ -2,7 +2,10 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
-    java
+    // java-library, not java: modules expose types from their dependencies across boundaries
+    // (a contract's Schema is built from a canonical descriptor), so `api` vs `implementation`
+    // is a distinction this build needs to be able to make.
+    `java-library`
 }
 
 // Precompiled script plugins do not get the generated `libs` accessor, so the catalogue is
