@@ -150,7 +150,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] ADRs for every pinned §2 decision and every decision taken since
 - [x] Hop contracts and validation (§4.2)
 - [x] Observability event taxonomy (§4.7)
-- [ ] Connector SPI and file drop connector (§4.3)
+- [x] Connector SPI and file drop connector (§4.3)
 - [x] Bronze landing (§4.4)
 - [ ] Identity resolution (§4.5)
 - [ ] Mapping DAG on embedded Flink (§5)
