@@ -67,6 +67,7 @@ Flink needs on Java 21. Do not add those flags per module; they belong in the pl
 ./gradlew canonicalModel             # validate + regenerate every canonical model
 ./gradlew -p build-logic test        # the codegen's own tests
 ./gradlew :core:canonical:test
+./gradlew zenTest                    # run everything + aggregate JUnit XML into .zen/
 ```
 
 ---
@@ -110,6 +111,11 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 - **`PowerShell 5.1` + `Invoke-WebRequest` needs `-UseBasicParsing`** in non-interactive mode,
   and `.Content` may come back as `byte[]` rather than a string.
 - **Large Java files via bash heredoc are fragile.** Use the Write tool.
+- **The Zen sidecar mis-reports this project as having no tests.** Two bugs in
+  `C:\src\zendesign` (not this repo): its Java/Kotlin test glob matches `src/test/` with
+  forward slashes against Windows paths that use backslashes, and its `maxDepth = 6` walk is
+  too shallow for `<module>/src/test/java/<package…>`. `gradlew zenTest` writes the report it
+  wants into `.zen/`, but the Tests line stays `NO TESTS` until the sidecar is fixed.
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will
@@ -136,7 +142,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] Canonical DSL, validator, code generator, `Person` / `Incident` / association
 - [x] ADRs for every pinned §2 decision and every decision taken since
 - [ ] Hop contracts and validation (§4.2)
-- [ ] Observability event taxonomy (§4.7)
+- [x] Observability event taxonomy (§4.7)
 - [ ] Connector SPI and file drop connector (§4.3)
 - [ ] Bronze landing (§4.4)
 - [ ] Identity resolution (§4.5)
