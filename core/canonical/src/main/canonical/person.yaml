@@ -52,16 +52,21 @@ fields:
     type: code
     codeList: ["M", "F", "X", "U"]
     doc: "Sex as asserted by the source. U covers both 'unknown' and 'not recorded'."
+    # The justice domain, not core. Core declares PersonSexText and PersonSexAbstract; the code
+    # element lives in j:. Verified against the release manifest.
     provenance:
-      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
-      niemElement: "nc:PersonSexCode"
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:PersonSexCode"
 
   - name: driverLicenseId
     type: string
     doc: "Driver licence number. A tier-1 identity resolution key."
+    # NIEM 6.0 has no DriverLicenseIdentification. It models a licence held by a person as
+    # nc:PersonLicenseIdentification; the justice domain's DriverLicense elements describe the
+    # card and its endorsements, which is not what this field holds.
     provenance:
       niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
-      niemElement: "nc:DriverLicenseIdentification"
+      niemElement: "nc:PersonLicenseIdentification"
 
   - name: socialSecurityId
     type: string

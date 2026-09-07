@@ -1,35 +1,62 @@
-# 0011. NIEM references are asserted, not yet verified
+# 0011 — NIEM references must be verified against a release, not asserted
 
-**Status:** Proposed · known gap, raised during Phase 1 implementation
+**Status:** Accepted — **resolved 2026-09-07**
+**Context:** §4.1 (canonical model), §6 (air-gapped delivery), §9
 
 ## Context
 
-Every canonical type and field declares NIEM provenance (§4.1). The value of that provenance
-depends entirely on it being correct. A canonical field citing `nc:PersonSurName` is a
-liability rather than an asset if the real NIEM element is named something else -- downstream
-consumers would trust an attribution nobody checked.
+The canonical DSL requires every type, field and role to declare NIEM `provenance` or an
+`extension` with a written justification. The build enforced that a provenance was *present* and
+structurally complete. Nothing checked that it was *true*.
 
-No NIEM 6.0 release is present in this repository, so the provenance references written during
-Phase 1 implementation are asserted from knowledge, not validated against the standard.
+The `niemNamespace` / `niemType` / `niemElement` values were asserted from knowledge, with no NIEM
+release on disk to check them against. That is a bad state to be in and a worse one to ship from. An
+unverified provenance is not a gap that announces itself — it is well-formed, plausible, and reads
+exactly like a citation. It survives review, gets copied into the next model, and is discovered by an
+integrator whose data will not exchange.
+
+Phase 1 was explicitly not to be signed off while this stood.
 
 ## Decision
 
-Provenance references are written as the best available assertion and **explicitly marked as
-unverified**, in the DSL sources and here. Where a NIEM construct could not be cited with
-confidence, the construct is modelled as an extension with a justification saying so, rather
-than given a guessed NIEM reference. `PersonIncidentAssociation` is the case in point: NIEM
-plainly has person-to-activity association machinery, but asserting a type name we have not
-confirmed would be precisely the silent misattribution the provenance rule exists to prevent.
+**Every provenance claim is resolved against a NIEM release manifest at build time. A model whose
+citations cannot be checked does not build.**
+
+- Manifests are generated from the published NIEM 6.0 schemas and **committed** under
+  `core/canonical/src/main/niem`. Committed rather than fetched, because §6 makes air-gapped
+  delivery mandatory and a validator that needs network access is one that gets switched off in
+  exactly the environments this platform exists for. Each manifest records the source URL and the
+  SHA-256 of the schema it was generated from.
+- `CanonicalCodegenTask` refuses to run without a manifest directory. Degrading quietly to
+  "unverified" would recreate the original problem while looking like progress.
+- When a citation fails, the error says where the name *is* declared, if anywhere. "Not found"
+  alone leaves an author to search several thousand names by hand, and the commonest mistake by a
+  distance is the right name in the wrong namespace.
+
+## What verification found
+
+Running it against the real NIEM 6.0 release (Project Specification 02) found **three** errors in
+content that had passed every other check:
+
+| Asserted | Reality |
+|---|---|
+| `nc:PersonSexCode` | Does not exist in niem-core. Core has `PersonSexText` and `PersonSexAbstract`; the code element is **`j:PersonSexCode`**, in the justice domain. Right name, wrong namespace. |
+| `nc:DriverLicenseIdentification` | Does not exist anywhere in NIEM 6.0. A licence held by a person is **`nc:PersonLicenseIdentification`**; the justice domain's `DriverLicense*` elements describe the card and its endorsements, which is not what the field holds. |
+| `PersonIncidentAssociation` modelled as an **extension** | Unnecessary. **`nc:ActivityPersonAssociationType`** is "a data type for an association between an activity and a person", and `nc:IncidentType` extends `nc:ActivityType` — an incident *is* an activity. Its members `nc:Activity`, `nc:Person` and `nc:ActivityInvolvementAbstract` are exactly this association's two roles and its involvement code. |
+
+The third is the most instructive. The extension was declared honestly — the file said NIEM plainly
+had the machinery but the exact type could not be cited — and that honesty was correct at the time.
+It was also, once checkable, simply wrong: the type existed, and the platform was carrying an
+extension it did not need, with all the interoperability cost that implies.
 
 ## Consequences
 
-- **Phase 1 cannot be signed off on this basis alone.** A NIEM 6.0 release must be obtained
-  and every reference checked against it.
-- The check should be mechanical, not a review: a build-time validator that resolves every
-  `niemNamespace`/`niemType`/`niemElement` triple against a NIEM release manifest, failing the
-  build on an unresolvable reference. That validator is not built yet.
-- Once verified, `PersonIncidentAssociation` is expected to be re-based from an extension onto
-  its NIEM association type. That is a provenance change and a content version bump, not a
-  structural change -- the roles-not-foreign-keys shape already follows NIEM's pattern.
-
-**Revisit when:** a NIEM 6.0 release is available to validate against.
+- The two remaining deviations are now genuinely deviations rather than unverified guesses. Person's
+  `sexCode` cites the justice domain from a core-sourced type, which is NIEM's augmentation pattern
+  and allowed. `involvementCode` collapses what justice models as distinct association types into a
+  single code, which is a documented granularity choice and a content-version migration if revisited.
+- Adding a NIEM domain means adding its manifest. That is deliberate friction: a domain nobody has
+  put on disk is a domain nobody can cite.
+- Manifests are derived data, regenerated by re-running the generator against a published schema.
+  They are not edited by hand.
+- **This no longer blocks Phase 1 sign-off.**

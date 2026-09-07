@@ -95,16 +95,19 @@ Rules the build enforces — see `CanonicalModelValidator`:
 A NIEM-sourced type *may* carry extension **fields** — that is NIEM's augmentation pattern.
 Only *types* are namespace-segregated.
 
-### ⚠ NIEM references are unverified
+### NIEM references are verified at build time
 
-The `niemNamespace` / `niemType` / `niemElement` values in the DSL are asserted from
-knowledge. **No NIEM 6.0 release is on disk to check them against.** See
-[ADR 0011](docs/decisions/0011-niem-reference-verification.md).
+Every `niemNamespace` / `niemType` / `niemElement` is resolved against committed release manifests
+under `core/canonical/src/main/niem`, generated from the published NIEM 6.0 schemas. **The codegen
+task refuses to run without them** — degrading quietly to "unverified" is the failure
+[ADR 0011](docs/decisions/0011-niem-reference-verification.md) exists to prevent.
 
-Phase 1 cannot be signed off until they are verified, ideally by a build-time validator that
-resolves each reference against a NIEM release manifest. `PersonIncidentAssociation` is
-deliberately modelled as an **extension** for this reason — NIEM plainly has the machinery,
-but we could not cite the exact type, and a guessed provenance is worse than none.
+Committed, not fetched: an air-gapped build has to be able to check its own citations (§6).
+
+Verification found three real errors when first run: `nc:PersonSexCode` (right name, wrong
+namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does not exist; it is
+`nc:PersonLicenseIdentification`), and `PersonIncidentAssociation` being an extension when
+`nc:ActivityPersonAssociationType` fits it exactly. Adding a NIEM domain means adding its manifest.
 
 ---
 
@@ -216,6 +219,8 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
       versioned save. No YAML required to author a mapping.
 - [x] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)
+
+- [x] NIEM references verified against a real release (§4.1, ADR 0011)
 
 **Acceptance criterion 7** — the identical mapping definition running unchanged in batch and
 streaming, producing identical canonical output — is the one that validates the core

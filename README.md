@@ -89,6 +89,18 @@ Four things about it are deliberate:
   versioned artifacts (§7) and changes must be attributable (§4.8), so an in-place edit would
   quietly rewrite something an auditor may already have signed off.
 
+## NIEM provenance is checked, not asserted
+
+Every type, field and role in the canonical model declares either NIEM provenance or an extension
+with a written justification — and every provenance claim is resolved against a NIEM 6.0 release
+manifest when the model is generated. The build fails on a citation that does not exist, and says
+where the name *is* declared if it exists elsewhere.
+
+Manifests live in `core/canonical/src/main/niem`, generated from the published schemas and committed
+so an air-gapped build can verify its own citations (§6). See
+[ADR 0011](docs/decisions/0011-niem-reference-verification.md) — including the three real errors this
+found in content that had passed every other check.
+
 ## Layout
 
 ```
