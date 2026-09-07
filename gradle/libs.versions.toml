@@ -26,6 +26,9 @@ flink-streaming-java       = { module = "org.apache.flink:flink-streaming-java",
 flink-clients              = { module = "org.apache.flink:flink-clients",              version.ref = "flink" }
 flink-connector-files      = { module = "org.apache.flink:flink-connector-files",      version.ref = "flink" }
 flink-test-utils           = { module = "org.apache.flink:flink-test-utils",           version.ref = "flink" }
+# Flink's own job-graph dashboard. Optional at runtime: a cluster deployment already has one, and
+# an operator running embedded only wants it when they are watching.
+flink-runtime-web          = { module = "org.apache.flink:flink-runtime-web",          version.ref = "flink" }
 flink-runtime-tests        = { module = "org.apache.flink:flink-runtime",              version.ref = "flink" }
 
 # --- Serialisation / config ---

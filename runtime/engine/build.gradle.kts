@@ -16,6 +16,9 @@ dependencies {
     // FlinkMappingJob touches Flink types. That is what makes acceptance criterion 7 provable
     // rather than asserted -- batch and streaming invoke the same pipeline object.
     implementation(libs.bundles.flink.embedded)
+    // Serves the job-graph dashboard when a run asks for it. Present on the classpath so an
+    // embedded run can show its own DAG; Flink activates it only when the REST port is bound.
+    implementation(libs.flink.runtime.web)
 
     testImplementation(libs.flink.test.utils)
 

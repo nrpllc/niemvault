@@ -23,6 +23,7 @@ import picocli.CommandLine.Command;
         description = "Operator tooling for the NIEM integration platform.",
         subcommands = {
             ValidateCommand.class,
+            DescribeCommand.class,
             RunCommand.class,
             InspectCommand.class,
         })

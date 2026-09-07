@@ -8,6 +8,7 @@ import java.util.Objects;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestOptions;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -49,18 +50,38 @@ public final class FlinkMappingJob {
             List<RawEnvelope> envelopes,
             ExecutionMode mode,
             String runId) throws Exception {
+        return run(factory, envelopes, JobOptions.of(mode), runId);
+    }
+
+    /** Runs a mapping with explicit execution options. */
+    public static List<Record> run(
+            MappingPipelineFactory factory,
+            List<RawEnvelope> envelopes,
+            JobOptions options,
+            String runId) throws Exception {
 
         Objects.requireNonNull(factory, "factory");
-        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(options, "options");
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(1, configuration());
+        StreamExecutionEnvironment env = environmentFor(options);
         env.setParallelism(1);
-        env.setRuntimeMode(mode == ExecutionMode.BATCH
+        env.setRuntimeMode(options.mode() == ExecutionMode.BATCH
                 ? RuntimeExecutionMode.BATCH
                 : RuntimeExecutionMode.STREAMING);
 
-        DataStream<Record> canonical = env
+        DataStream<RawEnvelope> landed = env
                 .fromData(envelopes, JavaValueTypeInfo.forValue(RawEnvelope.class))
+                .name("bronze");
+
+        DataStream<RawEnvelope> paced = landed;
+        if (options.throttle().isPresent()) {
+            paced = landed
+                    .map(new Throttle(options.throttle().orElseThrow().toMillis()))
+                    .returns(JavaValueTypeInfo.forValue(RawEnvelope.class))
+                    .name("pace");
+        }
+
+        DataStream<Record> canonical = paced
                 .process(new MappingOperator(factory, runId))
                 .returns(JavaValueTypeInfo.forValue(Record.class))
                 .name("map-" + runId);
@@ -73,15 +94,47 @@ public final class FlinkMappingJob {
     }
 
     /**
-     * Embedded single-node defaults, for a small agency or a test.
+     * Embedded single-node execution, optionally serving Flink's own job-graph dashboard.
      *
-     * <p>Deliberately empty. A local mini cluster derives a consistent memory model from its own
-     * defaults, and overriding one dimension of it -- network memory, say -- makes the model
-     * inconsistent and the cluster refuse to start. A cluster deployment supplies its own
-     * configuration, and nothing about the mapping changes either way.
+     * <p>The configuration is otherwise deliberately empty. A local mini cluster derives a
+     * consistent memory model from its own defaults, and overriding one dimension of it -- network
+     * memory, say -- makes the model inconsistent and the cluster refuse to start. A cluster
+     * deployment supplies its own configuration, and nothing about the mapping changes either way.
      */
-    private static Configuration configuration() {
-        return new Configuration();
+    private static StreamExecutionEnvironment environmentFor(JobOptions options) {
+        Configuration configuration = new Configuration();
+        return options.dashboardPort()
+                .map(port -> {
+                    configuration.set(RestOptions.BIND_PORT, String.valueOf(port));
+                    // Flink serves the dashboard for the lifetime of the mini cluster, which ends
+                    // with the job. That is why JobOptions pairs the dashboard with a throttle.
+                    return StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(configuration);
+                })
+                .orElseGet(() -> StreamExecutionEnvironment.createLocalEnvironment(1, configuration));
+    }
+
+    /**
+     * Slows the source so a run is long enough to watch.
+     *
+     * <p>Not a rate limiter for production -- it is here so the dashboard has something to show.
+     * A fifteen-record run otherwise completes before the page finishes loading.
+     */
+    private static final class Throttle
+            implements org.apache.flink.api.common.functions.MapFunction<RawEnvelope, RawEnvelope> {
+
+        private static final long serialVersionUID = 1L;
+
+        private final long millis;
+
+        Throttle(long millis) {
+            this.millis = millis;
+        }
+
+        @Override
+        public RawEnvelope map(RawEnvelope envelope) throws InterruptedException {
+            Thread.sleep(millis);
+            return envelope;
+        }
     }
 
     /**

@@ -1,0 +1,524 @@
+<title>CAD to Canonical</title>
+<style>
+  /* ---------------------------------------------------------------------
+     Palette: a dispatch console, not a magazine.
+
+     Ground is a cool paper biased green-grey rather than a neutral or a warm
+     cream; the accent is the deep teal of the flow itself. Burnt amber appears
+     exactly once, on the quarantine path, and is semantic rather than
+     decorative -- if it shows up, something diverged.
+     --------------------------------------------------------------------- */
+  :root {
+    --paper:      #F1F4F3;
+    --card:       #FBFCFB;
+    --ink:        #0D1417;
+    --slate:      #5B6A6D;
+    --hairline:   #D3DBD9;
+    --flow:       #0C6F69;
+    --flow-soft:  #E2EFED;
+    --divert:     #A8481A;
+    --divert-soft:#F7E9E1;
+    --provenance: #454A80;
+
+    --display: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --data: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --measure: 64ch;
+    --step-0: 1rem;
+    --step-1: 1.2rem;
+    --step-2: 1.5rem;
+    --step-3: 2.1rem;
+    --step-4: 3rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0B1114;
+      --card:       #121A1D;
+      --ink:        #E6EDEB;
+      --slate:      #93A3A5;
+      --hairline:   #233034;
+      --flow:       #5BC6BC;
+      --flow-soft:  #11302E;
+      --divert:     #E28A56;
+      --divert-soft:#2C1B12;
+      --provenance: #9BA0DE;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0B1114;
+    --card:       #121A1D;
+    --ink:        #E6EDEB;
+    --slate:      #93A3A5;
+    --hairline:   #233034;
+    --flow:       #5BC6BC;
+    --flow-soft:  #11302E;
+    --divert:     #E28A56;
+    --divert-soft:#2C1B12;
+    --provenance: #9BA0DE;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--prose);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 78rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 4vw, 4rem) clamp(1.1rem, 4vw, 3rem) 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(2.5rem, 5vw, 4rem);
+  }
+
+  /* --- record header: field labels, like the form this data came off ----- */
+
+  .masthead { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--slate);
+    margin: 0;
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(var(--step-3), 5vw, var(--step-4));
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    max-width: var(--measure);
+    font-size: var(--step-1);
+    color: var(--slate);
+    margin: 0;
+  }
+
+  .fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--hairline);
+    border: 1px solid var(--hairline);
+  }
+
+  .field { background: var(--card); padding: 0.85rem 1rem; }
+
+  .field dt {
+    font-family: var(--display);
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+    margin: 0 0 0.3rem;
+  }
+
+  .field dd {
+    font-family: var(--data);
+    font-size: 0.92rem;
+    margin: 0;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+  }
+
+  /* --- sections --------------------------------------------------------- */
+
+  section { display: flex; flex-direction: column; gap: 1.2rem; }
+
+  h2 {
+    font-family: var(--display);
+    font-size: var(--step-2);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--ink);
+    text-wrap: balance;
+  }
+
+  section > p { max-width: var(--measure); margin: 0; }
+
+  /* --- diagram ---------------------------------------------------------- */
+
+  .diagram {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    padding: clamp(1rem, 3vw, 2rem);
+    overflow-x: auto;
+  }
+
+  .diagram pre.mermaid { margin: 0; text-align: center; }
+
+  /* --- hop cards -------------------------------------------------------- */
+
+  .hops {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1rem;
+  }
+
+  .hop {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-top: 3px solid var(--flow);
+    padding: 1.1rem 1.2rem 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .hop--dependent { border-top-color: var(--provenance); }
+
+  .hop h3 {
+    font-family: var(--data);
+    font-size: 0.98rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .hop dl { margin: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+
+  .hop dt {
+    font-family: var(--display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+
+  .hop dd { margin: 0.15rem 0 0; font-family: var(--data); font-size: 0.83rem; line-height: 1.5; }
+
+  .cols { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+  .col {
+    font-family: var(--data);
+    font-size: 0.72rem;
+    background: var(--flow-soft);
+    color: var(--flow);
+    padding: 0.15rem 0.42rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .depends {
+    font-family: var(--display);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--provenance);
+  }
+
+  /* --- the divergence panel: the one place amber is allowed ------------- */
+
+  .divergence {
+    background: var(--card);
+    border: 1px solid var(--hairline);
+    border-left: 3px solid var(--divert);
+    padding: clamp(1.1rem, 3vw, 1.8rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; }
+
+  @media (min-width: 46rem) { .pair { grid-template-columns: 1fr 1fr; } }
+
+  .pane { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+
+  .pane .tag {
+    font-family: var(--display);
+    font-size: 0.64rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+
+  .pane code {
+    font-family: var(--data);
+    font-size: 0.83rem;
+    display: block;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--hairline);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .pane--event code { background: var(--divert-soft); color: var(--divert); }
+  .pane--held code { background: var(--flow-soft); color: var(--flow); }
+
+  .shape {
+    font-family: var(--data);
+    letter-spacing: 0.08em;
+    color: var(--divert);
+    font-weight: 600;
+  }
+
+  /* --- counts ----------------------------------------------------------- */
+
+  .counts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px;
+    background: var(--hairline);
+    border: 1px solid var(--hairline);
+  }
+
+  .count { background: var(--card); padding: 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+
+  .count .n {
+    font-family: var(--data);
+    font-size: var(--step-3);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--flow);
+  }
+
+  .count .of {
+    font-family: var(--display);
+    font-size: 0.64rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--slate);
+  }
+
+  /* --- footer ----------------------------------------------------------- */
+
+  footer {
+    border-top: 1px solid var(--hairline);
+    padding-top: 1.4rem;
+    color: var(--slate);
+    font-size: 0.9rem;
+    max-width: var(--measure);
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  footer code, p code, li code, dd code {
+    font-family: var(--data);
+    font-size: 0.87em;
+    background: var(--flow-soft);
+    color: var(--flow);
+    padding: 0.08em 0.32em;
+    border-radius: 2px;
+  }
+
+  ul { margin: 0; padding-left: 1.1rem; max-width: var(--measure); }
+  li { margin-bottom: 0.45rem; }
+
+  a { color: var(--flow); text-underline-offset: 0.2em; }
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--flow); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Mapping artifact &middot; content version, not platform version</p>
+    <h1>cad-to-canonical@1.0.0</h1>
+    <p class="standfirst">
+      One denormalised CAD export row becomes three canonical records. This is the graph the
+      platform compiles into a Flink job at deploy time &mdash; rendered from the mapping artifact
+      itself, so it cannot describe a mapping other than the one that runs.
+    </p>
+
+    <dl class="fields">
+      <div class="field"><dt>Source</dt><dd>riverton-pd-cad</dd></div>
+      <div class="field"><dt>Transport</dt><dd>file-drop</dd></div>
+      <div class="field"><dt>Decoded as</dt><dd>source:cad-csv/incident-person</dd></div>
+      <div class="field"><dt>Declared columns</dt><dd>10</dd></div>
+      <div class="field"><dt>Hops</dt><dd>3</dd></div>
+      <div class="field"><dt>Canonical types</dt><dd>Person, Incident, association</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <h2>The flow</h2>
+    <p>
+      Solid edges carry records. Dotted edges carry an identity a hop assigned, which is how the
+      association reaches the two entities it links without re-deriving either. The quarantine path
+      exists on every hop, because a contract is checked on both the way in and the way out.
+    </p>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  payload["raw payload<br/><small>bronze, byte-preserved</small>"]
+  source["source:cad-csv/incident-person<br/><small>10 declared columns</small>"]
+  payload --> source
+
+  hop_incident["map-incident<br/><small>5 steps</small>"]
+  hop_person["map-person<br/><small>10 steps</small>"]
+  hop_assoc["map-person-incident<br/><small>1 step</small>"]
+
+  out_incident(["Incident"])
+  out_person(["Person"])
+  out_assoc(["PersonIncidentAssociation"])
+
+  source --> |"INC_NUM, CALL_TYPE, RPT_DTTM, ADDR, BEAT"| hop_incident
+  source --> |"NAME_FULL, DOB, SEX, DL_NUM"| hop_person
+  source --> |"ROLE"| hop_assoc
+
+  hop_incident --> out_incident
+  hop_person --> out_person
+  hop_assoc --> out_assoc
+
+  out_incident -. identity .-> hop_assoc
+  out_person -. identity .-> hop_assoc
+
+  quarantine[["quarantine"]]
+  hop_incident -. on violation .-> quarantine
+  hop_person -. on violation .-> quarantine
+  hop_assoc -. on violation .-> quarantine
+</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>What each hop does</h2>
+    <p>
+      The two entity hops are independent &mdash; a malformed date of birth costs the person, not
+      the incident. The association hop waits for both, because an edge to an entity that was never
+      produced is worse than a missing edge.
+    </p>
+
+    <div class="hops">
+      <article class="hop">
+        <h3>map-incident</h3>
+        <dl>
+          <div><dt>Contract</dt><dd>cad-incident-to-canonical@1.0.0</dd></div>
+          <div><dt>Consumes</dt><dd><span class="cols">
+            <span class="col">INC_NUM</span><span class="col">CALL_TYPE</span>
+            <span class="col">RPT_DTTM</span><span class="col">ADDR</span><span class="col">BEAT</span>
+          </span></dd></div>
+          <div><dt>Identity</dt><dd>derived from <code>incidentNumber</code></dd></div>
+        </dl>
+        <p style="margin:0;font-size:0.86rem;color:var(--slate);">
+          An incident has an authoritative key in its source. Running it through entity resolution
+          would add uncertainty where none exists.
+        </p>
+      </article>
+
+      <article class="hop">
+        <h3>map-person</h3>
+        <dl>
+          <div><dt>Contract</dt><dd>cad-person-to-canonical@1.0.0</dd></div>
+          <div><dt>Consumes</dt><dd><span class="cols">
+            <span class="col">NAME_FULL</span><span class="col">DOB</span>
+            <span class="col">SEX</span><span class="col">DL_NUM</span>
+          </span></dd></div>
+          <div><dt>Identity</dt><dd>resolved by <code>bundled-deterministic</code></dd></div>
+        </dl>
+        <p style="margin:0;font-size:0.86rem;color:var(--slate);">
+          A person is a real thing several sources describe differently, so identity comes from
+          resolution rather than any one source's key.
+        </p>
+      </article>
+
+      <article class="hop hop--dependent">
+        <h3>map-person-incident</h3>
+        <dl>
+          <div><dt>Contract</dt><dd>cad-association-to-canonical@1.0.0</dd></div>
+          <div><dt>Consumes</dt><dd><span class="cols"><span class="col">ROLE</span></span></dd></div>
+          <div><dt>Identity</dt><dd>derived from both upstream identities</dd></div>
+        </dl>
+        <p class="depends">Waits for map-person + map-incident</p>
+        <p style="margin:0;font-size:0.86rem;color:var(--slate);">
+          A function of the two entities it links, so the same pair always yields the same
+          association and a replay does not double every edge in the graph.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>When the source drifts</h2>
+    <p>
+      A CAD vendor pushed an update and dates of birth started arriving in ISO format. Every value
+      is still a perfectly valid string, so nothing crashes &mdash; which is precisely the failure
+      this platform exists to catch. The contract catches it, the record is quarantined, and the
+      run continues.
+    </p>
+
+    <div class="divergence">
+      <p style="margin:0;">
+        The event carries the <em>shape</em> of what arrived, never the value:
+        <span class="shape">####-##-##</span> where
+        <span class="shape">##/##/####</span> was declared. That is enough to diagnose a format
+        change and safe to put in a log aggregator.
+      </p>
+
+      <div class="pair">
+        <div class="pane pane--event">
+          <span class="tag">Emitted to the event stream</span>
+          <code>DOB: pattern
+expected  ^\d{2}/\d{2}/\d{4}$
+found     String(len=10, shape=####-##-##)</code>
+        </div>
+        <div class="pane pane--held">
+          <span class="tag">Retained in quarantine</span>
+          <code>"NAME_FULL": "OKAFOR, ADA"
+"DOB": "1979-12-01"
+"DL_NUM": "R5540021"</code>
+        </div>
+      </div>
+
+      <p style="margin:0;font-size:0.9rem;color:var(--slate);">
+        Quarantine keeps the real values and lives under bronze's access controls, so the record can
+        be reprocessed once the mapping or the contract is corrected. The event, which travels to
+        dashboards and log aggregators, never holds a date of birth.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>One run, ten rows</h2>
+    <div class="counts">
+      <div class="count"><span class="n">10</span><span class="of">source rows</span></div>
+      <div class="count"><span class="n">30</span><span class="of">canonical records</span></div>
+      <div class="count"><span class="n">6</span><span class="of">person clusters</span></div>
+      <div class="count"><span class="n">8</span><span class="of">incidents</span></div>
+      <div class="count"><span class="n">0</span><span class="of">violations</span></div>
+    </div>
+    <p>
+      Ten person rows, six humans. Jane Doe appears three times with her licence written
+      <code>K447-1902</code>, <code>K4471902</code> and <code>K447 1902</code>; the resolver treats
+      them as one. Two rows share an incident number, so eight incidents rather than ten.
+    </p>
+  </section>
+
+  <footer>
+    <p>
+      Generated by <code>niem describe --format mermaid</code> from the mapping artifact in
+      <code>modules/law-enforcement</code>. The diagram is read from the same file the runtime
+      compiles, so it cannot drift from what actually executes.
+    </p>
+    <p>
+      Phase 1 has no user interface by design &mdash; spec &sect;8 puts client applications out of
+      scope. This page and the operator CLI are the whole of the surface.
+    </p>
+  </footer>
+
+</div>

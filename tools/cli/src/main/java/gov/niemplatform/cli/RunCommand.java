@@ -6,6 +6,7 @@ import gov.niemplatform.canonical.data.Record;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.LandingService;
 import gov.niemplatform.connectors.file.FileDropConnector;
+import gov.niemplatform.contracts.FileQuarantineSink;
 import gov.niemplatform.contracts.QuarantineSink;
 import gov.niemplatform.contracts.QuarantinedRecord;
 import gov.niemplatform.identity.api.InMemoryClusterIndex;
@@ -15,7 +16,11 @@ import gov.niemplatform.observability.ContractViolation;
 import gov.niemplatform.observability.LoggingObservabilityEmitter;
 import gov.niemplatform.observability.ObservabilityEmitter;
 import gov.niemplatform.observability.RecordingObservabilityEmitter;
+import gov.niemplatform.runtime.engine.ExecutionMode;
+import gov.niemplatform.runtime.engine.FlinkMappingJob;
+import gov.niemplatform.runtime.engine.JobOptions;
 import gov.niemplatform.runtime.engine.MappingPipeline;
+import gov.niemplatform.runtime.engine.MappingPipelineFactory;
 import gov.niemplatform.storage.api.BronzeRange;
 import gov.niemplatform.storage.api.RawEnvelope;
 import gov.niemplatform.storage.parquet.ParquetBronzeStore;
@@ -83,6 +88,34 @@ final class RunCommand implements Callable<Integer> {
             description = "Run identifier carried on every event. Default: ${DEFAULT-VALUE}")
     String runId;
 
+    /** How the mapping is executed. */
+    enum Engine {
+        /** Through Flink, which is how the platform actually runs (spec 5). */
+        FLINK,
+        /** In-process, no cluster. Faster to start, for iterating on a mapping. */
+        DIRECT
+    }
+
+    @Option(names = "--engine", defaultValue = "FLINK",
+            description = "Execution engine: ${COMPLETION-CANDIDATES}. Default: ${DEFAULT-VALUE}")
+    Engine engine;
+
+    @Option(names = "--mode", defaultValue = "BATCH",
+            description = "Flink runtime mode: ${COMPLETION-CANDIDATES}. Default: ${DEFAULT-VALUE}")
+    ExecutionMode mode;
+
+    @Option(names = "--web-ui",
+            description = "Serve Flink's job-graph dashboard while the run executes.")
+    boolean webUi;
+
+    @Option(names = "--web-port", defaultValue = "8081",
+            description = "Dashboard port. Default: ${DEFAULT-VALUE}")
+    int webPort;
+
+    @Option(names = "--pace-millis", defaultValue = "0",
+            description = "Delay per source record, so a short run lasts long enough to watch.")
+    long paceMillis;
+
     private final ObjectMapper json = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @Override
@@ -142,16 +175,101 @@ final class RunCommand implements Callable<Integer> {
                     quarantine,
                     emitter);
 
-            canonicalCount = mapLanded(bronze, config.sourceId(), landed, pipeline);
+            canonicalCount = engine == Engine.DIRECT
+                    ? mapLanded(bronze, config.sourceId(), landed, pipeline)
+                    : mapThroughFlink(bronze, config.sourceId(), landed, artifacts, quarantineFile());
         }
 
-        writeQuarantine(quarantine.held());
-        summarise(canonicalCount, recorder, quarantine, clusterIndex);
+        if (engine == Engine.DIRECT) {
+            writeQuarantine(quarantine.held());
+            summarise(canonicalCount, recorder, quarantine, clusterIndex);
+        } else {
+            summariseDistributed(canonicalCount);
+        }
 
         // A run that quarantined records is not a failed run -- spec §4.2 is explicit that bad
         // data must not halt the pipeline -- but it is not a clean one either, and a scheduled
         // job should be able to tell the difference.
+        //
+        // On the Flink engine the driver cannot see the quarantine, so it reports 3: "ran, outcome
+        // not determinable here" rather than 0. Claiming a clean run it cannot verify would make
+        // the exit code worse than useless to a scheduler.
+        if (engine != Engine.DIRECT) {
+            return 3;
+        }
         return quarantine.size() == 0 ? 0 : 2;
+    }
+
+    /** Where the Flink path writes quarantined records, since an in-memory sink cannot travel. */
+    private Path quarantineFile() {
+        return quarantineOut != null ? quarantineOut.getParent() != null
+                ? quarantineOut.getParent() : Path.of(".")
+                : bronzeRoot.resolve("quarantine");
+    }
+
+    /**
+     * Runs the mapping through Flink, which is how the platform actually executes (spec 5).
+     *
+     * <p>The pipeline is built inside the operator, so its collaborators must be constructible
+     * there rather than handed across the job graph. Quarantine therefore goes to a file and events
+     * to the log: an in-memory sink in the driver would collect nothing, and a quarantined record
+     * that vanished would be exactly the silent drop 4.2 rules out.
+     *
+     * <p>Identity resolution gets a fresh index per operator, which is correct at parallelism one
+     * and would need a shared index above it. Recorded rather than hidden: the engine pins
+     * parallelism to one today.
+     */
+    private long mapThroughFlink(
+            ParquetBronzeStore bronze,
+            String sourceId,
+            BronzeRange range,
+            ArtifactSet artifacts,
+            Path quarantineDirectory) throws Exception {
+
+        List<RawEnvelope> envelopes;
+        try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
+            envelopes = landed.toList();
+        }
+
+        var definition = artifacts.mapping();
+        var contracts = artifacts.contractsByHop();
+        var canonicalTypes = artifacts.canonicalTypes();
+        String id = runId;
+        // Captured as text, not as a Path: Flink serialises the closure, and a platform Path
+        // implementation is not Serializable. The Path is rebuilt inside the operator.
+        String quarantinePath = quarantineDirectory.toAbsolutePath().toString();
+
+        MappingPipelineFactory factory = () -> new MappingPipeline(
+                definition,
+                contracts,
+                Map.of(DeterministicResolutionProvider.PROVIDER_ID, new IndexedResolutionProvider(
+                        new DeterministicResolutionProvider(new InMemoryClusterIndex()),
+                        new InMemoryClusterIndex())),
+                canonicalTypes,
+                new FileQuarantineSink(Path.of(quarantinePath), id),
+                new LoggingObservabilityEmitter());
+
+        JobOptions options = webUi
+                ? JobOptions.withDashboard(mode, webPort, java.time.Duration.ofMillis(paceMillis))
+                : new JobOptions(mode, null, java.time.Duration.ofMillis(paceMillis));
+
+        if (webUi) {
+            System.out.printf("Flink dashboard: http://localhost:%d  (available while the run executes)%n",
+                    webPort);
+        }
+
+        List<Record> canonical = FlinkMappingJob.run(factory, envelopes, options, runId);
+
+        if (canonicalOut != null) {
+            try (BufferedWriter out = Files.newBufferedWriter(canonicalOut, StandardCharsets.UTF_8)) {
+                for (Record record : canonical) {
+                    out.write(json.writeValueAsString(asJson(record)));
+                    out.newLine();
+                }
+            }
+        }
+        System.out.printf("Quarantine (if any) written under %s.%n", quarantineDirectory);
+        return canonical.size();
     }
 
     private long mapLanded(
@@ -204,6 +322,26 @@ final class RunCommand implements Callable<Integer> {
                 out.newLine();
             }
         }
+    }
+
+    /**
+     * Summary for a run whose pipeline lived inside operators.
+     *
+     * <p>Reports only what the driver can actually know. The recorder and the cluster index were
+     * constructed inside the operator, so the driver saw no events and no clusters -- and printing
+     * "No contract violations" on the strength of that would be a lie of exactly the kind this
+     * platform exists to prevent. The counts an operator needs are in the event stream and the
+     * quarantine file, and this says so.
+     */
+    private void summariseDistributed(long canonicalCount) {
+        System.out.printf("Mapped %d canonical record(s).%n", canonicalCount);
+        System.out.println("Violations and cluster counts are not visible from the driver on this "
+                + "engine: contract violations are in the event stream above, and quarantined "
+                + "records are in the quarantine file named earlier.");
+        if (canonicalOut != null) {
+            System.out.printf("Canonical records written to %s.%n", canonicalOut);
+        }
+        System.out.println("Silver was not written: the canonical store is not built yet (ADR 0005).");
     }
 
     private void summarise(
