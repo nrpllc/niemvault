@@ -35,7 +35,13 @@
 
   <!-- Storage and runtime libraries: warnings and above only. -->
   <logger name="org.apache.parquet" level="WARN"/>
-  <logger name="org.apache.hadoop" level="WARN"/>
+  <!--
+    Hadoop is on the classpath because Parquet's API signatures reference it, but no Hadoop
+    filesystem is ever constructed (ADR 0005). Its Shell class still warns "Did not find
+    winutils.exe" on Windows during static init, which is alarming, irrelevant, and the first
+    thing an operator would chase. Silenced deliberately, not by accident.
+  -->
+  <logger name="org.apache.hadoop" level="ERROR"/>
   <logger name="org.apache.avro" level="WARN"/>
   <logger name="org.apache.flink" level="WARN"/>
   <logger name="org.apache.iceberg" level="WARN"/>

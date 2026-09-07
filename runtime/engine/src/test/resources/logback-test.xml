@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test logging for the engine.
+
+  Embedded Flink logs its cluster lifecycle at INFO -- mini cluster startup, task executor
+  shutdown, file merging managers -- once per test and once per shutdown hook. It buries the
+  assertion output, and in the demo it buries the criterion 7 result entirely. Warnings and above
+  are still shown, so a genuine Flink problem is not hidden.
+-->
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss} %-5level %logger{24} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="org.apache.flink" level="WARN"/>
+  <logger name="org.apache.hadoop" level="ERROR"/>
+  <logger name="org.apache.parquet" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
