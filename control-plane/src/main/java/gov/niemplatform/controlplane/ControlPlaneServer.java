@@ -263,6 +263,33 @@ public final class ControlPlaneServer implements AutoCloseable {
                 step.options().forEach(options::put);
                 stepNode.put("scratch", hop.scratch().contains(step.target()));
             }
+
+            // The field-level flow travels with the hop. It is what the canvas draws, and computing
+            // it here rather than in the browser keeps the single-assignment rule -- the thing that
+            // makes a re-assigned target a chain instead of a cycle -- somewhere it can be tested.
+            entry.set("graph", graph(FieldGraph.of(definition, hop.hopId())));
+        }
+        return node;
+    }
+
+    private ObjectNode graph(FieldGraph graph) {
+        ObjectNode node = json.createObjectNode();
+        ArrayNode nodes = node.putArray("nodes");
+        for (FieldGraph.Node graphNode : graph.nodes()) {
+            ObjectNode entry = nodes.addObject();
+            entry.put("id", graphNode.id());
+            entry.put("kind", graphNode.kind().name().toLowerCase(java.util.Locale.ROOT));
+            entry.put("label", graphNode.label());
+            entry.put("detail", graphNode.detail());
+            entry.put("step", graphNode.stepIndex());
+            entry.put("terminal", graphNode.terminal());
+        }
+        ArrayNode edges = node.putArray("edges");
+        for (FieldGraph.Edge edge : graph.edges()) {
+            ObjectNode entry = edges.addObject();
+            entry.put("from", edge.from());
+            entry.put("to", edge.to());
+            entry.put("label", edge.label());
         }
         return node;
     }

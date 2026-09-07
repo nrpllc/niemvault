@@ -48,17 +48,26 @@ without a platform build (spec §5). Author one against the module's real contra
 ```
 
 That serves the authoring surface on `http://localhost:8088` — loopback only, since Phase 1 has no
-authentication beyond a stub (§8). The flow is drawn from source through every hop to the canonical
-records it emits; clicking a hop opens the steps that produce it. Steps are edited in place —
-transform, inputs, options, order — or as YAML, and either way the mapping is revalidated on every
-change and the graph redrawn.
+authentication beyond a stub (§8).
 
-Three things about it are deliberate:
+The mapping is drawn twice. The strip along the top is the whole mapping: source, each step, and the
+canonical record each one emits. Clicking a step opens it on the canvas below as the field flow it
+is — source columns in, transforms, canonical fields out, and what decides the record's identity.
+Selecting a transform there shows what it writes, what it reads, and its settings; those are edited
+in the panel, inputs are wired by dragging between the dots on each box, and steps are added from
+the rail. **Authoring a mapping does not require reading or writing YAML.** The source is still
+there, folded away at the bottom, because someone will eventually want it.
+
+Four things about it are deliberate:
 
 - **It does not carry its own validators.** Every check comes from the loaders the runtime itself
   uses (ADR 0021), so a mapping the editor accepts is a mapping the pipeline will load. A second
   validator would eventually disagree with the first, and the disagreement would surface at deploy.
-- **Form edits patch the text; they never regenerate it.** Changing a step's transform rewrites the
+- **The canvas is drawn in single-assignment form.** Steps assign in order and a later step may read
+  what an earlier one wrote, so a target written twice becomes a chain of nodes rather than one node
+  pointing at itself. Without that the picture would contain a cycle, which is both false and
+  impossible to lay out.
+- **Edits patch the text; they never regenerate it.** Changing a step's transform rewrites the
   one line that names it. Rewriting the document from the parsed model would be less code and would
   delete every comment in the file — and the comments are where the reasoning behind each step
   lives, the most expensive thing in a mapping to reconstruct.

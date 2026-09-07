@@ -21,37 +21,49 @@
 </header>
 
 <section class="flow-strip">
-  <h2>Data flow<span class="hint">source, hops, and the canonical records each one emits</span></h2>
+  <h2>Mapping<span class="hint">click a step to open the fields it maps</span></h2>
   <div id="dag" class="dag-frame"></div>
 </section>
 
 <main>
-  <nav class="rail" aria-label="Mappings">
+  <nav class="rail" aria-label="Mappings and tools">
     <h2>Mappings</h2>
     <ul id="mapping-list"></ul>
+
+    <h2>Add a transform</h2>
+    <p class="detail">Adds a step to the open mapping step. Wire its input on the canvas.</p>
+    <ul id="palette" class="palette"></ul>
 
     <h2>Source columns</h2>
     <ul id="column-list" class="columns"></ul>
   </nav>
 
-  <section class="editor">
-    <div class="editor-head">
-      <h2>Flow</h2>
-      <p class="detail">
-        Edit the YAML below. Everything is validated by the same loaders the runtime uses, so a
-        mapping this accepts is a mapping the pipeline will load.
-      </p>
+  <section class="stage">
+    <div class="stage-head">
+      <h2 id="stage-title">Field flow</h2>
+      <button id="relayout" type="button" class="ghost inline">Tidy layout</button>
     </div>
-    <textarea id="yaml" spellcheck="false" aria-label="Mapping definition"></textarea>
-    <div id="problems" class="problems" role="status" aria-live="polite"></div>
+    <div id="canvas" class="canvas-frame"></div>
   </section>
 
-  <section class="preview">
-    <h2>Hops</h2>
-    <div id="hops"></div>
-  </section>
+  <aside class="inspector" aria-label="Selected item">
+    <h2 id="inspector-title">Nothing selected</h2>
+    <div id="inspector"></div>
+
+    <h2>Problems</h2>
+    <div id="problems" role="status" aria-live="polite"></div>
+  </aside>
 </main>
 
-<script src="app.js"></script>
+<details class="source">
+  <summary>Mapping source (YAML)</summary>
+  <p class="detail">
+    The artifact on disk. Editing here does the same thing the canvas does — both are checked by
+    the same loaders the runtime uses.
+  </p>
+  <textarea id="yaml" spellcheck="false" aria-label="Mapping definition"></textarea>
+</details>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>

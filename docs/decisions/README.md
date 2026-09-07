@@ -31,3 +31,4 @@ deciding stated) · **Superseded**.
 | [0019](0019-catalogue-source-vocabulary.md) | The catalogue documents each source's own vocabulary | Deferred |
 | [0020](0020-control-plane-boundary.md) | The control plane's boundary, and the domain module contract | Accepted |
 | [0021](0021-control-plane-is-jvm.md) | The control plane is JVM | Accepted |
+| [0022](0022-flow-layout-is-computed.md) | Node layout is computed, never stored in the mapping | Accepted |

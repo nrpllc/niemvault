@@ -267,7 +267,7 @@ class AuthoringSurfaceTest {
         @Test
         @DisplayName("serves the page and its assets from the jar, and nothing else")
         void servesTheUi() throws Exception {
-            for (String asset : new String[] {"/", "/app.css", "/app.js"}) {
+            for (String asset : new String[] {"/", "/app.css", "/app.js", "/canvas.js"}) {
                 assertThat(get(asset).statusCode()).as(asset).isEqualTo(200);
             }
             assertThat(get("/../build.gradle.kts").statusCode()).isEqualTo(404);

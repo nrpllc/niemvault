@@ -139,6 +139,12 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   less code and would delete every comment in the file -- which is where the reasoning behind each
   step lives. Do not "simplify" it into a dump-and-reload. The tests assert on comment counts and
   line counts for exactly this reason.
+- **The field flow is built server-side, in `FieldGraph`, in single-assignment form.** A hop's steps
+  assign in order and later steps read earlier results -- `surName` is produced by a split and then
+  consumed by an upper. One node per *name* would make that a cycle. Each write gets its own node
+  and each read binds to the most recent earlier write. Do not "simplify" it to one node per field.
+- **Node coordinates are never written to a mapping** -- [ADR 0022](docs/decisions/0022-flow-layout-is-computed.md).
+  Layout is recomputed; dragging is session-only.
 - **The control plane carries no validators of its own** -- ADR 0020/0021. `/api/validate` and
   `/api/edit` both call `MappingLoader`, `TransformFactory`, `ContractLoader` and
   `ModuleManifestLoader`. If a check is missing from the editor, add it to the loader, never to the
@@ -188,7 +194,8 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Replay driver (§5) — criterion 6 proved
 - [x] LE module fixtures and mappings
 - [x] Operator CLI: `validate`, `describe`, `author`, `run`, `replay`, `inspect` — all of §8's list
-- [x] Mapping authoring surface (§4.8, ADR 0021): live DAG, editable steps, versioned save
+- [x] Mapping authoring surface (§4.8, ADR 0021): field-level flow canvas, direct editing,
+      versioned save. No YAML required to author a mapping.
 - [x] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)
 

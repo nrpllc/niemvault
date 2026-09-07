@@ -1,6 +1,6 @@
 /* Mapping authoring surface.
-   Same visual identity as the published diagrams: cool paper biased green-grey, deep teal for the
-   flow, burnt amber reserved for divergence. Served from the platform's own resources -- no CDN,
+   Cool paper biased green-grey, deep teal for the flow, burnt amber reserved for divergence -- the
+   same visual identity as the published diagrams. Served from the platform's own resources: no CDN,
    no webfont, no build step, because spec section 6 makes air-gapped delivery mandatory. */
 
 :root {
@@ -14,9 +14,10 @@
   --divert: #A8481A;
   --divert-soft: #F7E9E1;
   --provenance: #454A80;
+  --scratch: #7A6B4F;
+  --scratch-soft: #F2EDE2;
 
   --display: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
-  --prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,7 +32,24 @@
     --divert: #E28A56;
     --divert-soft: #2C1B12;
     --provenance: #9BA0DE;
+    --scratch: #C6B189;
+    --scratch-soft: #241E14;
   }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0B1114;
+  --card: #121A1D;
+  --ink: #E6EDEB;
+  --slate: #93A3A5;
+  --hairline: #233034;
+  --flow: #5BC6BC;
+  --flow-soft: #11302E;
+  --divert: #E28A56;
+  --divert-soft: #2C1B12;
+  --provenance: #9BA0DE;
+  --scratch: #C6B189;
+  --scratch-soft: #241E14;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -43,12 +61,12 @@ body {
   font-family: var(--display);
   font-size: 14px;
   line-height: 1.5;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* --- masthead ----------------------------------------------------------- */
+/* --- masthead ------------------------------------------------------------ */
 
 .masthead {
   display: flex;
@@ -59,6 +77,7 @@ body {
   border-bottom: 1px solid var(--hairline);
   background: var(--card);
   flex-wrap: wrap;
+  flex: none;
 }
 
 .eyebrow {
@@ -70,7 +89,7 @@ body {
 }
 
 h1 { font-size: 1.05rem; font-weight: 600; margin: 0.15rem 0 0; }
-.detail { color: var(--slate); font-size: 0.78rem; margin: 0.2rem 0 0; }
+.detail { color: var(--slate); font-size: 0.76rem; margin: 0.2rem 0 0; }
 
 .actions { display: flex; align-items: center; gap: 0.7rem; }
 
@@ -100,42 +119,15 @@ button {
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--provenance); outline-offset: 2px; }
 
-/* --- layout ------------------------------------------------------------- */
-
-/* The flow spans the window. It is what is being authored, and a mapping that has to be scrolled
-   sideways to be read end to end defeats the point of drawing it at all. */
-.flow-strip {
-  flex: none;
-  padding: 0.9rem 1.1rem 1rem;
-  border-bottom: 1px solid var(--hairline);
-  background: var(--paper);
-}
-
-.flow-strip h2 { display: flex; align-items: baseline; gap: 0.7rem; }
-
-.hint {
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: 0.72rem;
+button.ghost {
+  background: transparent;
   color: var(--slate);
-  opacity: 0.85;
+  border: 1px solid var(--hairline);
 }
 
-main {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 15rem minmax(0, 1.15fr) minmax(0, 1fr);
-  min-height: 0;
-}
-
-@media (max-width: 68rem) {
-  main { grid-template-columns: minmax(0, 1fr); }
-  body { height: auto; }
-}
-
-main > * { overflow: auto; padding: 1rem 1.1rem; min-width: 0; }
-.rail { border-right: 1px solid var(--hairline); }
-.editor { border-right: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 0.7rem; }
+button.ghost:hover { color: var(--flow); border-color: var(--flow); }
+button.ghost.danger:hover { color: var(--divert); border-color: var(--divert); }
+button.ghost.inline { padding: 0.2rem 0.55rem; font-size: 0.7rem; }
 
 h2 {
   font-size: 0.66rem;
@@ -146,9 +138,82 @@ h2 {
   margin: 0 0 0.5rem;
 }
 
-.rail h2:not(:first-child) { margin-top: 1.4rem; }
+.hint {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 0.72rem;
+  color: var(--slate);
+  opacity: 0.85;
+  margin-left: 0.7rem;
+}
 
-/* --- mapping list ------------------------------------------------------- */
+/* --- the mapping strip ---------------------------------------------------- */
+
+.flow-strip {
+  flex: none;
+  padding: 0.8rem 1.1rem 0.9rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--paper);
+}
+
+.dag-frame {
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  padding: 0.4rem;
+  overflow: auto;
+  max-height: 30vh;
+  display: flex;
+  justify-content: safe center;
+}
+
+svg.dag { display: block; max-width: none; flex: none; }
+
+.dag-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1; }
+.dag-node--source rect { stroke: var(--slate); }
+.dag-node--hop rect { stroke: var(--flow); stroke-width: 1.5; }
+.dag-node--canonical rect { fill: var(--flow-soft); stroke: var(--flow); }
+
+/* A hop node is the way into its fields, so it advertises that it can be clicked. */
+.dag-node[data-hop] { cursor: pointer; }
+.dag-node[data-hop]:hover rect { stroke-width: 2.5; }
+.dag-node--hop.is-selected rect { fill: var(--flow-soft); stroke-width: 2.5; }
+
+.dag-title { font-family: var(--display); font-size: 12px; font-weight: 600; fill: var(--ink); }
+.dag-subtitle { font-family: var(--display); font-size: 10px; fill: var(--slate); }
+.dag-edge { fill: none; stroke: var(--slate); stroke-width: 1.2; }
+.dag-edge--identity { stroke: var(--provenance); stroke-dasharray: 4 3; }
+.dag-arrow { fill: var(--slate); }
+.dag-edge-label { font-family: var(--display); font-size: 9px; fill: var(--slate); }
+
+/* --- layout --------------------------------------------------------------- */
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr) 18rem;
+  min-height: 0;
+}
+
+/* Held to three panes as far down as it will go. Stacking puts the canvas below a long list of
+   transforms, and a flow tool whose flow is off-screen is not a flow tool. */
+@media (max-width: 56rem) {
+  main { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (min-width: 56rem) and (max-width: 76rem) {
+  main { grid-template-columns: 10rem minmax(0, 1fr) 14rem; }
+}
+
+main > * { overflow: auto; padding: 0.9rem 1rem; min-width: 0; }
+.rail { border-right: 1px solid var(--hairline); }
+.inspector { border-left: 1px solid var(--hairline); background: var(--card); }
+.rail h2:not(:first-child), .inspector h2:not(:first-child) { margin-top: 1.3rem; }
+
+.stage { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 1rem; }
+.stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.stage-head h2 { margin: 0; color: var(--ink); font-size: 0.8rem; letter-spacing: 0.04em; text-transform: none; }
+
+/* --- rail ----------------------------------------------------------------- */
 
 .rail ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 
@@ -158,7 +223,7 @@ h2 {
   background: transparent;
   color: var(--ink);
   border: 1px solid transparent;
-  padding: 0.4rem 0.5rem;
+  padding: 0.35rem 0.45rem;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
@@ -169,7 +234,19 @@ h2 {
 .rail li .version { font-size: 0.68rem; color: var(--slate); }
 .rail li button.broken { color: var(--divert); }
 
-.columns { flex-direction: row !important; flex-wrap: wrap; gap: 0.25rem !important; }
+.palette, .columns { flex-direction: row !important; flex-wrap: wrap; gap: 0.25rem !important; }
+
+.palette button.chip {
+  width: auto;
+  font-size: 0.68rem;
+  padding: 0.12rem 0.4rem;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--flow);
+  flex-direction: row;
+}
+
+.palette button.chip:hover { border-color: var(--flow); background: var(--flow-soft); }
 
 .columns li {
   font-size: 0.68rem;
@@ -178,34 +255,105 @@ h2 {
   padding: 0.1rem 0.35rem;
 }
 
-/* --- editor ------------------------------------------------------------- */
+/* --- the canvas ----------------------------------------------------------- */
 
-.editor-head { flex: none; }
-
-textarea {
+.canvas-frame {
   flex: 1;
   min-height: 22rem;
-  resize: vertical;
-  font-family: var(--display);
-  font-size: 0.78rem;
-  line-height: 1.55;
-  tab-size: 2;
-  padding: 0.8rem;
   border: 1px solid var(--hairline);
   background: var(--card);
-  color: var(--ink);
+  /* A large flow scrolls inside its own frame; the page never scrolls sideways. */
+  overflow: auto;
+  /* A faint grid: it reads as a work surface, and it makes dragging legible. */
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--hairline) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--hairline) 45%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
-textarea:focus-visible { outline: 2px solid var(--flow); outline-offset: -1px; }
+svg.canvas {
+  display: block;
+  touch-action: none;
+  /* Dragging a node must not sweep a text selection across the labels. */
+  user-select: none;
+  -webkit-user-select: none;
+}
 
-.problems { flex: none; display: flex; flex-direction: column; gap: 0.3rem; }
+.canvas-node { cursor: grab; }
+.canvas-node:active { cursor: grabbing; }
+.canvas-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1.5; }
+.canvas-label { font-family: var(--display); font-size: 12px; font-weight: 600; fill: var(--ink); }
+.canvas-detail { font-family: var(--display); font-size: 10px; fill: var(--slate); }
+
+/* Shape carries meaning before colour does: transforms are square, values are rounded. */
+.canvas-node--column rect { fill: var(--flow-soft); stroke: var(--flow); }
+.canvas-node--transform rect { stroke: var(--flow); stroke-width: 2; }
+.canvas-node--field rect { fill: var(--card); stroke: var(--slate); stroke-dasharray: 4 3; }
+.canvas-node--field.is-terminal rect { fill: var(--flow-soft); stroke: var(--flow); stroke-dasharray: none; }
+.canvas-node--scratch rect { fill: var(--scratch-soft); stroke: var(--scratch); stroke-dasharray: 4 3; }
+.canvas-node--identity rect { fill: transparent; stroke: var(--provenance); stroke-width: 2; }
+.canvas-node--unbound rect { fill: var(--divert-soft); stroke: var(--divert); stroke-width: 2; }
+.canvas-node--unbound .canvas-label, .canvas-node--unbound .canvas-detail { fill: var(--divert); }
+
+.canvas-node.is-selected rect { stroke-width: 3; }
+.canvas-node:hover rect { stroke-width: 2.5; }
+
+.canvas-port { fill: var(--card); stroke: var(--flow); stroke-width: 1.5; cursor: crosshair; }
+.canvas-port--in { stroke: var(--slate); }
+.canvas-node:hover .canvas-port { fill: var(--flow); }
+
+.canvas-edge-line { fill: none; stroke: var(--slate); stroke-width: 1.4; }
+.canvas-edge-hit { fill: none; stroke: transparent; stroke-width: 12; }
+.canvas-edge.is-detachable { cursor: not-allowed; }
+.canvas-edge.is-detachable:hover .canvas-edge-line,
+.canvas-edge.is-detachable:focus-visible .canvas-edge-line {
+  stroke: var(--divert);
+  stroke-width: 2.4;
+}
+.canvas-edge:focus-visible { outline: none; }
+.canvas-arrow { fill: var(--slate); }
+
+.canvas-wire { fill: none; stroke: var(--flow); stroke-width: 2; stroke-dasharray: 5 4; }
+
+/* --- inspector ------------------------------------------------------------ */
+
+#inspector-title {
+  color: var(--ink);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.field { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.55rem; }
+.field > span { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); }
+
+.field input, .field select {
+  font-family: var(--display);
+  font-size: 0.76rem;
+  padding: 0.28rem 0.4rem;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  color: var(--ink);
+  width: 100%;
+}
+
+.field input:focus-visible, .field select:focus-visible {
+  outline: none;
+  border-color: var(--flow);
+}
+
+.inspector-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.8rem 0 0.4rem; }
+.inspector-actions button { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+
+#problems { display: flex; flex-direction: column; gap: 0.3rem; }
 
 .problem {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   background: var(--divert-soft);
   color: var(--divert);
   border-left: 3px solid var(--divert);
-  padding: 0.4rem 0.6rem;
+  padding: 0.4rem 0.55rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -216,127 +364,38 @@ textarea:focus-visible { outline: 2px solid var(--flow); outline-offset: -1px; }
   border-left-color: var(--flow);
 }
 
-/* --- dag ---------------------------------------------------------------- */
+/* --- the source, folded away ---------------------------------------------- */
 
-.dag-frame {
-  border: 1px solid var(--hairline);
+.source {
+  flex: none;
+  border-top: 1px solid var(--hairline);
   background: var(--card);
-  padding: 0.5rem;
-  /* Wide or deep graphs scroll inside the frame, never the page. Capped so the editor is still
-     on screen on a laptop: a preview that pushes the thing being edited below the fold is a
-     worse trade than a preview that has to be scrolled. */
-  overflow: auto;
-  max-height: 42vh;
-  /* Centred when it fits, left-aligned when it does not: a three-hop mapping should not sit in
-     the corner of an empty strip, and a twenty-hop one should start at its source. */
-  display: flex;
-  justify-content: safe center;
+  padding: 0.6rem 1.1rem 0.9rem;
 }
 
-svg.dag { display: block; max-width: none; flex: none; }
-
-.dag-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1; }
-.dag-node--source rect { stroke: var(--slate); }
-.dag-node--hop rect { stroke: var(--flow); stroke-width: 1.5; }
-
-/* A hop node is a way into its steps, so it advertises that it can be clicked. */
-.dag-node[data-hop] { cursor: pointer; }
-.dag-node[data-hop]:hover rect { stroke-width: 2.5; }
-.dag-node--hop.is-selected rect { fill: var(--flow-soft); stroke-width: 2.5; }
-.dag-node--canonical rect { fill: var(--flow-soft); stroke: var(--flow); }
-
-.dag-title { font-family: var(--display); font-size: 12px; font-weight: 600; fill: var(--ink); }
-.dag-subtitle { font-family: var(--display); font-size: 10px; fill: var(--slate); }
-
-.dag-edge { fill: none; stroke: var(--slate); stroke-width: 1.2; }
-.dag-edge--identity { stroke: var(--provenance); stroke-dasharray: 4 3; }
-.dag-arrow { fill: var(--slate); }
-.dag-edge-label { font-family: var(--display); font-size: 9px; fill: var(--slate); }
-
-/* --- hop cards ---------------------------------------------------------- */
-
-.hop {
-  border: 1px solid var(--hairline);
-  background: var(--card);
-  padding: 0.7rem 0.85rem;
-  margin-bottom: 0.7rem;
-  border-left: 3px solid transparent;
+.source summary {
+  cursor: pointer;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slate);
 }
 
-.hop.is-selected { border-left-color: var(--flow); background: var(--flow-soft); }
-.hop h3 { font-size: 0.85rem; margin: 0 0 0.15rem; font-weight: 600; }
-.hop .meta { font-size: 0.7rem; color: var(--slate); margin: 0 0 0.5rem; }
+.source summary:focus-visible { outline: 2px solid var(--provenance); outline-offset: 2px; }
 
-/* --- step rows ---------------------------------------------------------- */
-
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-
-.step {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 8.5rem minmax(0, 1fr) auto;
-  gap: 0.3rem;
-  align-items: center;
-  padding: 0.15rem 0;
-}
-
-/* Scratch targets never reach the output record, so they read as what they are: working values,
-   not fields of the canonical type. */
-.step.scratch .target { font-style: italic; opacity: 0.75; }
-
-.step input, .step select {
+.source textarea {
+  width: 100%;
+  height: 20rem;
+  margin-top: 0.5rem;
+  resize: vertical;
   font-family: var(--display);
-  font-size: 0.73rem;
-  padding: 0.16rem 0.3rem;
-  border: 1px solid transparent;
-  background: transparent;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  tab-size: 2;
+  padding: 0.7rem;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
   color: var(--ink);
-  min-width: 0;
-  width: 100%;
 }
 
-/* Quiet until touched: a hop with ten steps should read as a list, not a form. */
-.step input:hover, .step select:hover { border-color: var(--hairline); }
-.step input:focus-visible, .step select:focus-visible {
-  outline: none;
-  border-color: var(--flow);
-  background: var(--card);
-}
-
-.step .type { color: var(--flow); }
-.step .from { color: var(--slate); }
-
-.row-actions { display: flex; gap: 0.1rem; opacity: 0; }
-.step:hover .row-actions, .step:focus-within .row-actions { opacity: 1; }
-
-button.icon {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--slate);
-  font-size: 0.72rem;
-  line-height: 1;
-  padding: 0.2rem 0.32rem;
-}
-
-button.icon:hover { color: var(--ink); border-color: var(--hairline); }
-
-.options {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  padding: 0 0 0.2rem 0.3rem;
-}
-
-.option { display: flex; align-items: center; gap: 0.25rem; }
-.option > span { font-size: 0.66rem; color: var(--slate); }
-.option input { width: auto; min-width: 4rem; border-color: var(--hairline); }
-
-button.ghost {
-  background: transparent;
-  color: var(--slate);
-  border: 1px dashed var(--hairline);
-  width: 100%;
-  margin-top: 0.35rem;
-}
-
-button.ghost:hover { color: var(--flow); border-color: var(--flow); }
+.source textarea:focus-visible { outline: 2px solid var(--flow); outline-offset: -1px; }
