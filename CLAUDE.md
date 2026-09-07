@@ -169,7 +169,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [ ] Graph projection to Neo4j (§4.6)
 - [ ] Replay driver (§5)
 - [x] LE module fixtures and mappings
-- [ ] Operator CLI: `validate`, `run`, `replay`, `inspect`
+- [x] Operator CLI: `validate`, `run`, `inspect` — `replay` awaits the silver store
 - [ ] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)
 
