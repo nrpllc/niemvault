@@ -155,6 +155,14 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
   audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
   Service.
+- **An H2 Iceberg catalogue is write-once unless `DATABASE_TO_LOWER=TRUE`.** H2 folds unquoted
+  identifiers to upper case, so Iceberg looks for `iceberg_tables`, is told it does not exist, and
+  issues `CREATE TABLE` -- which fails. `IcebergCanonicalStoreConfig` appends the setting for H2
+  URIs only. Without it the second `niem run` against the same catalogue fails, which every test
+  missed for as long as they each used a fresh catalogue.
+- **An H2 *file* catalogue is single-process.** One JVM holding it locks the file. Fine for the
+  chart, whose ingest CronJob is `concurrencyPolicy: Forbid`; use PostgreSQL for anything else.
+  Never set `DB_CLOSE_DELAY=-1` on a file database -- it holds the lock until the JVM exits.
 - **`run` appends to silver; `replay` drops and rewrites it.** Same store, opposite obligations.
   Appending on replay would double every record it reprocessed and make criterion 6 unprovable.
 - **An advisor never sees a record value** -- [ADR 0023](docs/decisions/0023-mapping-advisor.md).

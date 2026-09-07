@@ -68,6 +68,9 @@ storage:
   silver:
     # Empty means canonical records are mapped and discarded, and every run says so out loud.
     enabled: false
+    # An H2 *file* catalogue is single-process -- one JVM holds the file lock -- which the ingest
+    # CronJob's concurrencyPolicy: Forbid respects, but nothing else will. Use PostgreSQL for any
+    # deployment where more than one thing opens the catalogue.
     catalogUri: ""         # e.g. jdbc:postgresql://catalog/niem
     warehouse: ""          # e.g. s3://silver/warehouse
     catalogName: niem

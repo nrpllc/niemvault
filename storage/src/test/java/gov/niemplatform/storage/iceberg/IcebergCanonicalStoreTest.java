@@ -157,6 +157,31 @@ class IcebergCanonicalStoreTest {
     }
 
     @Test
+    @DisplayName("a catalogue can be opened again, which a scheduled ingest does every time")
+    void catalogueReopens() {
+        // Every other test here uses a fresh catalogue, which hid a real defect for a long time:
+        // H2 folds unquoted identifiers to upper case, so Iceberg looked for `iceberg_tables`, was
+        // told it did not exist, and issued CREATE TABLE -- which failed, because it did. The store
+        // was write-once, and the second `niem run` against the same catalogue would have failed.
+        String uri = "jdbc:h2:mem:reopen" + (catalogSequence++) + ";DB_CLOSE_DELAY=-1";
+        String warehouse = "s3://" + BUCKET + "/reopen-" + catalogSequence;
+        CanonicalTypeDescriptor person = personType();
+
+        try (var first = new IcebergCanonicalStore(new IcebergCanonicalStoreConfig(
+                "silver", uri, warehouse, MINIO.getS3URL(), ACCESS_KEY, SECRET_KEY, "us-east-1"))) {
+            first.ensureTable(person);
+            first.append(person, List.of(person("C-1", "DOE")));
+        }
+
+        try (var second = new IcebergCanonicalStore(new IcebergCanonicalStoreConfig(
+                "silver", uri, warehouse, MINIO.getS3URL(), ACCESS_KEY, SECRET_KEY, "us-east-1"))) {
+            assertThat(second.count(person)).as("what the first open wrote is still there").isEqualTo(1);
+            second.append(person, List.of(person("C-2", "ROE")));
+            assertThat(second.count(person)).as("the second open appends, it does not replace").isEqualTo(2);
+        }
+    }
+
+    @Test
     @DisplayName("a canonical record survives a round trip through silver unchanged")
     void roundTripIsFaithful() {
         CanonicalTypeDescriptor person = personType();

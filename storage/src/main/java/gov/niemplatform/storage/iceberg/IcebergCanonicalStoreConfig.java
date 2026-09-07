@@ -41,7 +41,7 @@ public record IcebergCanonicalStoreConfig(
         Map<String, String> properties = new LinkedHashMap<>();
         properties.put(org.apache.iceberg.CatalogProperties.CATALOG_IMPL,
                 org.apache.iceberg.jdbc.JdbcCatalog.class.getName());
-        properties.put(org.apache.iceberg.CatalogProperties.URI, jdbcUri);
+        properties.put(org.apache.iceberg.CatalogProperties.URI, reopenable(jdbcUri));
         properties.put(org.apache.iceberg.CatalogProperties.WAREHOUSE_LOCATION, warehouse);
         properties.put(org.apache.iceberg.CatalogProperties.FILE_IO_IMPL,
                 org.apache.iceberg.aws.s3.S3FileIO.class.getName());
@@ -66,6 +66,31 @@ public record IcebergCanonicalStoreConfig(
      * <p>Named {@code endpoint} rather than {@code s3Endpoint} because a record component's
      * accessor must return the component's own type, and this narrows it to an Optional.
      */
+    /**
+     * Makes an H2 catalogue survive being opened a second time.
+     *
+     * <p>H2 folds unquoted identifiers to upper case, so Iceberg's {@code iceberg_tables} is stored
+     * as {@code ICEBERG_TABLES}. On the next open, Iceberg asks {@code DatabaseMetaData.getTables}
+     * for the lower-case name, is told it does not exist, and issues {@code CREATE TABLE} — which
+     * fails, because it does. The catalogue is therefore write-once unless H2 is told to keep
+     * identifiers as written.
+     *
+     * <p>That is not a test detail. It means a second {@code niem run} against the same catalogue
+     * fails, which is the normal case for a scheduled ingest and was invisible for as long as every
+     * check used a fresh catalogue.
+     *
+     * <p>Only H2 is touched, only when the setting is absent, and nothing else in the URI is
+     * altered. A JDBC URI is the operator's to write; this adds the one parameter without which the
+     * platform cannot use it correctly, rather than silently producing a store that works once.
+     */
+    private static String reopenable(String uri) {
+        if (!uri.startsWith("jdbc:h2:")
+                || uri.toUpperCase(java.util.Locale.ROOT).contains("DATABASE_TO_LOWER")) {
+            return uri;
+        }
+        return uri + (uri.endsWith(";") ? "" : ";") + "DATABASE_TO_LOWER=TRUE";
+    }
+
     public Optional<String> endpoint() {
         return Optional.ofNullable(s3Endpoint).filter(value -> !value.isBlank());
     }

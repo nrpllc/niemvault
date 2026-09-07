@@ -23,6 +23,13 @@ dependencies {
     // The CLI's tests drive it against the artifacts the law enforcement module ships, so a
     // broken contract or mapping fails here as well as in that module's own tests.
     testImplementation(project(":modules:law-enforcement"))
+
+    // An ingest reaching silver needs a real object store. Tagged "docker" and excluded from the
+    // everyday loop; run with -Pdocker.
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.minio)
+    testImplementation(libs.aws.s3)
 }
 
 // The platform version has to reach the running CLI, because content declares the range it
@@ -48,6 +55,21 @@ tasks.named<Jar>("jar") {
 application {
     applicationName = "niem"
     mainClass.set("gov.niemplatform.cli.NiemCli")
+}
+
+/**
+ * One test runs the installed binary in its own process.
+ *
+ * The bugs it guards against lived in the start script and the JVM flags, neither of which exists
+ * when a test calls a method, and it needs a real environment to deliver the object store secret the
+ * way production does. So it needs the distribution to exist and to know where it is.
+ */
+tasks.named<Test>("test") {
+    dependsOn(tasks.named("installDist"))
+    systemProperty(
+        "niem.install.dir",
+        layout.buildDirectory.dir("install/niem").get().asFile.absolutePath,
+    )
 }
 
 /**
