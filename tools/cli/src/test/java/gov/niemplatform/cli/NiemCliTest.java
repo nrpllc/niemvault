@@ -77,6 +77,9 @@ class NiemCliTest {
         Files.createDirectories(module.resolve("mappings"));
         Files.createDirectories(module.resolve("contracts"));
 
+        // Every domain module ships a manifest declaring its compatibility range (spec section 7),
+        // and validate refuses a module without one.
+        copyResource("/module.yaml", module.resolve("module.yaml"));
         copyResource("/mappings/cad-to-canonical-1.0.0.yaml",
                 module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml"));
         for (String contract : List.of(

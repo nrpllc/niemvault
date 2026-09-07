@@ -1,5 +1,8 @@
 package gov.niemplatform.cli;
 
+import gov.niemplatform.content.ContentCompatibilityException;
+import gov.niemplatform.content.ModuleManifest;
+import gov.niemplatform.content.ModuleManifestLoader;
 import gov.niemplatform.contracts.ContractLoadException;
 import gov.niemplatform.runtime.engine.HopDefinition;
 import gov.niemplatform.runtime.engine.MappingDefinition;
@@ -47,6 +50,23 @@ final class ValidateCommand implements Callable<Integer> {
         List<String> problems = new ArrayList<>();
         if (!Files.isDirectory(module)) {
             System.err.println("Not a directory: " + module);
+            return 1;
+        }
+
+        // Compatibility first, before any artifact is read. Loading a mapping and only then
+        // discovering the module does not support this platform would leave the operator guessing
+        // which of the two was at fault (spec section 7).
+        try {
+            ModuleManifest manifest =
+                    new ModuleManifestLoader().loadFor(module, PlatformVersion.running());
+            System.out.printf("%s  %s%n", manifest.qualifiedName(), manifest.displayName());
+            System.out.printf("  platform %s, running %s%n",
+                    manifest.platformVersions(), PlatformVersion.running());
+            System.out.printf("  canonical model %s%s%n%n",
+                    manifest.canonicalModelVersion(),
+                    manifest.steward() == null ? "" : ", steward " + manifest.steward());
+        } catch (ContentCompatibilityException e) {
+            e.problems().forEach(problem -> System.err.println("  " + problem));
             return 1;
         }
         if (!Files.isDirectory(contracts)) {

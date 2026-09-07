@@ -29,3 +29,4 @@ deciding stated) · **Superseded**.
 | [0017](0017-observability-module.md) | Observability events live in their own module | Accepted |
 | [0018](0018-storage-module.md) | Storage zones live in their own module | Accepted |
 | [0019](0019-catalogue-source-vocabulary.md) | The catalogue documents each source's own vocabulary | Deferred |
+| [0020](0020-control-plane-boundary.md) | The control plane's boundary, and the domain module contract | Accepted |

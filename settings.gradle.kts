@@ -19,6 +19,7 @@ include(
     "core:canonical",
     "core:contracts",
     "core:observability",
+    "core:content",
     "core:lineage",
     "storage",
     "runtime:engine",

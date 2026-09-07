@@ -144,7 +144,7 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 
 | # | Question | Blocks | Status |
 |---|---|---|---|
-| §2 / §10.1 | Control plane language: JVM or .NET | Phase 2 | Open. No control plane code exists yet, so nothing is blocked today. |
+| §2 / §10.1 | Control plane language: JVM or .NET | Phase 2 | Open. No control plane code exists. Boundary defined in [ADR 0020](docs/decisions/0020-control-plane-boundary.md); the hard constraint is that a control plane must never carry its own copy of the validators. |
 | §10.3 | Multi-tenancy model | Storage layout, policy | Open. Phase 1 proceeds on a stated *assumption* of one tenant per deployment — [ADR 0016](docs/decisions/0016-single-tenant-phase1.md). |
 | §2 / ADR 0005 | Canonical table format if Iceberg cannot run embedded on Windows | Silver storage | Pending a spike. Deviating from the pinned Delta/Iceberg decision needs Jeff's call. |
 

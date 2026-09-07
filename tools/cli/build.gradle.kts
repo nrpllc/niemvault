@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":connectors:file"))
     implementation(project(":identity:internal"))
     implementation(project(":storage"))
+    implementation(project(":core:content"))
 
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)
@@ -18,6 +19,26 @@ dependencies {
     // The CLI's tests drive it against the artifacts the law enforcement module ships, so a
     // broken contract or mapping fails here as well as in that module's own tests.
     testImplementation(project(":modules:law-enforcement"))
+}
+
+// The platform version has to reach the running CLI, because content declares the range it
+// supports and the check is meaningless without knowing what is running (spec section 7).
+//
+// Stamped into a resource rather than only the jar manifest: a jar manifest is absent when the CLI
+// runs from a class directory, which is how every test and every `gradlew run` executes it. A
+// version that vanished in those cases would refuse all content on a developer machine.
+tasks.named<ProcessResources>("processResources") {
+    val platformVersion = project.version.toString()
+    inputs.property("platformVersion", platformVersion)
+    filesMatching("niem-platform.properties") {
+        expand("platformVersion" to platformVersion)
+    }
+}
+
+tasks.named<Jar>("jar") {
+    manifest {
+        attributes("Implementation-Version" to project.version)
+    }
 }
 
 application {

@@ -1,0 +1,36 @@
+# Domain module manifest (spec §7).
+#
+# Platform version and content version move independently -- the engine versus the definitions --
+# and this file is the content metadata §7 requires compatibility ranges to be declared in. It is
+# enforced at load: content the running platform cannot honour is refused before any of it is read.
+#
+# The commercial point of the range, in §7's words, is that an agency on an older platform release
+# must be able to take newer justice-domain mappings, and the change board needs that conversation
+# to be tractable. A declared range answers "will this run on what we have?" without a meeting.
+
+module: law-enforcement
+version: "1.0.0"
+displayName: Law Enforcement
+description: >
+  CAD and records content for law enforcement agencies. Phase 1 ships one source: a computer-aided
+  dispatch export carrying an incident and one involved person per row.
+
+requires:
+  platform:
+    # Inclusive. The first release carrying the mapping and contract artifact formats this module
+    # is written in.
+    minimum: "0.1.0"
+    # Exclusive. Left at the next major because the artifact formats are not yet stable; once they
+    # are, this becomes a much wider range and stops needing a bump per release.
+    below: "1.0.0"
+
+  # The canonical model these mappings were authored against. A deployment carrying an older
+  # canonical model would be missing fields the mappings write.
+  canonicalModel: "1.0.0"
+
+# Namespaces this module contributes canonical types to. Empty: Phase 1 maps entirely onto the core
+# model and defines no domain-specific types of its own. A second domain module declaring the same
+# namespace as this one is detectable here rather than by collision at runtime.
+canonicalNamespaces: []
+
+steward: riverton-pd-records
