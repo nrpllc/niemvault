@@ -77,7 +77,7 @@ class CadEndToEndTest {
     void setUp() {
         emitter = new RecordingObservabilityEmitter();
         quarantine = new QuarantineSink.InMemory();
-        clusterIndex = new InMemoryClusterIndex();
+        clusterIndex = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
     }
 
     // --- artifacts -------------------------------------------------------

@@ -31,7 +31,7 @@ class DeterministicResolutionProviderTest {
 
     @BeforeEach
     void setUp() {
-        index = new InMemoryClusterIndex();
+        index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         resolver = new DeterministicResolutionProvider(index);
     }
 
@@ -243,7 +243,7 @@ class DeterministicResolutionProviderTest {
     @DisplayName("the same records in the same order always produce the same clusters")
     void resolutionIsDeterministic() {
         DeterministicResolutionProvider other =
-                new DeterministicResolutionProvider(new InMemoryClusterIndex());
+                new DeterministicResolutionProvider(new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency")));
 
         ClusterId first = resolve("rec-1", person(
                 "surName", "DOE", "givenName", "JANE", "birthDate", "1988-03-14",

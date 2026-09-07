@@ -36,11 +36,19 @@ public record ClusterId(String value) implements Serializable, Comparable<Cluste
      * <p>The entity type participates so a Person and an Incident that happen to share a key value
      * cannot collide.
      */
-    public static ClusterId seededBy(String entityType, ResolutionKey key) {
+    public static ClusterId seededBy(
+            gov.niemplatform.canonical.meta.TenantId tenant, String entityType, ResolutionKey key) {
+        Objects.requireNonNull(tenant, "tenant");
         Objects.requireNonNull(entityType, "entityType");
         Objects.requireNonNull(key, "key");
-        String material = entityType + " " + key.tier() + " " + key.value();
-        return new ClusterId(entityType.toLowerCase(Locale.ROOT) + ":" + hash(material));
+        // The tenant participates (ADR 0025). Without it, two agencies sharing a deployment and
+        // holding the same driver licence number derive the same identifier and their records
+        // merge -- commingling of criminal justice data between agencies, arriving silently as a
+        // property of a hash function. Linking a person across agencies is a deliberate,
+        // attributable assertion; it is never a coincidence of hashing.
+        String material = tenant.value() + " " + entityType + " " + key.tier() + " " + key.value();
+        return new ClusterId(
+                tenant.value() + "/" + entityType.toLowerCase(Locale.ROOT) + ":" + hash(material));
     }
 
     /** Adopts an identifier the platform already holds, e.g. read back from the index. */

@@ -19,6 +19,15 @@ import java.util.Set;
  */
 public interface ClusterIndex {
 
+    /**
+     * The agency whose clusters this index holds (ADR 0025).
+     *
+     * <p>An index is scoped to one tenant. A shared deployment holds one per agency, and a resolver
+     * refuses an index belonging to somebody else — a tenant boundary that exists only in a path
+     * string is not a boundary.
+     */
+    gov.niemplatform.canonical.meta.TenantId tenant();
+
     /** The cluster a key currently points at, if any. */
     Optional<ClusterId> find(String entityType, ResolutionKey key);
 

@@ -131,7 +131,7 @@ class RunWritesSilverTest {
 
     private int ingest() throws IOException {
         return niem(List.of(
-                "run", "--engine", "DIRECT",
+                "run", "--tenant", "test.agency", "--engine", "DIRECT",
                 "--module", module.toString(),
                 "--mapping", module.resolve("mappings/cad-to-canonical-1.0.0.yaml").toString(),
                 "--drop", dropDirectory().toString(),
@@ -186,7 +186,7 @@ class RunWritesSilverTest {
         // The exact failure this class exists for: mapped and discarded, looking healthy in every
         // log line except the one that matters.
         int exit = niem(List.of(
-                "run", "--engine", "DIRECT",
+                "run", "--tenant", "test.agency", "--engine", "DIRECT",
                 "--module", module.toString(),
                 "--mapping", module.resolve("mappings/cad-to-canonical-1.0.0.yaml").toString(),
                 "--drop", dropDirectory().toString(),

@@ -155,6 +155,14 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
   audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
   Service.
+- **`ClusterId` is seeded with the tenant, and an index belongs to one** — [ADR 0025](docs/decisions/0025-tenancy-and-federation.md).
+  Without it, two agencies sharing a deployment and holding the same licence number derive the same
+  identifier and their records merge, silently. Cross-agency linking is a deliberate assertion, never
+  a coincidence of hashing. `--tenant` is required on `run` and `replay` even for a single-tenant
+  deployment.
+- **Anything read inside the Flink pipeline factory closure must be a local.** Reading a picocli
+  `@Option` field captures `this`, and `NotSerializableException: RunCommand` arrives *after* the
+  data has landed. `runId`, the quarantine path and the tenant are all copied to locals for this.
 - **An H2 Iceberg catalogue is write-once unless `DATABASE_TO_LOWER=TRUE`.** H2 folds unquoted
   identifiers to upper case, so Iceberg looks for `iceberg_tables`, is told it does not exist, and
   issues `CREATE TABLE` -- which fails. `IcebergCanonicalStoreConfig` appends the setting for H2
@@ -214,7 +222,7 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
 | # | Question | Blocks | Status |
 |---|---|---|---|
 | §2 / §10.1 | ~~Control plane language~~ | — | **Resolved: JVM** — [ADR 0021](docs/decisions/0021-control-plane-is-jvm.md). The deciding constraint was one validator per artifact format, never two ([ADR 0020](docs/decisions/0020-control-plane-boundary.md)). |
-| §10.3 | Multi-tenancy model | Storage layout, policy | Open. Phase 1 proceeds on a stated *assumption* of one tenant per deployment — [ADR 0016](docs/decisions/0016-single-tenant-phase1.md). |
+| §10.3 | ~~Multi-tenancy model~~ | — | **Resolved: a tenant is an agency, not a deployment** — [ADR 0025](docs/decisions/0025-tenancy-and-federation.md). One deployment may host one tenant or many; tenants federate. Cluster identities are tenant-seeded so two agencies cannot merge by accident. |
 | §2 / §6 | Whether an agency may ever let an advisor read sampled record values | Advisor quality | Open. Phase 1 proceeds on shapes only — [ADR 0023](docs/decisions/0023-mapping-advisor.md). Changing it needs its own ADR and an agency-level opt-in, not a config flag. |
 | §2 / ADR 0005 | Canonical table format if Iceberg cannot run embedded on Windows | Silver storage | Pending a spike. Deviating from the pinned Delta/Iceberg decision needs Jeff's call. |
 

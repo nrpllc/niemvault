@@ -191,7 +191,7 @@ class ReplayCriterionSixTest {
      * determinism untested. Identities have to come out the same from nothing.
      */
     private static MappingPipeline pipeline() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         return new MappingPipeline(
                 mapping(),
                 contracts(),

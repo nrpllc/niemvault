@@ -264,13 +264,13 @@ final class CadMappingFixture {
             }
 
             if (keys.isEmpty()) {
-                ClusterId isolated = ClusterId.seededBy("Person",
+                ClusterId isolated = ClusterId.seededBy(gov.niemplatform.canonical.meta.TenantId.of("test.agency"), "Person",
                         ResolutionKey.of("SOURCE", attributes.sourceRecordKey()));
                 return ResolutionResult.created(isolated,
                         List.of(MatchEvidence.newCluster("no identity-bearing attribute was present")));
             }
 
-            ClusterId created = ClusterId.seededBy("Person", keys.getFirst());
+            ClusterId created = ClusterId.seededBy(gov.niemplatform.canonical.meta.TenantId.of("test.agency"), "Person", keys.getFirst());
             keys.forEach(key -> index.put(key, created));
             return ResolutionResult.created(created,
                     List.of(MatchEvidence.newCluster("no existing cluster matched")));

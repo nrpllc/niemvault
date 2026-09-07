@@ -6,4 +6,6 @@ description = "ResolutionProvider SPI and the platform's own cluster index (spec
 
 dependencies {
     api(project(":core:observability"))
+    // A cluster identifier is tenant-scoped (ADR 0025), and TenantId lives with the canonical model.
+    api(project(":core:canonical"))
 }

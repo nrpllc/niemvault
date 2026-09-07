@@ -21,9 +21,27 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class InMemoryClusterIndex implements ClusterIndex {
 
+    private final gov.niemplatform.canonical.meta.TenantId tenant;
+
     private final Map<String, Map<ResolutionKey, ClusterId>> keysByType = new ConcurrentHashMap<>();
     private final Map<String, Map<String, ClusterAssignment>> assignmentsByType = new ConcurrentHashMap<>();
     private final Map<String, Set<ClusterId>> clustersByType = new ConcurrentHashMap<>();
+
+    /**
+     * An index for one agency.
+     *
+     * <p>Required rather than defaulted. A deployment that hosts one tenant still names it: "the
+     * tenant is implied" is how a shared deployment becomes commingled the first time somebody adds
+     * a second agency (ADR 0025).
+     */
+    public InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId tenant) {
+        this.tenant = Objects.requireNonNull(tenant, "tenant");
+    }
+
+    @Override
+    public gov.niemplatform.canonical.meta.TenantId tenant() {
+        return tenant;
+    }
 
     @Override
     public Optional<ClusterId> find(String entityType, ResolutionKey key) {

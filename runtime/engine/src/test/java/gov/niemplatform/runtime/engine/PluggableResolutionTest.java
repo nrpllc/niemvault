@@ -53,7 +53,7 @@ class PluggableResolutionTest {
     @Test
     @DisplayName("the bundled resolver drops into the same mapping unchanged")
     void bundledResolverIsInterchangeable() {
-        ClusterIndex index = new InMemoryClusterIndex();
+        ClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         MappingPipeline pipeline = pipelineWith(
                 new DeterministicResolutionProvider(index), new RecordingObservabilityEmitter());
 
@@ -68,7 +68,7 @@ class PluggableResolutionTest {
     @Test
     @DisplayName("the platform's index records what the provider decided")
     void platformKeepsItsIndex() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         ResolutionProvider provider = new IndexedResolutionProvider(
                 new DeterministicResolutionProvider(index), index);
         MappingPipeline pipeline = pipelineWith(provider, ObservabilityEmitter.discarding());
@@ -84,7 +84,7 @@ class PluggableResolutionTest {
     @DisplayName("swapping the resolver changes identities but nothing else about the output")
     void onlyIdentitiesDifferBetweenResolvers() {
         MappingPipeline withBundled = pipelineWith(
-                new DeterministicResolutionProvider(new InMemoryClusterIndex()),
+                new DeterministicResolutionProvider(new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"))),
                 ObservabilityEmitter.discarding());
         MappingPipeline withDouble = pipelineWith(
                 new CadMappingFixture.TestDoubleResolver(), ObservabilityEmitter.discarding());

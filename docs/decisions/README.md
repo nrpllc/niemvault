@@ -34,3 +34,4 @@ deciding stated) · **Superseded**.
 | [0022](0022-flow-layout-is-computed.md) | Node layout is computed, never stored in the mapping | Accepted |
 | [0023](0023-mapping-advisor.md) | AI-assisted authoring runs behind an SPI, never on record values | Accepted |
 | [0024](0024-authoring-surface-is-not-exposed.md) | The authoring surface is reachable only through the cluster's own front door | Accepted |
+| [0025](0025-tenancy-and-federation.md) | A tenant is an agency, not a deployment, and tenants federate | Accepted |

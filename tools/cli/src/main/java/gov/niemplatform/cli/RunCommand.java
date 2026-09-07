@@ -59,6 +59,13 @@ final class RunCommand implements Callable<Integer> {
             description = "Domain module directory containing mappings/ and contracts/.")
     Path moduleDirectory;
 
+    @Option(names = "--tenant", required = true,
+            description = "The agency this data belongs to, e.g. co.riverton.pd. Required even on a "
+                    + "deployment that hosts one: cluster identities are tenant-scoped, so an "
+                    + "implied tenant is how a shared deployment becomes commingled (ADR 0025).")
+    String tenant;
+
+
     @Option(names = "--mapping", required = true, description = "Mapping artifact to run.")
     Path mappingFile;
 
@@ -155,7 +162,7 @@ final class RunCommand implements Callable<Integer> {
         ObservabilityEmitter emitter =
                 ObservabilityEmitter.composite(recorder, new LoggingObservabilityEmitter());
         QuarantineSink.InMemory quarantine = new QuarantineSink.InMemory();
-        InMemoryClusterIndex clusterIndex = new InMemoryClusterIndex();
+        InMemoryClusterIndex clusterIndex = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of(tenant));
 
         FileDropConnector connector = new FileDropConnector();
         connector.configure(config);
@@ -265,13 +272,18 @@ final class RunCommand implements Callable<Integer> {
         // Captured as text, not as a Path: Flink serialises the closure, and a platform Path
         // implementation is not Serializable. The Path is rebuilt inside the operator.
         String quarantinePath = quarantineDirectory.toAbsolutePath().toString();
+        // Likewise a local. Reading `tenant` inside the lambda would capture `this`, and dragging
+        // the whole picocli command into a Flink closure fails at serialisation -- after the data
+        // has landed, which is the worst place to find out.
+        gov.niemplatform.canonical.meta.TenantId agency =
+                gov.niemplatform.canonical.meta.TenantId.of(tenant);
 
         MappingPipelineFactory factory = () -> new MappingPipeline(
                 definition,
                 contracts,
                 Map.of(DeterministicResolutionProvider.PROVIDER_ID, new IndexedResolutionProvider(
-                        new DeterministicResolutionProvider(new InMemoryClusterIndex()),
-                        new InMemoryClusterIndex())),
+                        new DeterministicResolutionProvider(new InMemoryClusterIndex(agency)),
+                        new InMemoryClusterIndex(agency))),
                 canonicalTypes,
                 new FileQuarantineSink(Path.of(quarantinePath), id),
                 new LoggingObservabilityEmitter());

@@ -65,6 +65,13 @@ final class ReplayCommand implements Callable<Integer> {
             description = "Domain module directory containing mappings/ and contracts/.")
     Path moduleDirectory;
 
+    @Option(names = "--tenant", required = true,
+            description = "The agency this data belongs to, e.g. co.riverton.pd. Required even on a "
+                    + "deployment that hosts one: cluster identities are tenant-scoped, so an "
+                    + "implied tenant is how a shared deployment becomes commingled (ADR 0025).")
+    String tenant;
+
+
     @Option(names = "--mapping", required = true,
             description = "Mapping artifact to replay under. Its version is pinned into the request.")
     Path mappingFile;
@@ -196,7 +203,7 @@ final class ReplayCommand implements Callable<Integer> {
             // A fresh cluster index, deliberately. Replaying against the index the original run
             // built would let resolution inherit an answer instead of recomputing it, and the
             // comparison would prove less than it appears to.
-            InMemoryClusterIndex clusterIndex = new InMemoryClusterIndex();
+            InMemoryClusterIndex clusterIndex = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of(tenant));
             MappingPipeline pipeline = new MappingPipeline(
                     definition,
                     artifacts.contractsByHop(),

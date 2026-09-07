@@ -70,6 +70,11 @@ public final class DeterministicResolutionProvider implements ResolutionProvider
         this(index, Set.of("Person"));
     }
 
+    /** The agency this resolver assigns identities for, taken from the index it was given. */
+    private gov.niemplatform.canonical.meta.TenantId tenant() {
+        return index.tenant();
+    }
+
     public DeterministicResolutionProvider(ClusterIndex index, Set<String> supportedEntityTypes) {
         this.index = Objects.requireNonNull(index, "index");
         this.supportedEntityTypes = Set.copyOf(supportedEntityTypes);
@@ -100,7 +105,7 @@ public final class DeterministicResolutionProvider implements ResolutionProvider
             // Nothing to match on. A cluster of one, seeded from the record itself, so the entity
             // still gets a stable identity rather than being dropped or merged with other
             // attribute-less records.
-            ClusterId isolated = ClusterId.seededBy(entityType,
+            ClusterId isolated = ClusterId.seededBy(tenant(), entityType,
                     ResolutionKey.of("SOURCE_RECORD", attributes.sourceRecordKey()));
             index.link(entityType, isolated,
                     List.of(ResolutionKey.of("SOURCE_RECORD", attributes.sourceRecordKey())));
@@ -108,7 +113,7 @@ public final class DeterministicResolutionProvider implements ResolutionProvider
                     "no identity-bearing attribute was present, so this record cannot be matched")));
         }
 
-        ClusterId created = ClusterId.seededBy(entityType, keys.getFirst());
+        ClusterId created = ClusterId.seededBy(tenant(), entityType, keys.getFirst());
         index.link(entityType, created, keys);
         return ResolutionResult.created(created, List.of(MatchEvidence.newCluster(
                 "no existing cluster matched on " + keys.stream().map(ResolutionKey::tier).toList())));

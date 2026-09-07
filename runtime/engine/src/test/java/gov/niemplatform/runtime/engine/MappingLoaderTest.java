@@ -195,7 +195,7 @@ class MappingLoaderTest {
                 definition,
                 CadMappingFixture.contracts(),
                 Map.of("bundled-deterministic",
-                        new DeterministicResolutionProvider(new InMemoryClusterIndex())),
+                        new DeterministicResolutionProvider(new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency")))),
                 CadMappingFixture.canonicalTypes(),
                 new QuarantineSink.InMemory(),
                 ObservabilityEmitter.discarding());

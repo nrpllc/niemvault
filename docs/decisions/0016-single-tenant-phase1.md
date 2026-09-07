@@ -1,6 +1,6 @@
 # 0016. Phase 1 assumes one tenant per deployment
 
-**Status:** Proposed · spec §10 open question 3 remains open
+**Status:** Superseded by [ADR 0025](0025-tenancy-and-federation.md) · §10.3 is resolved
 
 ## Context
 

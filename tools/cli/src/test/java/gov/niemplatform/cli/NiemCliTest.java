@@ -176,7 +176,7 @@ class NiemCliTest {
             Path module = moduleDirectory();
             // DIRECT explicitly: only the in-process engine can report violation and cluster
             // counts, because on Flink those live inside the operator.
-            int exit = run("run", "--engine", "DIRECT",
+            int exit = run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -197,7 +197,7 @@ class NiemCliTest {
             // Discovering this after a feed is ingested but before it could be stored leaves an
             // operator replaying to catch up. Recoverable only because bronze exists.
             Path module = moduleDirectory();
-            int exit = run("run", "--engine", "DIRECT",
+            int exit = run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -213,7 +213,7 @@ class NiemCliTest {
         @DisplayName("silver not being written is stated, not left to be inferred")
         void silverGapIsStated() throws IOException {
             Path module = moduleDirectory();
-            run("run",
+            run("run", "--tenant", "test.agency",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -226,7 +226,7 @@ class NiemCliTest {
         @DisplayName("quarantined records exit 2: not a failure, not a clean run either")
         void quarantineExitsTwo() throws IOException {
             Path module = moduleDirectory();
-            int exit = run("run", "--engine", "DIRECT",
+            int exit = run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents-drifted.csv").toString(),
@@ -244,7 +244,7 @@ class NiemCliTest {
         void quarantineKeepsValues() throws IOException {
             Path module = moduleDirectory();
             Path quarantine = work.resolve("quarantine.jsonl");
-            run("run", "--engine", "DIRECT",
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents-drifted.csv").toString(),
@@ -263,7 +263,7 @@ class NiemCliTest {
         @DisplayName("the Flink engine reports only what the driver can actually know")
         void flinkEngineDoesNotClaimWhatItCannotSee() throws IOException {
             Path module = moduleDirectory();
-            int exit = run("run", "--engine", "FLINK",
+            int exit = run("run", "--tenant", "test.agency", "--engine", "FLINK",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents-drifted.csv").toString(),
@@ -288,14 +288,14 @@ class NiemCliTest {
 
             Path dayOne = Files.createDirectories(work.resolve("day1"));
             copyResource("/fixtures/incidents.csv", dayOne.resolve("incidents.csv"));
-            run("run", "--engine", "DIRECT", "--module", module.toString(),
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT", "--module", module.toString(),
                     "--mapping", mapping.toString(),
                     "--drop", dayOne.toString(), "--bronze", bronze.toString());
             assertThat(stdout()).contains("Mapped 30 canonical record(s)");
 
             Path dayTwo = Files.createDirectories(work.resolve("day2"));
             copyResource("/fixtures/incidents-drifted.csv", dayTwo.resolve("incidents-drifted.csv"));
-            run("run", "--engine", "DIRECT", "--module", module.toString(),
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT", "--module", module.toString(),
                     "--mapping", mapping.toString(),
                     "--drop", dayTwo.toString(), "--bronze", bronze.toString());
 
@@ -311,7 +311,7 @@ class NiemCliTest {
         @DisplayName("an empty drop directory maps nothing and exits zero")
         void emptyDropIsNotAnError() throws IOException {
             Path module = moduleDirectory();
-            int exit = run("run", "--engine", "DIRECT",
+            int exit = run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", Files.createDirectories(work.resolve("empty-drop")).toString(),
@@ -326,7 +326,7 @@ class NiemCliTest {
         void canonicalOutput() throws IOException {
             Path module = moduleDirectory();
             Path canonical = work.resolve("canonical.jsonl");
-            run("run", "--engine", "DIRECT",
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -350,7 +350,7 @@ class NiemCliTest {
         void reportsBronze() throws IOException {
             Path module = moduleDirectory();
             Path bronze = work.resolve("bronze");
-            run("run", "--engine", "DIRECT",
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -371,7 +371,7 @@ class NiemCliTest {
         void payloadsWithheldByDefault() throws IOException {
             Path module = moduleDirectory();
             Path bronze = work.resolve("bronze");
-            run("run", "--engine", "DIRECT",
+            run("run", "--tenant", "test.agency", "--engine", "DIRECT",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--drop", dropWith("incidents.csv").toString(),
@@ -405,7 +405,7 @@ class NiemCliTest {
     class Replay {
 
         private String[] baseArgs(Path module, String... extra) {
-            List<String> args = new java.util.ArrayList<>(List.of("replay",
+            List<String> args = new java.util.ArrayList<>(List.of("replay", "--tenant", "test.agency",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--bronze", work.resolve("bronze").toString(),
@@ -453,7 +453,7 @@ class NiemCliTest {
                     .replace("contract: cad-person-to-canonical\n    version: \"1.0.0\"",
                             "contract: cad-person-to-canonical\n    version: \"2.0.0\""));
 
-            int exit = run("replay",
+            int exit = run("replay", "--tenant", "test.agency",
                     "--module", module.toString(),
                     "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
                     "--bronze", work.resolve("bronze").toString(),

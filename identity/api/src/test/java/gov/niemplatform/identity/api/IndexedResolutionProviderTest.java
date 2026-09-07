@@ -53,7 +53,7 @@ class IndexedResolutionProviderTest {
     @Test
     @DisplayName("the platform records an assignment even when an external provider decides")
     void platformKeepsItsOwnIndex() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         ResolutionProvider provider = new IndexedResolutionProvider(new ExternalProvider(), index);
 
         provider.resolve(person("rec-1", "DOE"));
@@ -67,7 +67,7 @@ class IndexedResolutionProviderTest {
     @Test
     @DisplayName("without the index, cross-domain joins would have nothing to join on")
     void clustersAreDiscoverable() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         ResolutionProvider provider = new IndexedResolutionProvider(new ExternalProvider(), index);
 
         provider.resolve(person("rec-1", "DOE"));
@@ -81,7 +81,7 @@ class IndexedResolutionProviderTest {
     @Test
     @DisplayName("only the cluster id, the confidence, and the evidence are kept")
     void nothingBeyondTheContractIsPersisted() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         ResolutionProvider provider = new IndexedResolutionProvider(new ExternalProvider(), index);
 
         provider.resolve(person("rec-1", "DOE"));
@@ -102,7 +102,7 @@ class IndexedResolutionProviderTest {
     @DisplayName("the wrapper does not change what the provider decided")
     void delegationIsTransparent() {
         ExternalProvider external = new ExternalProvider();
-        ResolutionProvider provider = new IndexedResolutionProvider(external, new InMemoryClusterIndex());
+        ResolutionProvider provider = new IndexedResolutionProvider(external, new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency")));
 
         ResolutionResult direct = new ExternalProvider().resolve(person("rec-1", "DOE"));
         ResolutionResult wrapped = provider.resolve(person("rec-1", "DOE"));
@@ -116,7 +116,7 @@ class IndexedResolutionProviderTest {
     @Test
     @DisplayName("linking a key that already points elsewhere reports the conflict rather than merging")
     void conflictingKeysAreReported() {
-        InMemoryClusterIndex index = new InMemoryClusterIndex();
+        InMemoryClusterIndex index = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of("test.agency"));
         ResolutionKey shared = ResolutionKey.of("NAME_DOB", "DOE|JANE|1988-03-14");
 
         index.link("Person", ClusterId.of("cluster-a"), List.of(shared));
