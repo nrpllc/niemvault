@@ -101,6 +101,16 @@ so an air-gapped build can verify its own citations (§6). See
 [ADR 0011](docs/decisions/0011-niem-reference-verification.md) — including the three real errors this
 found in content that had passed every other check.
 
+## CI
+
+`.github/workflows/build.yml` runs `./gradlew testAll -Pdocker` — the container-backed tests
+included. That is deliberate: two production defects in a row were invisible to every test that did
+not touch a real object store, and were found by running the artifact by hand. It also builds the
+image, validates the shipped module inside it, and renders the chart with every feature enabled,
+asserting two properties the deployment depends on — that the authoring surface renders no Service or
+Ingress ([ADR 0024](docs/decisions/0024-authoring-surface-is-not-exposed.md)), and that credentials
+are referenced from Secrets rather than inlined.
+
 ## Deploying
 
 One image, both delivery modes (§6) — the same artifact the vendor cloud pushes in managed mode is

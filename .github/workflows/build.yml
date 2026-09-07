@@ -1,0 +1,147 @@
+# The build that has to pass.
+#
+# It runs the docker-tagged tests. That is the point of this file existing: two production defects in
+# a row -- an ingest that mapped records and discarded them, and a canonical catalogue that could only
+# be opened once -- were invisible to every test that did not touch a real object store, and were
+# found by running the artifact by hand. A check nobody remembers to run is a check that is not there.
+
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So the container and chart can be checked before a release without pushing anything.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A superseded run on the same branch has nothing left to tell anyone.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 21. The platform pins it: embedded Flink needs --add-opens that the build supplies, and
+      # the canonical model generator uses records and pattern matching throughout.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # -Pdocker runs the tests that need a container runtime: the Iceberg canonical store against
+      # MinIO, the graph projection against Neo4j, and the ingest-reaches-silver test that runs the
+      # installed binary in its own process. Ubuntu runners have Docker; there is no reason to skip
+      # them here, and every reason not to.
+      - name: Test
+        run: ./gradlew testAll -Pdocker --no-daemon
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/build/reports/tests/**'
+          retention-days: 7
+          if-no-files-found: ignore
+
+  image:
+    name: container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Independent of the test job on purpose. A Dockerfile that no longer builds is its own failure
+    # and should be reported as one, not hidden behind a test that happened to fail first.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Built, not pushed. Publishing is a release decision, and this workflow is not one.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false
+          tags: niem-platform:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image has to be able to read a module and say whether it is coherent. If it cannot do
+      # that, nothing else it does matters.
+      - name: Validate the shipped module inside the image
+        run: |
+          docker run --rm \
+            -v "${PWD}/modules/law-enforcement/src/main/resources:/srv/modules/le:ro" \
+            niem-platform:ci validate --module /srv/modules/le
+
+  chart:
+    name: helm chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint
+        run: helm lint deploy/helm/niem-platform
+
+      # Rendered with everything switched on. The default values render almost nothing, so a lint on
+      # them alone would pass while a template that only appears with silver or authoring enabled was
+      # broken.
+      - name: Render with every feature enabled
+        run: |
+          helm template ci deploy/helm/niem-platform \
+            --set module.configMapName=le-module \
+            --set storage.silver.enabled=true \
+            --set storage.silver.catalogUri=jdbc:postgresql://catalog/niem \
+            --set storage.silver.warehouse=s3://silver/warehouse \
+            --set storage.silver.s3.existingSecret=niem-s3 \
+            --set storage.graph.enabled=true \
+            --set storage.graph.uri=bolt://neo4j:7687 \
+            --set storage.graph.existingSecret=niem-neo4j \
+            --set authoring.enabled=true > /tmp/rendered.yaml
+
+      # ADR 0024: the authoring surface binds to loopback and must never be fronted by a Service,
+      # Ingress or NodePort. That is a property of the deployment, so the build checks it rather
+      # than trusting everyone to remember the ADR.
+      - name: The authoring surface stays unexposed
+        run: |
+          if grep -qE '^kind: (Service|Ingress)$' /tmp/rendered.yaml; then
+            echo "The chart rendered a Service or Ingress."
+            echo "The authoring surface binds to loopback and is reached with kubectl port-forward."
+            echo "See docs/decisions/0024-authoring-surface-is-not-exposed.md."
+            grep -nE '^kind: (Service|Ingress)$' /tmp/rendered.yaml
+            exit 1
+          fi
+          echo "No Service or Ingress rendered, as intended."
+
+      # Credentials must arrive by reference. A literal secret in a rendered manifest means it came
+      # from values.yaml, which is visible in `helm get values` and in the release history.
+      - name: Credentials are referenced, never inlined
+        run: |
+          if grep -nE 'NIEM_(S3_SECRET_ACCESS_KEY|NEO4J_PASSWORD)' -A2 /tmp/rendered.yaml \
+             | grep -q 'value:'; then
+            echo "A credential was rendered as a literal value rather than a secretKeyRef."
+            exit 1
+          fi
+          echo "Credentials are referenced from Secrets."
