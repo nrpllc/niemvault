@@ -130,6 +130,9 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   '{{.Server.MinAPIVersion}}'` against the `GET /vX.YY/info` line in the test log first.
 - **Iceberg's S3FileIO needs `software.amazon.awssdk:sts` on the classpath** even when no role is
   assumed: `AwsProperties` touches STS model classes during construction.
+- **Neo4j's driver rejects `java.time.Instant` outright.** It has no mapping for it. Store a
+  zoned datetime at UTC instead: the same moment, and the property stays temporal so an
+  investigator can range-query it rather than string-match a timestamp.
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will
@@ -168,7 +171,7 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Canonical silver store on Iceberg (§2, ADR 0005)
 - [x] Identity resolution (§4.5)
 - [x] Mapping DAG on embedded Flink (§5) — criterion 7 proved
-- [ ] Graph projection to Neo4j (§4.6)
+- [x] Graph projection to Neo4j (§4.6) — criterion 4 proved
 - [ ] Replay driver (§5)
 - [x] LE module fixtures and mappings
 - [x] Operator CLI: `validate`, `run`, `inspect` — `replay` awaits the silver store
