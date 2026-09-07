@@ -63,6 +63,10 @@ Four things about it are deliberate:
 - **It does not carry its own validators.** Every check comes from the loaders the runtime itself
   uses (ADR 0021), so a mapping the editor accepts is a mapping the pipeline will load. A second
   validator would eventually disagree with the first, and the disagreement would surface at deploy.
+- **Contracts are checked against the mapping, not just named by it.** A field the contract requires
+  that no step writes is drawn as an empty slot on the canvas and reported as a problem. That
+  mapping loads perfectly and quarantines every record it ever sees — it is knowable from the two
+  artifacts sitting next to each other, and knowable while the author still has the file open.
 - **The canvas is drawn in single-assignment form.** Steps assign in order and a later step may read
   what an earlier one wrote, so a target written twice becomes a chain of nodes rather than one node
   pointing at itself. Without that the picture would contain a cycle, which is both false and

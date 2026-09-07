@@ -143,6 +143,11 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   assign in order and later steps read earlier results -- `surName` is produced by a split and then
   consumed by an upper. One node per *name* would make that a cycle. Each write gets its own node
   and each read binds to the most recent earlier write. Do not "simplify" it to one node per field.
+- **`ContractCoverage` is the check that a mapping actually satisfies its contracts.** Contract
+  *identity* (right name, right version, right hop) was already checked; field coverage was not. A
+  mapping that fails to write a field the contract requires loads perfectly and then quarantines
+  every record -- silently, because §4.2 requires bad data not to halt the pipeline. It lives beside
+  the authoring surface, not in the mapping loader, because neither artifact is wrong alone.
 - **Node coordinates are never written to a mapping** -- [ADR 0022](docs/decisions/0022-flow-layout-is-computed.md).
   Layout is recomputed; dragging is session-only.
 - **The control plane carries no validators of its own** -- ADR 0020/0021. `/api/validate` and

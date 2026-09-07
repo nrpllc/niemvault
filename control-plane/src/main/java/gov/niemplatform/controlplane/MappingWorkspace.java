@@ -183,10 +183,33 @@ public final class MappingWorkspace {
                                     atVersion.get().hopId(), hop.hopId()));
                 }
             });
+
+            // Identity is not enough. A mapping can name the right contract at the right version
+            // and still fail to produce a field that contract requires, which loads cleanly and
+            // then quarantines the entire feed at deploy.
+            ContractCoverage.check(definition, byHop(contracts))
+                    .forEach(gap -> problems.add(gap.message()));
         } catch (ContractLoadException e) {
             e.problems().forEach(problem -> problems.add(problem.toString().trim()));
         }
         return problems;
+    }
+
+    /** The module's contracts, keyed by the hop each one gates. */
+    private static java.util.Map<String, gov.niemplatform.contracts.HopContract> byHop(
+            List<gov.niemplatform.contracts.HopContract> contracts) {
+        java.util.Map<String, gov.niemplatform.contracts.HopContract> byHop =
+                new java.util.LinkedHashMap<>();
+        contracts.forEach(contract -> byHop.put(contract.hopId(), contract));
+        return byHop;
+    }
+
+    /** The contracts on disk, for anything that needs to cross-reference against them. */
+    public List<gov.niemplatform.contracts.HopContract> contracts() {
+        return new gov.niemplatform.contracts.ContractLoader(
+                gov.niemplatform.canonical.meta.CanonicalTypeResolver.of(
+                        gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL))
+                .loadDirectory(moduleRoot.resolve("contracts"));
     }
 
     /** The outcome of validating a draft. */

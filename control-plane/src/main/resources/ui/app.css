@@ -295,6 +295,16 @@ svg.canvas {
 .canvas-node--unbound rect { fill: var(--divert-soft); stroke: var(--divert); stroke-width: 2; }
 .canvas-node--unbound .canvas-label, .canvas-node--unbound .canvas-detail { fill: var(--divert); }
 
+/* An empty slot: the contract demands this field and nothing fills it. Drawn hollow and dashed so
+   it reads as absence rather than as another value. */
+.canvas-node--missing rect {
+  fill: none;
+  stroke: var(--divert);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.canvas-node--missing .canvas-label, .canvas-node--missing .canvas-detail { fill: var(--divert); }
+
 .canvas-node.is-selected rect { stroke-width: 3; }
 .canvas-node:hover rect { stroke-width: 2.5; }
 

@@ -267,9 +267,23 @@ public final class ControlPlaneServer implements AutoCloseable {
             // The field-level flow travels with the hop. It is what the canvas draws, and computing
             // it here rather than in the browser keeps the single-assignment rule -- the thing that
             // makes a re-assigned target a chain instead of a cycle -- somewhere it can be tested.
-            entry.set("graph", graph(FieldGraph.of(definition, hop.hopId())));
+            entry.set("graph", graph(FieldGraph.of(definition, hop.hopId(), contractFor(hop.hopId()))));
         }
         return node;
+    }
+
+    /** The contract gating a hop, or null when the module carries none for it. */
+    private gov.niemplatform.contracts.HopContract contractFor(String hopId) {
+        try {
+            return workspace.contracts().stream()
+                    .filter(contract -> contract.hopId().equals(hopId))
+                    .findFirst()
+                    .orElse(null);
+        } catch (RuntimeException unreadable) {
+            // Contracts that will not load are reported as problems by validation. Losing the
+            // drawing as well would leave an author with nothing to work from.
+            return null;
+        }
     }
 
     private ObjectNode graph(FieldGraph graph) {

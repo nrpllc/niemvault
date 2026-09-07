@@ -51,7 +51,14 @@ public final class FieldGraph {
         /** The identity assigned to the record, derived or resolved. */
         IDENTITY,
         /** A name a step reads that nothing produces. An authoring error, drawn as one. */
-        UNBOUND
+        UNBOUND,
+        /**
+         * A field the contract requires and no step writes.
+         *
+         * <p>Drawn as an empty slot rather than left out. A hole you cannot see is a hole nobody
+         * fixes, and this particular one quarantines every record the hop ever processes.
+         */
+        MISSING
     }
 
     /**
@@ -89,8 +96,20 @@ public final class FieldGraph {
         return edges;
     }
 
-    /** Builds the graph for one hop of a mapping. */
+    /** Builds the graph for one hop, without contract context. */
     public static FieldGraph of(MappingDefinition mapping, String hopId) {
+        return of(mapping, hopId, null);
+    }
+
+    /**
+     * Builds the graph for one hop of a mapping.
+     *
+     * @param contract the contract gating this hop, or null. When given, fields it requires that no
+     *     step writes are drawn as empty slots feeding the record — the failure is in the picture
+     *     rather than only in a list of problems underneath it.
+     */
+    public static FieldGraph of(MappingDefinition mapping, String hopId,
+            gov.niemplatform.contracts.HopContract contract) {
         Objects.requireNonNull(mapping, "mapping");
         HopDefinition hop = mapping.hops().stream()
                 .filter(candidate -> candidate.hopId().equals(hopId))
@@ -157,8 +176,40 @@ public final class FieldGraph {
                         : node)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
+        appendMissing(hop, contract, lastWriteNodeByName.keySet(), marked, edges);
         appendIdentity(hop, lastWriteNodeByName, marked, edges);
         return new FieldGraph(hopId, marked, edges);
+    }
+
+    /**
+     * Draws an empty slot for every field the contract requires and nothing writes.
+     *
+     * <p>These are the mappings that pass every other check and then reject the entire feed. Left
+     * out of the drawing, the canvas would show a hop that looks complete.
+     */
+    private static void appendMissing(HopDefinition hop,
+            gov.niemplatform.contracts.HopContract contract, Set<String> written,
+            List<Node> nodes, List<Edge> edges) {
+
+        if (!(contract instanceof gov.niemplatform.contracts.SchemaHopContract schema)) {
+            return;
+        }
+        for (var expected : schema.emits().fields()) {
+            if (!expected.required() || written.contains(expected.name())) {
+                continue;
+            }
+            // canonicalId is assigned after the steps run, and a role is filled from the hop this
+            // one depends on. Neither is the mapping's job, and drawing them as holes would put a
+            // permanent false alarm on every association hop.
+            if (expected.name().equals(
+                            gov.niemplatform.canonical.meta.CanonicalTypeDescriptor.CANONICAL_ID_FIELD)
+                    || hop.roles().containsKey(expected.name())) {
+                continue;
+            }
+            String id = "missing:" + expected.name();
+            nodes.add(new Node(id, Kind.MISSING, expected.name(), "required, not produced", -1, true));
+            edges.add(new Edge(id, "identity", expected.name()));
+        }
     }
 
     /**

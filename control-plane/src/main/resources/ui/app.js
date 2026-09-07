@@ -263,12 +263,84 @@ function onDisconnect(stepIndex, name) {
   edit({ op: 'setFrom', step: stepIndex, from: step.from.filter((input) => input !== name) });
 }
 
+/*
+ * Asks for the new step's target in the inspector, not in a browser prompt.
+ *
+ * A window.prompt blocks the whole page, cannot be styled or explained, and offers no way to show
+ * which field names would actually be accepted. Here the panel can list them.
+ */
 function addStep(type) {
   const hop = currentHop();
   if (!hop) return;
-  const target = window.prompt(`New ${type} step in ${hop.id}. Which field does it write?`);
-  if (!target) return;
-  edit({ op: 'addStep', target, type, from: [] });
+
+  state.selected = null;
+  canvas.select(null);
+  const panel = el('inspector');
+  el('inspector-title').textContent = `New ${type} step`;
+  panel.replaceChildren();
+
+  const name = document.createElement('input');
+  name.type = 'text';
+  name.placeholder = 'field name';
+  name.setAttribute('aria-label', 'field this step writes');
+
+  const commit = () => {
+    const target = name.value.trim();
+    if (!target) return;
+    edit({ op: 'addStep', target, type, from: [] });
+  };
+  name.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') commit();
+    if (event.key === 'Escape') renderInspector();
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'inspector-actions';
+  actions.append(action('Add step', commit), action('Cancel', renderInspector));
+
+  panel.append(
+    row('Writes', name),
+    hint(`Added to the end of ${hop.id}. Wire its input on the canvas afterwards.`),
+    suggestions(hop, name),
+    actions,
+  );
+  name.focus();
+}
+
+/**
+ * Field names this hop's record can carry that nothing writes yet.
+ *
+ * The list an author most often wants: the contract's own vocabulary, rather than a name typed from
+ * memory that turns out to be a field the canonical type has never heard of.
+ */
+function suggestions(hop, input) {
+  const written = new Set(hop.steps.map((step) => step.target));
+  const candidates = hop.graph.nodes
+    .filter((node) => node.kind === 'missing')
+    .map((node) => node.label)
+    .filter((label) => !written.has(label));
+
+  const wrapper = document.createElement('div');
+  if (candidates.length === 0) return wrapper;
+
+  wrapper.append(hint('Required by the contract and not yet written:'));
+  const list = document.createElement('ul');
+  list.className = 'palette';
+  candidates.forEach((label) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chip';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      input.value = label;
+      input.focus();
+    });
+    const item = document.createElement('li');
+    item.append(button);
+    list.append(item);
+  });
+  wrapper.append(list);
+  return wrapper;
 }
 
 // --- inspector --------------------------------------------------------------
@@ -332,6 +404,7 @@ function describeKind(node) {
       : 'An intermediate value. A later step overwrites it before the record is emitted.';
     case 'identity': return node.detail + '. This is what decides whether two records are the same thing.';
     case 'unbound': return 'Nothing produces this name, so the step reads nothing. Wire it to a column, or correct the name in the step that reads it.';
+    case 'missing': return 'The contract requires this field and no step writes it. Deployed as it stands, every record would be quarantined. Add a step that writes it.';
     default: return '';
   }
 }
