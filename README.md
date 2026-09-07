@@ -101,6 +101,24 @@ so an air-gapped build can verify its own citations (§6). See
 [ADR 0011](docs/decisions/0011-niem-reference-verification.md) — including the three real errors this
 found in content that had passed every other check.
 
+## The catalogue
+
+```bash
+niem catalogue --module modules/law-enforcement/src/main/resources
+niem catalogue --module ... --gaps-only    # exits 2 if anything is undocumented or unread
+```
+
+Two halves, and only one is derivable. The structural half — sources, mappings, contracts, canonical
+types, versions, NIEM provenance — is assembled from artifacts that already describe themselves.
+
+The glossary half cannot be derived from anything. NIEM provenance answers *what standard does this
+field come from*; a glossary answers *what does this agency call it, and what did they mean*. That
+`BEAT` is operational districting rather than a postal boundary, or that the literal `UNK` in a
+licence number is an absent value wearing the shape of a present one — that exists only in the head
+of whoever wrote the mapping until they write it down. It is read from `doc:` on declared columns and
+contract fields, and gaps are reported rather than skipped: a catalogue listing only its documented
+terms would tell an agency their source is fully understood.
+
 ## CI
 
 `.github/workflows/build.yml` runs `./gradlew testAll -Pdocker` — the container-backed tests

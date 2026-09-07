@@ -165,6 +165,11 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   Never set `DB_CLOSE_DELAY=-1` on a file database -- it holds the lock until the JVM exits.
 - **`run` appends to silver; `replay` drops and rewrites it.** Same store, opposite obligations.
   Appending on replay would double every record it reprocessed and make criterion 6 unprovable.
+- **A column may be a bare name or `{name, doc}`; a contract field may carry `doc:`.** Both forms
+  stay valid -- a format that demands documentation gets documentation saying `TODO`. The docs are
+  side tables (`DecoderSpec.columnDocs`, `Schema.fieldDocs`) rather than components of the records
+  that carry them: validation never reads them, and threading them through would make every
+  construction carry documentation nothing at run time consults.
 - **An advisor never sees a record value** -- [ADR 0023](docs/decisions/0023-mapping-advisor.md).
   `MappingAdvisor.Context` is the enforcement point, not a convention: it carries names, NIEM types
   and `ValueShape`, and has no field that can hold a value. Do not add one. Any remote endpoint an
@@ -210,11 +215,10 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —
 ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 
-**Phase 2, decided early so it is not lost:** the catalogue documents each source's own vocabulary
-against canonical terms, not only NIEM provenance — [ADR 0019](docs/decisions/0019-catalogue-source-vocabulary.md).
-It stays unbuilt until Phase 1 acceptance is complete. The one thing to remember meanwhile: when
-the mapping and contract artifact formats are next revised, give each declared column and step an
-optional `doc:`. That meaning is free to capture while authoring and expensive to recover later.
+**Built:** the catalogue documents each source's own vocabulary against canonical terms, not only
+NIEM provenance — [ADR 0019](docs/decisions/0019-catalogue-source-vocabulary.md). `niem catalogue`,
+and `Catalogue` in the control plane. `--gaps-only` exits 2 when a term is undocumented or unread,
+so onboarding can require a source to be explained before it is accepted.
 
 ---
 

@@ -115,7 +115,8 @@ public final class MappingLoader {
 
         String format = optionalString(block, "format");
         String emits = requireString(source, "decode", block, "emits");
-        List<String> columns = stringList(source, "decode", block, "columns");
+        DeclaredColumns declared = columns(source, block);
+        List<String> columns = declared.names();
         if (columns.isEmpty()) {
             problems.add(new Problem(source, "decode", Code.MISSING_KEY,
                     "'columns' is required; a header row is data and must not be trusted to name fields"));
@@ -128,6 +129,7 @@ public final class MappingLoader {
                     format == null ? DecoderSpec.FORMAT_DELIMITED : format,
                     emits,
                     columns,
+                    declared.docs(),
                     singleChar(source, "decode", block, "delimiter", ','),
                     singleChar(source, "decode", block, "quote", '"'),
                     optionalString(block, "charset") == null ? "UTF-8" : optionalString(block, "charset"),
@@ -352,6 +354,64 @@ public final class MappingLoader {
         problems.add(new Problem(source, location, Code.INVALID_VALUE,
                 "'" + key + "' must be a boolean, found '" + value + "'"));
         return fallback;
+    }
+
+    /** The declared columns, and whatever the author wrote down about what they mean. */
+    private record DeclaredColumns(List<String> names, Map<String, String> docs) {}
+
+    /**
+     * Reads {@code columns}, in either of the two forms it may take.
+     *
+     * <p>A bare name is still a column:
+     *
+     * <pre>
+     *   columns:
+     *     - INC_NUM
+     *     - name: BEAT
+     *       doc: "Patrol beat. The agency's own districting, not a postal or census boundary."
+     * </pre>
+     *
+     * <p>Both forms, rather than a migration, because what a source calls a field and what the
+     * agency means by it is worth capturing where it is authored and expensive to recover later
+     * (ADR 0019) — and because every mapping already written stays valid. A format that demands
+     * documentation gets documentation that says {@code TODO}.
+     */
+    private DeclaredColumns columns(String source, Map<String, Object> block) {
+        Object value = block.get("columns");
+        if (value == null) {
+            return new DeclaredColumns(List.of(), Map.of());
+        }
+        if (!(value instanceof List<?> list)) {
+            problems.add(new Problem(source, "decode", Code.INVALID_VALUE, "'columns' must be a list"));
+            return new DeclaredColumns(List.of(), Map.of());
+        }
+
+        List<String> names = new java.util.ArrayList<>();
+        Map<String, String> docs = new java.util.LinkedHashMap<>();
+        for (Object element : list) {
+            if (element instanceof Map<?, ?> entry) {
+                Object name = entry.get("name");
+                if (name == null) {
+                    problems.add(new Problem(source, "decode.columns", Code.MISSING_KEY,
+                            "a column written as a mapping must declare 'name'"));
+                    continue;
+                }
+                for (Object key : entry.keySet()) {
+                    if (!"name".equals(key) && !"doc".equals(key)) {
+                        problems.add(new Problem(source, "decode.columns", Code.UNKNOWN_KEY,
+                                "unknown key '" + key + "'; a column declares 'name' and 'doc'"));
+                    }
+                }
+                names.add(String.valueOf(name));
+                Object doc = entry.get("doc");
+                if (doc != null) {
+                    docs.put(String.valueOf(name), String.valueOf(doc).trim());
+                }
+            } else {
+                names.add(String.valueOf(element));
+            }
+        }
+        return new DeclaredColumns(List.copyOf(names), Map.copyOf(docs));
     }
 
     private List<String> stringList(String source, String location, Map<String, Object> map, String key) {

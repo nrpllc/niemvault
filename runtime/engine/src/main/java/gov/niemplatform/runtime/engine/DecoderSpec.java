@@ -26,6 +26,7 @@ public record DecoderSpec(
         String format,
         String emitsType,
         List<String> columns,
+        java.util.Map<String, String> columnDocs,
         char delimiter,
         char quote,
         String charset,
@@ -38,6 +39,11 @@ public record DecoderSpec(
         Objects.requireNonNull(format, "format");
         Objects.requireNonNull(emitsType, "emitsType");
         columns = List.copyOf(columns);
+        // A side table rather than a richer column type. What a source calls a field and what the
+        // agency means by it is catalogue material (§4.8, ADR 0019); the decoder itself only ever
+        // needs the names, and threading a record through it would change every caller to carry
+        // documentation none of them read.
+        columnDocs = columnDocs == null ? java.util.Map.of() : java.util.Map.copyOf(columnDocs);
         Objects.requireNonNull(charset, "charset");
 
         if (!FORMAT_DELIMITED.equals(format)) {
@@ -53,7 +59,13 @@ public record DecoderSpec(
 
     /** A comma-separated, double-quoted, UTF-8 decoder with values trimmed. */
     public static DecoderSpec csv(String emitsType, List<String> columns) {
-        return new DecoderSpec(FORMAT_DELIMITED, emitsType, columns, ',', '"', "UTF-8", true);
+        return new DecoderSpec(
+                FORMAT_DELIMITED, emitsType, columns, java.util.Map.of(), ',', '"', "UTF-8", true);
+    }
+
+    /** What the source means by a column, where the mapping's author wrote it down. */
+    public java.util.Optional<String> docFor(String column) {
+        return java.util.Optional.ofNullable(columnDocs.get(column));
     }
 
     /** Builds the decoder this spec describes. */

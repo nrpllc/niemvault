@@ -41,7 +41,7 @@ public final class ContractLoader {
     private static final Set<String> SCHEMA_KEYS =
             Set.of("schema", "version", "allowUnexpectedFields", "fields", "canonicalType");
     private static final Set<String> FIELD_KEYS =
-            Set.of("name", "type", "required", "repeated", "codeList", "refType", "pattern");
+            Set.of("name", "type", "required", "repeated", "codeList", "refType", "pattern", "doc");
 
     private final CanonicalTypeResolver canonicalTypes;
     private final List<Problem> problems = new ArrayList<>();
@@ -171,7 +171,9 @@ public final class ContractLoader {
             return null;
         }
         try {
-            return new Schema(id, version, fields, tolerant);
+            Schema schema = new Schema(id, version, fields, tolerant, Map.copyOf(fieldDocs));
+            fieldDocs.clear();
+            return schema;
         } catch (IllegalArgumentException e) {
             problems.add(new Problem(source, side, Code.INVALID_VALUE, e.getMessage()));
             return null;
@@ -197,6 +199,9 @@ public final class ContractLoader {
                 ? derived.tolerantOfUnexpectedFields()
                 : derived;
     }
+
+    /** Field documentation collected while parsing, keyed by field name. */
+    private final Map<String, String> fieldDocs = new java.util.LinkedHashMap<>();
 
     private List<FieldExpectation> parseFields(String source, String side, Object raw) {
         List<FieldExpectation> fields = new ArrayList<>();
@@ -227,6 +232,12 @@ public final class ContractLoader {
             FieldType type = parseType(source, location, field);
             if (type == null) {
                 continue;
+            }
+            String doc = optionalString(field, "doc");
+            if (doc != null) {
+                // What the agency means by this field, for the catalogue (§4.8, ADR 0019).
+                // Never read by validation: a contract checks shape, not meaning.
+                fieldDocs.put(fieldName, doc.trim());
             }
             String pattern = optionalString(field, "pattern");
             try {

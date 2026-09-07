@@ -32,11 +32,27 @@ public record Schema(
         String id,
         String version,
         List<FieldExpectation> fields,
-        boolean allowUnexpectedFields) implements Serializable {
+        boolean allowUnexpectedFields,
+        /**
+         * What the source means by each field, where the contract's author wrote it down.
+         *
+         * <p>A side table rather than a component of {@link FieldExpectation}: validation never
+         * reads it, and putting it on the expectation would make every construction of one carry
+         * documentation that nothing at run time consults. It is catalogue material (§4.8,
+         * ADR 0019) and belongs to the schema, not to the check.
+         */
+        Map<String, String> fieldDocs) implements Serializable {
+
+    /** A schema with no documented fields. */
+    public Schema(String id, String version, List<FieldExpectation> fields,
+            boolean allowUnexpectedFields) {
+        this(id, version, fields, allowUnexpectedFields, Map.of());
+    }
 
     public Schema {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(version, "version");
+        fieldDocs = fieldDocs == null ? Map.of() : Map.copyOf(fieldDocs);
         fields = List.copyOf(fields);
 
         Map<String, FieldExpectation> byName = new LinkedHashMap<>();
@@ -73,6 +89,11 @@ public record Schema(
         descriptor.fields().forEach(field -> expectations.add(FieldExpectation.ofCanonical(field)));
 
         return new Schema(descriptor.qualifiedName(), descriptor.version(), expectations, false);
+    }
+
+    /** What the source means by a field, if anyone said. */
+    public Optional<String> docFor(String field) {
+        return Optional.ofNullable(fieldDocs.get(field));
     }
 
     public Optional<FieldExpectation> field(String name) {

@@ -19,17 +19,52 @@ decode:
   emits: "source:cad-csv/incident-person"
   # Declared, never read from a header row. A header is a value in the data: trusting it means a
   # source that reorders its columns silently remaps every field, with no error anywhere.
+  #
+  # Each column says what Riverton PD means by it, not what it looks like (§4.8, ADR 0019). The
+  # shape is in the contract and can be re-derived from the data; the meaning cannot be re-derived
+  # from anything once the person who knew it has moved on.
   columns:
-    - INC_NUM
-    - CALL_TYPE
-    - RPT_DTTM
-    - ADDR
-    - BEAT
-    - ROLE
-    - NAME_FULL
-    - DOB
-    - SEX
-    - DL_NUM
+    - name: INC_NUM
+      doc: >
+        Agency incident number. Assigned by CAD at call creation and never reused, which is why the
+        canonical Incident identity is derived from it rather than resolved.
+    - name: CALL_TYPE
+      doc: >
+        Initial call classification as the dispatcher entered it. It is what the caller reported,
+        not what was found: a call typed BURG may be cleared as unfounded and the code is not
+        revised. Not an offence code and must not be read as one.
+    - name: RPT_DTTM
+      doc: >
+        When the call was reported, in local wall-clock time with no offset. America/Denver in
+        practice, which the mapping states explicitly because the data does not.
+    - name: ADDR
+      doc: >
+        Street address as entered by the dispatcher. Free text, frequently abbreviated, and not
+        validated against any gazetteer.
+    - name: BEAT
+      doc: >
+        Patrol beat. The agency's own operational districting, not a postal, census or municipal
+        boundary, and it is redrawn periodically without notice.
+    - name: ROLE
+      doc: >
+        How this person was involved in this incident. One row per person per incident, which is why
+        the export repeats incident fields.
+    - name: NAME_FULL
+      doc: >
+        Person name packed into one field as "SURNAME, GIVEN MIDDLE". Middle is often a single
+        initial and is frequently absent.
+    - name: DOB
+      doc: >
+        Date of birth as recorded, MM/dd/yyyy. Self-reported at contact and not verified against any
+        document.
+    - name: SEX
+      doc: >
+        Sex as recorded by the officer. U is used both for "unknown" and for "not asked", and the
+        source does not distinguish them.
+    - name: DL_NUM
+      doc: >
+        Driver licence number as recorded. The literal UNK appears where none was provided, and must
+        not be treated as an identifier -- it would resolve every such person to one cluster.
 
 hops:
   # ---------------------------------------------------------------------------
