@@ -70,6 +70,7 @@ Flink needs on Java 21. Do not add those flags per module; they belong in the pl
 ./gradlew -p build-logic test        # the codegen's own tests
 ./gradlew :core:canonical:test
 ./gradlew testAll                    # every test, including the included build-logic build
+./gradlew testAll -Pdocker           # also runs tests tagged "docker" (silver store)
 node C:/src/zendesign/scripts/zen-test.mjs   # merge JUnit XML into .zen/ for the Zen sidecar
 ```
 
@@ -113,7 +114,18 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   "fix" this back to `libs.foo` — it will not compile.
 - **`PowerShell 5.1` + `Invoke-WebRequest` needs `-UseBasicParsing`** in non-interactive mode,
   and `.Content` may come back as `byte[]` rather than a string.
-- **Large Java files via bash heredoc are fragile.** Use the Write tool.
+- **Large Java files via bash heredoc are fragile.** Use the Write tool. Backslashes in regexes
+  get eaten; write those files with the Write tool or fix the escapes afterwards.
+- **Module directory names are not unique, and Gradle coordinates come from them.**
+  `connectors/api`, `identity/api`, and `projections/api` would all be `gov.niemplatform:api`, and
+  Gradle silently substitutes one for another -- the symptom is a package that "does not exist".
+  `niem.java-conventions` derives the group from the parent path to prevent it. Do not simplify
+  that back to a flat group.
+- **Testcontainers cannot find Docker Desktop out of the box on this machine.** The active context
+  is `desktop-linux` on `npipe:////./pipe/dockerDesktopLinuxEngine`, but Testcontainers probes
+  `npipe:////./pipe/docker_engine`, which Docker Desktop no longer creates. Fix in Docker Desktop:
+  Settings -> Advanced -> **Allow the default Docker socket to be used**. Until then every
+  `docker`-tagged test fails, which is why they are excluded by default.
 - **`gradlew test` does not run `build-logic` tests.** It is an included build, so its tasks
   are not matched by name from the root. Use `gradlew testAll`, which depends on both. The
   canonical model code generator lives in `build-logic` and has the most rules per line in the
@@ -156,7 +168,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] Mapping DAG on embedded Flink (§5) — criterion 7 proved
 - [ ] Graph projection to Neo4j (§4.6)
 - [ ] Replay driver (§5)
-- [ ] LE module fixtures and mappings
+- [x] LE module fixtures and mappings
 - [ ] Operator CLI: `validate`, `run`, `replay`, `inspect`
 - [ ] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)

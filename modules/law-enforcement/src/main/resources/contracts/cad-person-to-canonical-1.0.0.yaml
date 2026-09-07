@@ -1,0 +1,44 @@
+# Hop contract: CAD row -> canonical Person
+#
+# Spec §4.2. The date of birth pattern is the one that matters: it is what turns a source quietly
+# switching from MM/dd/yyyy to ISO into a quarantined record and a ContractViolation, rather than
+# into silently missing dates of birth across the whole agency.
+
+contract: cad-person-to-canonical
+version: "1.0.0"
+hop: map-person
+
+expects:
+  schema: "source:cad-csv/incident-person"
+  version: "1.0.0"
+  fields:
+    - name: NAME_FULL
+      type: string
+      required: true
+
+    - name: DOB
+      type: string
+      pattern: "^\\d{2}/\\d{2}/\\d{4}$"
+
+    - name: SEX
+      type: string
+    - name: DL_NUM
+      type: string
+
+    # Declared but unconstrained: this hop does not read them, and constraining another hop's
+    # fields here would couple the two failures together.
+    - name: INC_NUM
+      type: string
+    - name: CALL_TYPE
+      type: string
+    - name: RPT_DTTM
+      type: string
+    - name: ADDR
+      type: string
+    - name: BEAT
+      type: string
+    - name: ROLE
+      type: string
+
+emits:
+  canonicalType: Person

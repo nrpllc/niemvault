@@ -1,0 +1,39 @@
+# Hop contract: CAD row -> canonical PersonIncidentAssociation
+#
+# Spec §4.2, §4.6. The emitted schema is derived from the canonical model, so the two role
+# references are typed: a reference pointing at the wrong kind of entity is a contract violation
+# rather than a wrong edge in the graph.
+
+contract: cad-association-to-canonical
+version: "1.0.0"
+hop: map-person-incident
+
+expects:
+  schema: "source:cad-csv/incident-person"
+  version: "1.0.0"
+  fields:
+    - name: ROLE
+      type: string
+      required: true
+
+    - name: INC_NUM
+      type: string
+    - name: CALL_TYPE
+      type: string
+    - name: RPT_DTTM
+      type: string
+    - name: ADDR
+      type: string
+    - name: BEAT
+      type: string
+    - name: NAME_FULL
+      type: string
+    - name: DOB
+      type: string
+    - name: SEX
+      type: string
+    - name: DL_NUM
+      type: string
+
+emits:
+  canonicalType: PersonIncidentAssociation

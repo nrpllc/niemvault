@@ -2,12 +2,13 @@ plugins {
     id("niem.java-conventions")
 }
 
-description = "Law enforcement domain module: canonical extensions, mapping artifacts, contracts, and fixtures."
+description = "Law enforcement domain module: mapping artifacts, hop contracts, and fixtures."
 
 dependencies {
-    // Content only for now -- mappings, contracts, and fixtures are resources, not code. The
-    // module carries a dependency on the engine so its artifacts can be validated against the
-    // loader that will consume them.
+    // Content only. The module ships mappings, contracts, and fixtures as resources; the engine
+    // that consumes them is a test dependency so the artifacts are exercised where they live.
     testImplementation(project(":runtime:engine"))
+    testImplementation(project(":connectors:file"))
     testImplementation(project(":identity:internal"))
+    testImplementation(project(":storage"))
 }

@@ -20,4 +20,18 @@ dependencies {
         exclude(group = "org.slf4j")
     }
     implementation(libs.bundles.jackson)
+
+    // ADR 0005: whether Iceberg can run embedded on a developer machine decides the silver
+    // table format. Spiked before it is designed around.
+    testImplementation(libs.iceberg.core)
+    testImplementation(libs.iceberg.api)
+    testImplementation(libs.iceberg.data)
+    testImplementation(libs.iceberg.parquet)
+    testImplementation(libs.iceberg.aws)
+    testImplementation(libs.aws.s3)
+    testImplementation(libs.aws.url.connection.client)
+    testImplementation(libs.h2)
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.testcontainers.minio)
 }

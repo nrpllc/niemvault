@@ -1,0 +1,56 @@
+# Hop contract: CAD row -> canonical Incident
+#
+# Spec §4.2. Contracts are versioned artifacts on disk, not code, and are validated on both
+# directions of the hop.
+#
+# Note what this declares and what it does not. Every source column is declared, so a source
+# adding or removing one is caught here. But only the fields this hop actually consumes carry
+# value-level expectations. A malformed date of birth is the person hop's problem; constraining it
+# here would take the incident down with it, for no reason.
+
+contract: cad-incident-to-canonical
+version: "1.0.0"
+hop: map-incident
+
+expects:
+  schema: "source:cad-csv/incident-person"
+  version: "1.0.0"
+  fields:
+    - name: INC_NUM
+      type: string
+      required: true
+      pattern: "^\\d{4}-\\d{6}$"
+
+    - name: CALL_TYPE
+      type: string
+      required: true
+
+    # The shape check that catches a CAD system changing its date format while every value
+    # remains a perfectly valid string. This is the drift §4.2 exists to catch.
+    - name: RPT_DTTM
+      type: string
+      required: true
+      pattern: "^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}$"
+
+    - name: ADDR
+      type: string
+    - name: BEAT
+      type: string
+
+    # Declared so an unexpected column is still a violation, but unconstrained: this hop does not
+    # read them.
+    - name: ROLE
+      type: string
+    - name: NAME_FULL
+      type: string
+    - name: DOB
+      type: string
+    - name: SEX
+      type: string
+    - name: DL_NUM
+      type: string
+
+# Derived from the canonical model rather than restated. A hand-copied field list drifts from the
+# model; a derived one cannot.
+emits:
+  canonicalType: Incident
