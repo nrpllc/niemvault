@@ -401,6 +401,63 @@ class AuthoringSurfaceTest {
         }
 
         @Test
+        @DisplayName("reports the contract gating a hop, with what it expects of each column")
+        void reportsTheContract() throws Exception {
+            var contract = getJson("/api/contract?hop=map-person");
+
+            assertThat(contract.get("present").asBoolean()).isTrue();
+            assertThat(contract.get("name").asText()).isEqualTo("cad-person-to-canonical");
+            assertThat(contract.get("expects").toString())
+                    .contains("NAME_FULL")
+                    .contains("DOB");
+        }
+
+        @Test
+        @DisplayName("edits a contract in place and rechecks the mapping against it")
+        void editsAContract() throws Exception {
+            // A contract edit is written immediately -- there is no draft of a contract -- and can
+            // open or close a coverage hole in a mapping nobody touched.
+            var result = post("/api/contract/edit", json.createObjectNode()
+                    .put("yaml", shippedYaml())
+                    .put("hop", "map-person")
+                    .put("op", "setAttribute")
+                    .put("field", "SEX")
+                    .put("key", "required")
+                    .put("value", "true")
+                    .toString());
+
+            assertThat(result.get("saved").asBoolean()).isTrue();
+            assertThat(result.get("valid").asBoolean()).isTrue();
+            assertThat(workspace.contractSource("map-person"))
+                    .contains("- name: SEX\n      type: string\n      required: true");
+        }
+
+        @Test
+        @DisplayName("refuses a contract edit that would leave the file unloadable")
+        void refusesABrokenContract() throws Exception {
+            // A contract on disk that does not load stops the whole module starting, not just the
+            // hop it governs, so this is refused rather than written and reported.
+            String before = workspace.contractSource("map-person");
+            var response = client.send(
+                    HttpRequest.newBuilder(URI.create(server.url() + "/api/contract/edit"))
+                            .POST(HttpRequest.BodyPublishers.ofString(json.createObjectNode()
+                                    .put("yaml", shippedYaml())
+                                    .put("hop", "map-person")
+                                    .put("op", "setAttribute")
+                                    .put("field", "DOB")
+                                    .put("key", "type")
+                                    .put("value", "notatype")
+                                    .toString(), StandardCharsets.UTF_8))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(workspace.contractSource("map-person"))
+                    .as("the file on disk is untouched")
+                    .isEqualTo(before);
+        }
+
+        @Test
         @DisplayName("refuses to save a draft that would not load")
         void refusesToSaveABrokenDraft() throws Exception {
             // A mapping on disk that does not load is a deployment that fails at start-up, and the

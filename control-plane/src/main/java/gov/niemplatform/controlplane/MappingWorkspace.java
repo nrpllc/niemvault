@@ -243,6 +243,66 @@ public final class MappingWorkspace {
         }
     }
 
+    /** The contract file gating a hop, if the module carries one. */
+    public Optional<Path> contractFileFor(String hopId) {
+        Path directory = moduleRoot.resolve("contracts");
+        if (!Files.isDirectory(directory)) {
+            return Optional.empty();
+        }
+        try (var stream = Files.list(directory)) {
+            for (Path file : stream.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+                    .sorted().toList()) {
+                if (new ContractText(Files.readString(file, StandardCharsets.UTF_8))
+                        .declaresHop(hopId)) {
+                    return Optional.of(file);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot list contracts under " + directory, e);
+        }
+        return Optional.empty();
+    }
+
+    /** The raw text of the contract gating a hop. */
+    public String contractSource(String hopId) {
+        Path file = contractFileFor(hopId).orElseThrow(() -> new IllegalArgumentException(
+                "the module carries no contract for hop '" + hopId + "'"));
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot read " + file, e);
+        }
+    }
+
+    /**
+     * Writes an edited contract back in place.
+     *
+     * <p>Unlike a mapping, a contract is rewritten rather than versioned up. A contract describes
+     * what a source actually sends; when the source changes, the old description is not a thing
+     * anyone wants to keep running. Its version is bumped by the author when the change is
+     * breaking, which is a judgement no editor can make for them.
+     *
+     * @throws IllegalArgumentException if the edited text will not load
+     */
+    public Path writeContract(String hopId, String yaml) {
+        Path file = contractFileFor(hopId).orElseThrow(() -> new IllegalArgumentException(
+                "the module carries no contract for hop '" + hopId + "'"));
+        // Refused rather than written: a contract on disk that does not load stops the whole module
+        // from starting, not just the hop it governs.
+        new gov.niemplatform.contracts.ContractLoader(
+                gov.niemplatform.canonical.meta.CanonicalTypeResolver.of(
+                        gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL))
+                .load(new java.io.ByteArrayInputStream(yaml.getBytes(StandardCharsets.UTF_8)),
+                        file.getFileName().toString());
+        try {
+            Files.writeString(file, yaml, StandardCharsets.UTF_8);
+            return file;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot write " + file, e);
+        }
+    }
+
     /** Suggests the next patch version for a mapping, which is what most edits are. */
     public String nextVersion(String currentVersion) {
         SemanticVersion current = SemanticVersion.parse(currentVersion);

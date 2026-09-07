@@ -143,6 +143,10 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   assign in order and later steps read earlier results -- `surName` is produced by a split and then
   consumed by an upper. One node per *name* would make that a cycle. Each write gets its own node
   and each read binds to the most recent earlier write. Do not "simplify" it to one node per field.
+- **A contract is written in place; a mapping is versioned up.** Deliberately different. A contract
+  describes what a source *actually sends* -- once the source changes, the old description is not
+  something anyone wants left running. A mapping is a reviewed decision about meaning. Bumping a
+  contract's own version when a change is breaking is the author's judgement, not the editor's.
 - **`ContractCoverage` is the check that a mapping actually satisfies its contracts.** Contract
   *identity* (right name, right version, right hop) was already checked; field coverage was not. A
   mapping that fails to write a field the contract requires loads perfectly and then quarantines

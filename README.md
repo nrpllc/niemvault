@@ -63,6 +63,11 @@ Four things about it are deliberate:
 - **It does not carry its own validators.** Every check comes from the loaders the runtime itself
   uses (ADR 0021), so a mapping the editor accepts is a mapping the pipeline will load. A second
   validator would eventually disagree with the first, and the disagreement would surface at deploy.
+- **Contracts are edited from the canvas too.** Selecting a source column shows what the contract
+  expects of it — type, required, pattern — and changes are written straight to the contract file.
+  They live there rather than on a screen of their own because the question an author actually has
+  is "is this the field that will quarantine my records", and that is answered by looking at the
+  expectation and the flow reading it at the same time.
 - **Contracts are checked against the mapping, not just named by it.** A field the contract requires
   that no step writes is drawn as an empty slot on the canvas and reported as a problem. That
   mapping loads perfectly and quarantines every record it ever sees — it is knowable from the two

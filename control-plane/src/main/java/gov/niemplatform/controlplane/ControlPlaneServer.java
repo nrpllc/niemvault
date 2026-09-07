@@ -54,6 +54,8 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/validate", exchange -> respond(exchange, this::validate));
         server.createContext("/api/edit", exchange -> respond(exchange, this::edit));
         server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
+        server.createContext("/api/contract", exchange -> respond(exchange, this::contract));
+        server.createContext("/api/contract/edit", exchange -> respond(exchange, this::editContract));
         server.createContext("/api/save", exchange -> respond(exchange, this::save));
     }
 
@@ -191,6 +193,80 @@ public final class ControlPlaneServer implements AutoCloseable {
             }
         });
         return values;
+    }
+
+    /** The contract gating a hop, as the editor needs to show it. */
+    private ObjectNode contract(HttpExchange exchange) {
+        String hopId = query(exchange, "hop");
+        var contract = contractFor(hopId);
+        ObjectNode node = json.createObjectNode();
+        if (!(contract instanceof gov.niemplatform.contracts.SchemaHopContract schema)) {
+            node.put("present", false);
+            return node;
+        }
+
+        node.put("present", true);
+        node.put("name", schema.id().name());
+        node.put("version", schema.id().version());
+        node.put("file", workspace.contractFileFor(hopId).map(path -> path.getFileName().toString())
+                .orElse(""));
+        node.put("allowUnexpectedFields", schema.expects().allowUnexpectedFields());
+
+        ArrayNode expects = node.putArray("expects");
+        for (var field : schema.expects().fields()) {
+            ObjectNode entry = expects.addObject();
+            entry.put("name", field.name());
+            entry.put("type", field.type().name().toLowerCase(java.util.Locale.ROOT));
+            entry.put("required", field.required());
+            entry.put("repeated", field.repeated());
+            entry.put("pattern", field.pattern() == null ? "" : field.pattern());
+            ArrayNode codes = entry.putArray("codeList");
+            field.codeList().forEach(codes::add);
+        }
+        return node;
+    }
+
+    /**
+     * Applies one edit to a contract and writes it.
+     *
+     * <p>Written in place rather than versioned up, unlike a mapping. A contract describes what a
+     * source actually sends; once the source changes, the previous description is not something
+     * anyone wants left running. Bumping the contract's own version when a change is breaking is a
+     * judgement the author makes, not the editor.
+     */
+    private ObjectNode editContract(HttpExchange exchange) throws IOException {
+        ObjectNode request = (ObjectNode) json.readTree(body(exchange));
+        String hopId = request.get("hop").asText();
+        ContractText text = new ContractText(workspace.contractSource(hopId));
+        ContractText.Side side = ContractText.Side.valueOf(
+                request.path("side").asText("EXPECTS").toUpperCase(java.util.Locale.ROOT));
+
+        ContractText edited = switch (request.get("op").asText()) {
+            case "setAttribute" -> text.setFieldAttribute(side,
+                    request.get("field").asText(), request.get("key").asText(),
+                    request.get("value").asText());
+            case "addField" -> text.addField(side,
+                    request.get("field").asText(), request.path("type").asText("string"));
+            case "removeField" -> text.removeField(side, request.get("field").asText());
+            default -> throw new IllegalArgumentException(
+                    "unknown contract edit '" + request.get("op").asText() + "'");
+        };
+
+        workspace.writeContract(hopId, edited.text());
+
+        ObjectNode node = json.createObjectNode();
+        node.put("saved", true);
+        // The mapping is revalidated too: a contract edit can create or close a coverage hole in a
+        // mapping nobody touched, and the author should see that immediately.
+        MappingWorkspace.ValidationReport report = workspace.validate(request.get("yaml").asText());
+        node.put("valid", report.valid());
+        ArrayNode problems = node.putArray("problems");
+        report.problems().forEach(problems::add);
+        if (report.definition() != null) {
+            node.set("mapping", describe(report.definition()));
+            node.put("svg", DagSvg.render(report.definition()));
+        }
+        return node;
     }
 
     /** The transform vocabulary an author can choose from, straight from the factory. */

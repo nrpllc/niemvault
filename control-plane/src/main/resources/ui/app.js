@@ -22,6 +22,7 @@ const state = {
   mapping: null,
   transforms: [],
   hopId: null,
+  contract: null,
   selected: null,
   debounce: null,
 };
@@ -151,6 +152,23 @@ async function edit(request) {
   }
 }
 
+async function editContract(request) {
+  try {
+    const report = await api('/api/contract/edit', {
+      method: 'POST',
+      body: JSON.stringify({ yaml: el('yaml').value, hop: state.hopId, ...request }),
+    });
+    // A contract edit is written to disk immediately -- there is no draft of a contract -- but it
+    // can open or close a coverage hole in a mapping nobody touched, so the mapping is rechecked.
+    accept(report, el('yaml').value);
+    await loadContract();
+    renderInspector();
+  } catch (error) {
+    showProblems([error.message]);
+    setStatus('invalid', 'not applied');
+  }
+}
+
 function accept(report, yaml) {
   if (report.svg) {
     apply(report.svg, report.mapping, report.problems);
@@ -209,6 +227,19 @@ function renderColumns(columns) {
 
 // --- the canvas -------------------------------------------------------------
 
+async function loadContract() {
+  if (!state.hopId) {
+    state.contract = null;
+    return;
+  }
+  try {
+    const contract = await api(`/api/contract?hop=${encodeURIComponent(state.hopId)}`);
+    state.contract = contract.present ? contract : null;
+  } catch (error) {
+    state.contract = null;
+  }
+}
+
 function showHop() {
   const hop = currentHop();
   el('dag').querySelectorAll('.dag-node[data-hop]').forEach((node) =>
@@ -223,6 +254,9 @@ function showHop() {
   canvas.render(hop.graph);
   canvas.select(state.selected);
   renderInspector();
+  // The contract arrives after the drawing rather than blocking it. A column's expectations are
+  // detail on demand; the flow is what the author came to look at.
+  loadContract().then(renderInspector);
 }
 
 function nodeById(id) {
@@ -357,6 +391,11 @@ function renderInspector() {
     return;
   }
 
+  if (node.kind === 'column' || node.kind === 'unbound') {
+    renderColumnInspector(node, title, panel);
+    return;
+  }
+
   if (node.kind !== 'transform') {
     title.textContent = node.label;
     panel.append(hint(describeKind(node)));
@@ -393,6 +432,80 @@ function renderInspector() {
 
   // Order is meaning here, not presentation: a step reads what earlier steps produced.
   panel.append(hint(`Step ${node.step + 1} of ${hop.steps.length}. Steps run in order.`));
+}
+
+/**
+ * A source column, and what the contract expects of it.
+ *
+ * This is the contract editor. It is here rather than on a screen of its own because a column's
+ * expectations are only meaningful next to the flow that reads it -- the question an author has is
+ * "is this the field that is going to quarantine my records", and that is answered by looking at
+ * both at once.
+ */
+function renderColumnInspector(node, title, panel) {
+  title.textContent = node.label;
+
+  if (!state.contract) {
+    panel.append(hint(describeKind(node)));
+    panel.append(hint('No contract governs this step, so nothing checks this column.'));
+    return;
+  }
+
+  const field = (state.contract.expects || []).find((entry) => entry.name === node.label);
+  panel.append(hint(`Checked by ${state.contract.name}@${state.contract.version} on the way in.`));
+
+  if (!field) {
+    // The column is read but the inbound gate does not allow it: the record is rejected before the
+    // step ever runs. One button fixes it.
+    panel.append(hint('The contract does not declare this column, so the record would be rejected '
+      + 'before this step runs.'));
+    const actions = document.createElement('div');
+    actions.className = 'inspector-actions';
+    actions.append(action('Declare it', () =>
+      editContract({ op: 'addField', field: node.label, type: 'string' })));
+    panel.append(actions);
+    return;
+  }
+
+  panel.append(row('Type', choice(
+    ['string', 'integer', 'decimal', 'boolean', 'date', 'datetime'], field.type,
+    (value) => editContract({ op: 'setAttribute', field: field.name, key: 'type', value }))));
+
+  panel.append(row('Required', choice(['false', 'true'], String(field.required),
+    (value) => editContract({ op: 'setAttribute', field: field.name, key: 'required', value }))));
+
+  panel.append(row('Pattern', input(field.pattern, (value) =>
+    editContract({ op: 'setAttribute', field: field.name, key: 'pattern', value }))));
+
+  panel.append(hint(field.pattern
+    ? 'A value that does not match is quarantined with a ContractViolation, rather than passed on.'
+    : 'No pattern. A source that changes format would pass through unnoticed.'));
+
+  const actions = document.createElement('div');
+  actions.className = 'inspector-actions';
+  actions.append(action('Remove from contract', () =>
+    editContract({ op: 'removeField', field: field.name }), 'danger'));
+  panel.append(actions);
+}
+
+function choice(values, current, commit) {
+  const select = document.createElement('select');
+  values.forEach((value) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    option.selected = value === current;
+    select.append(option);
+  });
+  if (!values.includes(current)) {
+    const unknown = document.createElement('option');
+    unknown.value = current;
+    unknown.textContent = current;
+    unknown.selected = true;
+    select.prepend(unknown);
+  }
+  select.addEventListener('change', () => commit(select.value));
+  return select;
 }
 
 function describeKind(node) {
