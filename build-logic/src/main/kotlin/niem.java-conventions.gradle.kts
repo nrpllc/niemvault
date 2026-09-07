@@ -82,6 +82,19 @@ tasks.withType<Test>().configureEach {
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
     )
+    // Docker Engine 29 refuses API versions below 1.40, and the docker-java client Testcontainers
+    // 1.20.4 ships requests v1.32. The engine answers with HTTP 400 and an empty /info payload, so
+    // Testcontainers reports "Could not find a valid Docker environment" on a machine where the
+    // Docker CLI works perfectly. Pinning a supported version is the fix; the exact number matters
+    // only in that it sits between the engine's minimum and its current version.
+    //
+    // Set on the task rather than exported from a shell: a Gradle test JVM inherits the daemon's
+    // environment, not the environment of whoever typed the command, so exporting it in a terminal
+    // has no effect on an already-running daemon.
+    if (System.getenv("DOCKER_API_VERSION") == null) {
+        environment("DOCKER_API_VERSION", "1.44")
+    }
+
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = TestExceptionFormat.FULL

@@ -121,20 +121,15 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   Gradle silently substitutes one for another -- the symptom is a package that "does not exist".
   `niem.java-conventions` derives the group from the parent path to prevent it. Do not simplify
   that back to a flat group.
-- **Testcontainers cannot find Docker Desktop out of the box on this machine.** The active context
-  is `desktop-linux` on `npipe:////./pipe/dockerDesktopLinuxEngine`, but Testcontainers probes
-  `npipe:////./pipe/docker_engine`, which Docker Desktop no longer creates. Fix in Docker Desktop:
-  Settings -> Advanced -> **Allow the default Docker socket to be used**. Until then every
-  `docker`-tagged test fails, which is why they are excluded by default.
-- **`gradlew test` does not run `build-logic` tests.** It is an included build, so its tasks
-  are not matched by name from the root. Use `gradlew testAll`, which depends on both. The
-  canonical model code generator lives in `build-logic` and has the most rules per line in the
-  project — a green run that silently skipped it would be worse than no run.
-- **Zen sidecar caveat: `testgaps` under-reports Java coverage.** Its Java call graph does not
-  bind calls from test sources into main sources, so symbols that tests exercise directly are
-  listed as having 0 callers — `ValueShape.of` is invoked 9 times from `ObservabilityEventTest`
-  and still appears at the top of the gap list. Treat the ranking as a hint, not a target, and
-  do not write tests to move the number.
+- **Testcontainers needs a version that speaks a modern Docker API.** Docker Engine 29 refuses
+  API versions below 1.40; the docker-java client in Testcontainers 1.20.4 requests v1.32, so the
+  engine replies HTTP 400 with an empty `/info` and Testcontainers reports "Could not find a valid
+  Docker environment" on a machine where the CLI works fine. **Testcontainers 1.21.4 fixes it.**
+  Do not chase Docker Desktop settings for this -- the named pipes are healthy, and the
+  "Allow the default Docker socket" toggle is macOS-only. Check `docker version --format
+  '{{.Server.MinAPIVersion}}'` against the `GET /vX.YY/info` line in the test log first.
+- **Iceberg's S3FileIO needs `software.amazon.awssdk:sts` on the classpath** even when no role is
+  assumed: `AwsProperties` touches STS model classes during construction.
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will

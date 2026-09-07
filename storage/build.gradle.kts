@@ -30,6 +30,7 @@ dependencies {
     testImplementation(libs.iceberg.aws)
     testImplementation(libs.aws.s3)
     testImplementation(libs.aws.url.connection.client)
+    testImplementation(libs.aws.sts)
     testImplementation(libs.h2)
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)

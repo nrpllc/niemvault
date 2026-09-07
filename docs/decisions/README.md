@@ -14,7 +14,7 @@ deciding stated) · **Superseded**.
 | [0002](0002-spark-for-silver-to-gold.md) | Spark or warehouse SQL for silver to gold | Deferred |
 | [0003](0003-gradle-kotlin-dsl.md) | Gradle with the Kotlin DSL | Accepted |
 | [0004](0004-bronze-parquet-and-envelope.md) | Bronze as append-only Parquet with a JSON envelope | Accepted |
-| [0005](0005-canonical-table-format.md) | Table format for canonical silver storage | Proposed |
+| [0005](0005-canonical-table-format.md) | Table format for canonical silver storage | Accepted |
 | [0006](0006-neo4j-graph-projection.md) | Neo4j for the Phase 1 graph projection | Accepted |
 | [0007](0007-elasticsearch-search-projection.md) | Elasticsearch for the search projection | Deferred |
 | [0008](0008-warehouse-projection.md) | Warehouse projection | Deferred |
