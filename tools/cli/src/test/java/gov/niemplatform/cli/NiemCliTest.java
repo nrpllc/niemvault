@@ -237,6 +237,46 @@ class NiemCliTest {
         }
 
         @Test
+        @DisplayName("a second run maps only what it landed, not all of bronze again")
+        void secondRunMapsOnlyNewBatches() throws IOException {
+            Path module = moduleDirectory();
+            Path mapping = module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml");
+            Path bronze = work.resolve("bronze");
+
+            Path dayOne = Files.createDirectories(work.resolve("day1"));
+            copyResource("/fixtures/incidents.csv", dayOne.resolve("incidents.csv"));
+            run("run", "--module", module.toString(), "--mapping", mapping.toString(),
+                    "--drop", dayOne.toString(), "--bronze", bronze.toString());
+            assertThat(stdout()).contains("Mapped 30 canonical record(s)");
+
+            Path dayTwo = Files.createDirectories(work.resolve("day2"));
+            copyResource("/fixtures/incidents-drifted.csv", dayTwo.resolve("incidents-drifted.csv"));
+            run("run", "--module", module.toString(), "--mapping", mapping.toString(),
+                    "--drop", dayTwo.toString(), "--bronze", bronze.toString());
+
+            // Bronze is append-only and accumulates. Mapping all of it every run would re-emit
+            // every record the platform has ever seen; re-mapping a range is replay's job.
+            assertThat(stdout())
+                    .contains("Landed 5 record(s)")
+                    .contains("Mapped 8 canonical record(s)")
+                    .doesNotContain("Mapped 38 canonical record(s)");
+        }
+
+        @Test
+        @DisplayName("an empty drop directory maps nothing and exits zero")
+        void emptyDropIsNotAnError() throws IOException {
+            Path module = moduleDirectory();
+            int exit = run("run",
+                    "--module", module.toString(),
+                    "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
+                    "--drop", Files.createDirectories(work.resolve("empty-drop")).toString(),
+                    "--bronze", work.resolve("bronze").toString());
+
+            assertThat(exit).isZero();
+            assertThat(stdout()).contains("Nothing to map");
+        }
+
+        @Test
         @DisplayName("canonical output is one JSON object per record")
         void canonicalOutput() throws IOException {
             Path module = moduleDirectory();

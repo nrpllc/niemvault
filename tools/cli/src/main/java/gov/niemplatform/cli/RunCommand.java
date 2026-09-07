@@ -121,6 +121,18 @@ final class RunCommand implements Callable<Integer> {
             System.out.printf("Landed %d record(s) in %d batch(es) for source '%s'.%n",
                     landing.recordsLanded(), landing.receipts().size(), config.sourceId());
 
+            if (landing.receipts().isEmpty()) {
+                System.out.println("Nothing to map.");
+                return 0;
+            }
+
+            // Map only what this run landed. Bronze is append-only and accumulates across runs, so
+            // mapping all of it would re-emit every record the platform has ever seen, every time.
+            // Re-mapping an existing range is replay's job, not run's.
+            BronzeRange landed = BronzeRange.between(
+                    landing.receipts().getFirst().batchId(),
+                    landing.receipts().getLast().batchId());
+
             MappingPipeline pipeline = new MappingPipeline(
                     artifacts.mapping(),
                     artifacts.contractsByHop(),
@@ -130,7 +142,7 @@ final class RunCommand implements Callable<Integer> {
                     quarantine,
                     emitter);
 
-            canonicalCount = mapLanded(bronze, config.sourceId(), pipeline);
+            canonicalCount = mapLanded(bronze, config.sourceId(), landed, pipeline);
         }
 
         writeQuarantine(quarantine.held());
@@ -142,17 +154,18 @@ final class RunCommand implements Callable<Integer> {
         return quarantine.size() == 0 ? 0 : 2;
     }
 
-    private long mapLanded(ParquetBronzeStore bronze, String sourceId, MappingPipeline pipeline)
+    private long mapLanded(
+            ParquetBronzeStore bronze, String sourceId, BronzeRange range, MappingPipeline pipeline)
             throws IOException {
         if (canonicalOut == null) {
-            try (Stream<RawEnvelope> landed = bronze.read(sourceId, BronzeRange.all())) {
+            try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
                 return landed.mapToLong(envelope ->
                         pipeline.process(envelope, runId).canonicalRecords().size()).sum();
             }
         }
         long written = 0;
         try (BufferedWriter out = Files.newBufferedWriter(canonicalOut, StandardCharsets.UTF_8);
-                Stream<RawEnvelope> landed = bronze.read(sourceId, BronzeRange.all())) {
+                Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
             for (RawEnvelope envelope : (Iterable<RawEnvelope>) landed::iterator) {
                 for (Record record : pipeline.process(envelope, runId).canonicalRecords()) {
                     out.write(json.writeValueAsString(asJson(record)));
