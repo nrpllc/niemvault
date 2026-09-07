@@ -133,6 +133,16 @@ public final class MappingPipeline {
         return definition;
     }
 
+    /**
+     * Canonical types this pipeline can produce, by simple name.
+     *
+     * <p>Exposed for replay, which must write exactly the types the pinned mapping version declares
+     * rather than whatever the deployment happens to have loaded.
+     */
+    public Map<String, CanonicalTypeDescriptor> canonicalTypes() {
+        return canonicalTypes;
+    }
+
     /** Maps one landed envelope. */
     public Outcome process(RawEnvelope envelope, String runId) {
         PipelineContext runContext = PipelineContext.of(definition.sourceId(), runId);

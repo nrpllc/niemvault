@@ -172,10 +172,10 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Identity resolution (§4.5)
 - [x] Mapping DAG on embedded Flink (§5) — criterion 7 proved
 - [x] Graph projection to Neo4j (§4.6) — criterion 4 proved
-- [ ] Replay driver (§5)
+- [x] Replay driver (§5) — criterion 6 proved
 - [x] LE module fixtures and mappings
 - [x] Operator CLI: `validate`, `run`, `inspect` — `replay` awaits the silver store
-- [ ] All 7 acceptance criteria asserted in tests
+- [x] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)
 
 **Acceptance criterion 7** — the identical mapping definition running unchanged in batch and
