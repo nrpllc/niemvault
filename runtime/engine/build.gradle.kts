@@ -18,4 +18,8 @@ dependencies {
     implementation(libs.bundles.flink.embedded)
 
     testImplementation(libs.flink.test.utils)
+
+    // The bundled resolver is a test dependency, not a runtime one: the engine talks to the
+    // ResolutionProvider SPI and must not know which implementation a deployment installed.
+    testImplementation(project(":identity:internal"))
 }
