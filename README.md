@@ -108,6 +108,11 @@ niem catalogue --module modules/law-enforcement/src/main/resources
 niem catalogue --module ... --gaps-only    # exits 2 if anything is undocumented or unread
 ```
 
+It is also a view in the authoring surface — a **Catalogue** tab beside the flow — where the meanings
+are editable. A records manager can say what `BEAT` means without opening a mapping, and what they
+write is patched into the artifact that declares the column, so the meaning travels with the thing it
+describes and is reviewed alongside it.
+
 Two halves, and only one is derivable. The structural half — sources, mappings, contracts, canonical
 types, versions, NIEM provenance — is assembled from artifacts that already describe themselves.
 

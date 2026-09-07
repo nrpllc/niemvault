@@ -155,6 +155,144 @@ public final class MappingText {
                         .formatted(stepIndex, hopId, key));
     }
 
+    // --- the source's own vocabulary ---------------------------------------
+
+    /**
+     * Writes what the agency means by a source column (§4.8, ADR 0019).
+     *
+     * <p>Handles both forms a column may take, because the whole point is to let someone document a
+     * source that was written without documentation. A bare name is rewritten as a name with a doc;
+     * an existing doc is replaced.
+     *
+     * <p>The text is written as a YAML folded block, which is what a paragraph of prose wants to be.
+     * A meaning worth capturing is usually a sentence about what the field is <em>not</em> — that a
+     * beat is not a postal boundary, that a licence number is sometimes the literal {@code UNK} —
+     * and squeezing that onto one quoted line produces something nobody re-reads.
+     *
+     * @throws IllegalArgumentException if the decoder declares no such column
+     */
+    public MappingText setColumnDoc(String column, String doc) {
+        Block columns = columnsBlock();
+        int marker = columnLine(columns, column);
+        int indent = indentOf(lines.get(marker));
+
+        // Where the entry ends: the next column, or the end of the list.
+        int end = marker + 1;
+        while (end < columns.end() && (lines.get(end).isBlank()
+                || indentOf(lines.get(end)) > indent)) {
+            end++;
+        }
+
+        List<String> replacement = new ArrayList<>();
+        String pad = " ".repeat(indent);
+        replacement.add(pad + "- name: " + scalar(column));
+        if (!doc.isBlank()) {
+            replacement.add(pad + "  doc: >");
+            // Wrapped at a width a person reads comfortably, and indented under the folded scalar.
+            for (String line : wrap(doc.strip(), 92 - indent - 4)) {
+                replacement.add(pad + "    " + line);
+            }
+        }
+
+        List<String> edited = new ArrayList<>(lines);
+        edited.subList(marker, trimTrailingBlanks(marker, end)).clear();
+        edited.addAll(marker, replacement);
+        return new MappingText(edited);
+    }
+
+    /** The columns a decoder declares, in order, whichever form each is written in. */
+    public List<String> columnNames() {
+        Block columns = columnsBlock();
+        List<String> names = new ArrayList<>();
+        for (int line = columns.start(); line < columns.end(); line++) {
+            String text = lines.get(line);
+            if (text.isBlank() || isComment(text) || indentOf(text) != columns.markerIndent()) {
+                continue;
+            }
+            Matcher bare = BARE_COLUMN.matcher(text);
+            if (bare.matches()) {
+                names.add(bare.group(2));
+                continue;
+            }
+            Matcher named = NAMED_COLUMN.matcher(text);
+            if (named.matches()) {
+                names.add(named.group(2));
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    /** {@code - INC_NUM} */
+    private static final Pattern BARE_COLUMN = Pattern.compile("^(\\s*)-\\s+([^:\\s#][^:#]*?)\\s*$");
+
+    /** {@code - name: INC_NUM} */
+    private static final Pattern NAMED_COLUMN =
+            Pattern.compile("^(\\s*)-\\s+name:\\s*\"?([^\"\\s]+)\"?\\s*$");
+
+    private Block columnsBlock() {
+        for (int line = 0; line < lines.size(); line++) {
+            if (!lines.get(line).strip().equals("columns:")) {
+                continue;
+            }
+            int indent = indentOf(lines.get(line));
+            int end = lines.size();
+            int markerIndent = -1;
+            for (int scan = line + 1; scan < lines.size(); scan++) {
+                String text = lines.get(scan);
+                if (text.isBlank() || isComment(text)) {
+                    continue;
+                }
+                if (indentOf(text) <= indent) {
+                    end = scan;
+                    break;
+                }
+                if (markerIndent < 0 && text.stripLeading().startsWith("- ")) {
+                    markerIndent = indentOf(text);
+                }
+            }
+            return new Block(line + 1, end, markerIndent < 0 ? indent + 2 : markerIndent, indent);
+        }
+        throw new IllegalArgumentException("this mapping declares no decoder columns");
+    }
+
+    private int columnLine(Block columns, String column) {
+        for (int line = columns.start(); line < columns.end(); line++) {
+            String text = lines.get(line);
+            if (indentOf(text) != columns.markerIndent()) {
+                continue;
+            }
+            Matcher bare = BARE_COLUMN.matcher(text);
+            if (bare.matches() && bare.group(2).equals(column)) {
+                return line;
+            }
+            Matcher named = NAMED_COLUMN.matcher(text);
+            if (named.matches() && named.group(2).equals(column)) {
+                return line;
+            }
+        }
+        throw new IllegalArgumentException("no column '" + column + "' in this mapping");
+    }
+
+    /** Breaks prose at word boundaries, so the artifact stays readable in a diff. */
+    private static List<String> wrap(String text, int width) {
+        List<String> wrapped = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.split("\\s+")) {
+            if (line.length() > 0 && line.length() + 1 + word.length() > width) {
+                wrapped.add(line.toString());
+                line.setLength(0);
+            }
+            if (line.length() > 0) {
+                line.append(' ');
+            }
+            line.append(word);
+        }
+        if (line.length() > 0) {
+            wrapped.add(line.toString());
+        }
+        return wrapped;
+    }
+
     // --- adding, removing, reordering --------------------------------------
 
     /** Appends a step with no options. */

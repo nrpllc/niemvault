@@ -170,6 +170,179 @@ async function editContract(request) {
   }
 }
 
+// --- the catalogue ----------------------------------------------------------
+
+/*
+ * What the source sends, what the agency calls it, and what it becomes (ADR 0019).
+ *
+ * The meanings are editable here, which is the point. A records manager can say what BEAT means
+ * without opening a mapping, and what they write goes into the artifact that declares the column --
+ * so the meaning travels with the thing it describes, and is reviewed with it.
+ */
+async function showCatalogue() {
+  const vocabulary = el('catalogue-vocabulary');
+  const produces = el('catalogue-produces');
+  vocabulary.replaceChildren();
+  produces.replaceChildren();
+
+  let catalogue;
+  try {
+    catalogue = await api('/api/catalogue', { method: 'POST', body: el('yaml').value });
+  } catch (error) {
+    vocabulary.append(hint('Catalogue unavailable: ' + error.message));
+    return;
+  }
+  if (!catalogue.available) {
+    vocabulary.append(hint('The mapping does not parse, so there is nothing to catalogue yet.'));
+    return;
+  }
+
+  el('catalogue-source').textContent = catalogue.sourceId;
+  el('catalogue-detail').textContent =
+    `${catalogue.mapping} · ${catalogue.recordType}`
+    + (catalogue.contracts.length ? ` · ${catalogue.contracts.length} contract(s)` : '');
+  renderGaps(catalogue.gaps);
+
+  catalogue.vocabulary.forEach((term) => vocabulary.append(termRow(term)));
+  catalogue.produces.forEach((produced) => produces.append(producedRow(produced)));
+
+  // Sized after they are in the document. scrollHeight on a detached element measures nothing, so
+  // fitting at construction time silently leaves every long meaning cut off at two lines -- and the
+  // end of a meaning is the half that matters, because that is where the caveats are.
+  vocabulary.querySelectorAll('.term-meaning').forEach(fitToContent);
+}
+
+function renderGaps(gaps) {
+  const container = el('catalogue-gaps');
+  container.replaceChildren();
+
+  // Reported, never hidden. A catalogue that listed only its documented terms would tell an agency
+  // their source is fully understood.
+  if (!gaps.undocumented.length && !gaps.unused.length) {
+    const ok = document.createElement('div');
+    ok.className = 'gap gap--ok';
+    ok.textContent = 'Every term documented and read.';
+    container.append(ok);
+    return;
+  }
+  if (gaps.undocumented.length) {
+    container.append(gap(`${gaps.undocumented.length} undocumented`,
+      'Nobody has said what these mean: ' + gaps.undocumented.join(', ')));
+  }
+  if (gaps.unused.length) {
+    container.append(gap(`${gaps.unused.length} sent but never read`,
+      'The source sends these and no step consumes them: ' + gaps.unused.join(', ')));
+  }
+}
+
+function gap(title, detail) {
+  const item = document.createElement('div');
+  item.className = 'gap';
+  const heading = document.createElement('strong');
+  heading.textContent = title;
+  const text = document.createElement('span');
+  text.textContent = detail;
+  item.append(heading, text);
+  return item;
+}
+
+function termRow(term) {
+  const row = document.createElement('div');
+  row.className = 'term' + (term.documented ? '' : ' is-undocumented');
+
+  const head = document.createElement('div');
+  head.className = 'term-head';
+
+  const name = document.createElement('span');
+  name.className = 'term-name';
+  name.textContent = term.term;
+
+  const becomes = document.createElement('span');
+  becomes.className = 'term-becomes';
+  becomes.textContent = term.becomes.length
+    ? '→ ' + term.becomes.join(', ')
+    : 'read by nothing';
+
+  head.append(name, becomes);
+  if (term.governed) {
+    const checked = document.createElement('span');
+    checked.className = 'term-governed';
+    checked.textContent = 'checked on the way in';
+    head.append(checked);
+  }
+
+  const meaning = document.createElement('textarea');
+  meaning.className = 'term-meaning';
+  meaning.value = term.meaning;
+  meaning.placeholder = 'What does this agency mean by ' + term.term + '?';
+  meaning.setAttribute('aria-label', 'meaning of ' + term.term);
+  // Committed on blur. Each edit rewrites the artifact and revalidates it, which is not something
+  // to do per keystroke.
+  meaning.addEventListener('blur', () => {
+    if (meaning.value !== term.meaning) {
+      recordMeaning(term.term, meaning.value);
+    }
+  });
+
+  row.append(head, meaning);
+  meaning.addEventListener('input', () => fitToContent(meaning));
+  return row;
+}
+
+/** Grows a textarea to fit what is in it. Measured after layout, not guessed from character count. */
+function fitToContent(field) {
+  field.style.height = 'auto';
+  field.style.height = Math.max(field.scrollHeight, 34) + 'px';
+}
+
+async function recordMeaning(term, meaning) {
+  try {
+    const report = await api('/api/catalogue/edit', {
+      method: 'POST',
+      body: JSON.stringify({ yaml: el('yaml').value, term, meaning }),
+    });
+    el('yaml').value = report.yaml;
+    accept(report, report.yaml);
+    await showCatalogue();
+  } catch (error) {
+    showProblems([error.message]);
+    setStatus('invalid', 'not applied');
+  }
+}
+
+function producedRow(produced) {
+  const row = document.createElement('div');
+  row.className = 'produced';
+
+  const head = document.createElement('div');
+  head.className = 'term-head';
+  const name = document.createElement('span');
+  name.className = 'term-name';
+  name.textContent = `${produced.type}@${produced.version}`;
+  const identity = document.createElement('span');
+  identity.className = 'term-becomes';
+  identity.textContent = produced.identity;
+  head.append(name, identity);
+
+  const provenance = document.createElement('p');
+  provenance.className = 'detail';
+  provenance.textContent = produced.provenance;
+
+  row.append(head, provenance);
+  return row;
+}
+
+function showView(view) {
+  const catalogue = view === 'catalogue';
+  el('flow-view').hidden = catalogue;
+  el('catalogue-view').hidden = !catalogue;
+  el('view-flow').classList.toggle('is-current', !catalogue);
+  el('view-catalogue').classList.toggle('is-current', catalogue);
+  el('view-flow').setAttribute('aria-selected', String(!catalogue));
+  el('view-catalogue').setAttribute('aria-selected', String(catalogue));
+  if (catalogue) showCatalogue();
+}
+
 function accept(report, yaml) {
   if (report.svg) {
     apply(report.svg, report.mapping, report.problems);
@@ -718,6 +891,8 @@ canvas = createCanvas(el('canvas'), { onSelect, onConnect, onDisconnect });
 
 el('yaml').addEventListener('input', scheduleValidation);
 el('save').addEventListener('click', save);
+el('view-flow').addEventListener('click', () => showView('flow'));
+el('view-catalogue').addEventListener('click', () => showView('catalogue'));
 el('relayout').addEventListener('click', () => canvas.reset());
 
 (async function start() {

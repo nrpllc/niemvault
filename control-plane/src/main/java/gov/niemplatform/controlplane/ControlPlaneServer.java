@@ -66,6 +66,8 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/edit", exchange -> respond(exchange, this::edit));
         server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
         server.createContext("/api/suggest", exchange -> respond(exchange, this::suggest));
+        server.createContext("/api/catalogue", exchange -> respond(exchange, this::catalogue));
+        server.createContext("/api/catalogue/edit", exchange -> respond(exchange, this::editGlossary));
         server.createContext("/api/contract", exchange -> respond(exchange, this::contract));
         server.createContext("/api/contract/edit", exchange -> respond(exchange, this::editContract));
         server.createContext("/api/save", exchange -> respond(exchange, this::save));
@@ -287,6 +289,89 @@ public final class ControlPlaneServer implements AutoCloseable {
             // unreadable would be a worse answer than weaker suggestions.
             return java.util.Map.of();
         }
+    }
+
+    /**
+     * What the source sends, what the agency calls it, and what it becomes (§4.8, ADR 0019).
+     *
+     * <p>Built from the draft in the editor rather than from disk, so a term documented a moment ago
+     * appears immediately. The catalogue is where meaning is captured, not only where it is read.
+     */
+    private ObjectNode catalogue(HttpExchange exchange) throws IOException {
+        MappingWorkspace.ValidationReport report = workspace.validate(body(exchange));
+        ObjectNode node = json.createObjectNode();
+        if (report.definition() == null) {
+            node.put("available", false);
+            return node;
+        }
+
+        java.util.Map<String, gov.niemplatform.contracts.HopContract> byHop =
+                new java.util.LinkedHashMap<>();
+        try {
+            workspace.contracts().forEach(contract -> byHop.put(contract.hopId(), contract));
+        } catch (RuntimeException unreadable) {
+            // Contracts that will not load are reported by validation. The vocabulary is still
+            // worth showing without them.
+        }
+
+        Catalogue.Source source = Catalogue.of(
+                report.definition(), byHop, gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL);
+
+        node.put("available", true);
+        node.put("sourceId", source.sourceId());
+        node.put("mapping", source.mappingName() + "@" + source.mappingVersion());
+        node.put("recordType", source.recordType());
+
+        ArrayNode contracts = node.putArray("contracts");
+        source.contracts().forEach(contracts::add);
+
+        ArrayNode vocabulary = node.putArray("vocabulary");
+        for (Catalogue.Term term : source.vocabulary()) {
+            ObjectNode entry = vocabulary.addObject();
+            entry.put("term", term.term());
+            entry.put("meaning", term.meaning().orElse(""));
+            entry.put("documented", term.meaning().isPresent());
+            entry.put("governed", term.governed());
+            ArrayNode becomes = entry.putArray("becomes");
+            term.becomes().forEach(becomes::add);
+        }
+
+        ArrayNode produces = node.putArray("produces");
+        for (Catalogue.Produced produced : source.produces()) {
+            ObjectNode entry = produces.addObject();
+            entry.put("type", produced.name());
+            entry.put("version", produced.version());
+            entry.put("provenance", produced.provenance());
+            entry.put("identity", produced.identity());
+            entry.put("byHop", produced.byHop());
+        }
+
+        ObjectNode gaps = node.putObject("gaps");
+        ArrayNode undocumented = gaps.putArray("undocumented");
+        source.undocumented().forEach(undocumented::add);
+        ArrayNode unused = gaps.putArray("unused");
+        source.unused().forEach(unused::add);
+        return node;
+    }
+
+    /** Records what the agency means by a term, into the mapping that declares it. */
+    private ObjectNode editGlossary(HttpExchange exchange) throws IOException {
+        ObjectNode request = (ObjectNode) json.readTree(body(exchange));
+        String yaml = new MappingText(request.get("yaml").asText())
+                .setColumnDoc(request.get("term").asText(), request.get("meaning").asText())
+                .text();
+
+        MappingWorkspace.ValidationReport report = workspace.validate(yaml);
+        ObjectNode node = json.createObjectNode();
+        node.put("yaml", yaml);
+        node.put("valid", report.valid());
+        ArrayNode problems = node.putArray("problems");
+        report.problems().forEach(problems::add);
+        if (report.definition() != null) {
+            node.set("mapping", describe(report.definition()));
+            node.put("svg", DagSvg.render(report.definition()));
+        }
+        return node;
     }
 
     /** The contract gating a hop, as the editor needs to show it. */

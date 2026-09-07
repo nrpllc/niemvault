@@ -15,6 +15,10 @@
     <p id="module-detail" class="detail"></p>
   </div>
   <div class="actions">
+    <div class="views" role="tablist" aria-label="View">
+      <button id="view-flow" type="button" class="view is-current" role="tab" aria-selected="true">Flow</button>
+      <button id="view-catalogue" type="button" class="view" role="tab" aria-selected="false">Catalogue</button>
+    </div>
     <span id="status" class="status status--idle">ready</span>
     <button id="save" type="button" disabled>Save as new version</button>
   </div>
@@ -25,7 +29,7 @@
   <div id="dag" class="dag-frame"></div>
 </section>
 
-<main>
+<main id="flow-view">
   <nav class="rail" aria-label="Mappings and tools">
     <h2>Mappings</h2>
     <ul id="mapping-list"></ul>
@@ -57,6 +61,23 @@
     <div id="problems" role="status" aria-live="polite"></div>
   </aside>
 </main>
+
+<section id="catalogue-view" class="catalogue" hidden aria-label="Catalogue">
+  <header class="catalogue-head">
+    <div>
+      <span class="eyebrow">Source</span>
+      <h2 id="catalogue-source">—</h2>
+      <p id="catalogue-detail" class="detail"></p>
+    </div>
+    <div id="catalogue-gaps" class="gaps"></div>
+  </header>
+
+  <h3>Vocabulary<span class="hint">what this agency calls it, and what it means</span></h3>
+  <div id="catalogue-vocabulary"></div>
+
+  <h3>Produces<span class="hint">canonical types, and where their shape comes from</span></h3>
+  <div id="catalogue-produces"></div>
+</section>
 
 <details class="source">
   <summary>Mapping source (YAML)</summary>

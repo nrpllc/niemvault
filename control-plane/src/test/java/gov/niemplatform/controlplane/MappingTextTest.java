@@ -252,6 +252,94 @@ class MappingTextTest {
     }
 
     @Nested
+    @DisplayName("Documenting the source's vocabulary")
+    class Vocabulary {
+
+        @Test
+        @DisplayName("reads the declared columns whichever form they are written in")
+        void readsColumns() {
+            assertThat(text().columnNames())
+                    .containsExactly("INC_NUM", "CALL_TYPE", "RPT_DTTM", "ADDR", "BEAT",
+                            "ROLE", "NAME_FULL", "DOB", "SEX", "DL_NUM");
+        }
+
+        @Test
+        @DisplayName("replaces an existing meaning without touching its neighbours")
+        void replacesAMeaning() {
+            String edited = text().setColumnDoc("BEAT", "Patrol district. Redrawn yearly.").text();
+
+            assertThat(edited).contains("Patrol district. Redrawn yearly.");
+            assertThat(edited).doesNotContain("not a postal, census or municipal");
+            // The columns either side are untouched.
+            assertThat(edited).contains("- name: ADDR").contains("- name: ROLE");
+            assertThat(new MappingText(edited).columnNames()).hasSameSizeAs(text().columnNames());
+        }
+
+        @Test
+        @DisplayName("documents a column that was written as a bare name")
+        void documentsABareColumn() {
+            // The case that matters: someone is documenting a source that was mapped without any
+            // documentation at all. A bare name becomes a name with a meaning.
+            String bare = yaml.replace("""
+                        - name: BEAT
+                          doc: >
+                            Patrol beat. The agency's own operational districting, not a postal, census or municipal
+                            boundary, and it is redrawn periodically without notice.""", "    - BEAT");
+
+            String edited = new MappingText(bare).setColumnDoc("BEAT", "Patrol beat.").text();
+
+            assertThat(edited).contains("- name: BEAT").contains("Patrol beat.");
+            assertThat(new MappingText(edited).columnNames()).contains("BEAT");
+        }
+
+        @Test
+        @DisplayName("wraps prose rather than writing one very long line")
+        void wrapsProse() {
+            // A meaning worth capturing is usually a sentence about what a field is not. On one
+            // line it is unreadable in a diff, and a diff is where it will be reviewed.
+            String edited = text().setColumnDoc("SEX", "Sex as recorded by the officer. "
+                    + "U is used both for unknown and for not asked, and the source does not "
+                    + "distinguish between them, which matters for any downstream analysis.").text();
+
+            assertThat(edited.lines().filter(line -> line.length() > 100))
+                    .as("no line runs long")
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("clearing a meaning leaves the column, not a dangling key")
+        void clearingLeavesTheColumn() {
+            String edited = text().setColumnDoc("BEAT", "  ").text();
+
+            assertThat(new MappingText(edited).columnNames()).contains("BEAT");
+            assertThat(edited).doesNotContain("not a postal, census or municipal");
+        }
+
+        @Test
+        @DisplayName("every documented mapping still loads")
+        void staysLoadable() {
+            var report = workspace().validate(
+                    text().setColumnDoc("BEAT", "Patrol district.").text());
+            assertThat(report.problems()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("reports a column the decoder does not declare")
+        void refusesAnUnknownColumn() {
+            assertThatThrownBy(() -> text().setColumnDoc("NOPE", "x"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("no column 'NOPE'");
+        }
+
+        private MappingWorkspace workspace() {
+            return new MappingWorkspace(
+                    Path.of("").toAbsolutePath().getParent()
+                            .resolve("modules/law-enforcement/src/main/resources"),
+                    gov.niemplatform.content.SemanticVersion.parse("0.1.0"));
+        }
+    }
+
+    @Nested
     @DisplayName("Every edit stays loadable")
     class StaysLoadable {
 

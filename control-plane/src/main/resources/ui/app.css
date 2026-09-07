@@ -54,6 +54,11 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* The `hidden` attribute must win over any display an element is given.
+   `main { display: grid }` is more specific than the user-agent's `[hidden] { display: none }`, so
+   without this the flow view stays on screen behind the catalogue. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--paper);
@@ -398,6 +403,112 @@ svg.canvas {
 /* The reasoning, not the score, is what an author judges a proposal on. */
 .suggestion-why { font-style: italic; }
 .suggestion .inspector-actions { margin: 0.4rem 0 0; }
+
+/* --- view switch ---------------------------------------------------------- */
+
+.views { display: flex; border: 1px solid var(--hairline); }
+
+button.view {
+  background: transparent;
+  color: var(--slate);
+  border: none;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.7rem;
+}
+
+button.view.is-current { background: var(--flow-soft); color: var(--flow); font-weight: 600; }
+button.view:not(.is-current):hover { color: var(--ink); }
+
+/* --- the catalogue -------------------------------------------------------- */
+
+.catalogue { flex: 1; overflow: auto; padding: 1.1rem 1.3rem 2rem; min-height: 0; }
+
+.catalogue-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 1.2rem;
+}
+
+.catalogue h2 { font-size: 1.05rem; color: var(--ink); text-transform: none; letter-spacing: 0; margin: 0.15rem 0 0; }
+.catalogue h3 {
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slate);
+  font-weight: 500;
+  margin: 1.6rem 0 0.6rem;
+  display: flex;
+  align-items: baseline;
+}
+
+.gaps { display: flex; flex-direction: column; gap: 0.3rem; max-width: 34rem; }
+
+.gap {
+  font-size: 0.72rem;
+  background: var(--divert-soft);
+  color: var(--divert);
+  border-left: 3px solid var(--divert);
+  padding: 0.4rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.gap--ok { background: var(--flow-soft); color: var(--flow); border-left-color: var(--flow); }
+
+/* --- a term --------------------------------------------------------------- */
+
+.term, .produced {
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--flow);
+  background: var(--card);
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.4rem;
+  /* Wide enough to read prose, no wider. A glossary is read line by line. */
+  max-width: 62rem;
+}
+
+/* An undocumented term is visibly a gap, not an entry that happens to be blank. */
+.term.is-undocumented { border-left-color: var(--divert); }
+
+.term-head { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; }
+.term-name { font-weight: 600; font-size: 0.82rem; }
+.term-becomes { font-size: 0.72rem; color: var(--flow); }
+
+.term-governed {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate);
+  border: 1px solid var(--hairline);
+  padding: 0.05rem 0.3rem;
+}
+
+.term-meaning {
+  width: 100%;
+  margin-top: 0.35rem;
+  font-family: var(--display);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  resize: vertical;
+  overflow: hidden;
+}
+
+.term-meaning:hover { border-color: var(--hairline); }
+.term-meaning:focus-visible { outline: none; border-color: var(--flow); background: var(--paper); }
+.term-meaning::placeholder { color: var(--divert); opacity: 0.8; }
+
+.produced { border-left-color: var(--provenance); }
+.produced .detail { word-break: break-word; }
 
 /* --- the source, folded away ---------------------------------------------- */
 

@@ -165,6 +165,12 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   Never set `DB_CLOSE_DELAY=-1` on a file database -- it holds the lock until the JVM exits.
 - **`run` appends to silver; `replay` drops and rewrites it.** Same store, opposite obligations.
   Appending on replay would double every record it reprocessed and make criterion 6 unprovable.
+- **`[hidden]` needs `!important` in this stylesheet.** `main { display: grid }` is more specific
+  than the user agent's `[hidden] { display: none }`, so without it the flow view stays on screen
+  behind the catalogue.
+- **A textarea sized from `scrollHeight` must already be in the document.** Measuring a detached
+  element returns nothing useful and silently leaves every long meaning cut off -- which is the half
+  that matters, because that is where the caveats are.
 - **A column may be a bare name or `{name, doc}`; a contract field may carry `doc:`.** Both forms
   stay valid -- a format that demands documentation gets documentation saying `TODO`. The docs are
   side tables (`DecoderSpec.columnDocs`, `Schema.fieldDocs`) rather than components of the records
