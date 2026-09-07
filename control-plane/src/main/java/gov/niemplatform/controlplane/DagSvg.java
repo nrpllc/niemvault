@@ -35,8 +35,14 @@ final class DagSvg {
 
     private DagSvg() {}
 
-    /** A laid-out node, before it becomes markup. */
-    private record Node(String id, int column, int row, String title, String subtitle, String kind) {
+    /**
+     * A laid-out node, before it becomes markup.
+     *
+     * @param hopId the hop this node belongs to, or null for the source. Carried into the markup
+     *     so clicking the graph can select the steps that produce the node.
+     */
+    private record Node(String id, int column, int row, String title, String subtitle, String kind,
+            String hopId) {
 
         int x() {
             return MARGIN_X + column * COLUMN_WIDTH;
@@ -66,7 +72,7 @@ final class DagSvg {
 
         Node source = new Node("source", 0, rowForSource(hops.size()),
                 mapping.decoder().emitsType(),
-                mapping.decoder().columns().size() + " columns", "source");
+                mapping.decoder().columns().size() + " columns", "source", null);
         nodes.add(source);
 
         Map<Integer, Integer> rowsUsed = new HashMap<>();
@@ -74,7 +80,7 @@ final class DagSvg {
             int column = 1 + depth.getOrDefault(hop.hopId(), 0);
             int row = rowsUsed.merge(column, 1, Integer::sum) - 1;
             Node node = new Node("hop-" + hop.hopId(), column, row, hop.hopId(),
-                    hop.steps().size() + " steps", "hop");
+                    hop.steps().size() + " steps", "hop", hop.hopId());
             hopNodes.put(hop.hopId(), node);
             nodes.add(node);
         }
@@ -83,7 +89,8 @@ final class DagSvg {
         int outputRow = 0;
         for (HopDefinition hop : hops) {
             Node node = new Node("out-" + hop.hopId(), outputColumn, outputRow++,
-                    hop.identity().entityType(), identityLabel(hop.identity()), "canonical");
+                    hop.identity().entityType(), identityLabel(hop.identity()), "canonical",
+                    hop.hopId());
             outputNodes.put(hop.hopId(), node);
             nodes.add(node);
         }
@@ -169,7 +176,12 @@ final class DagSvg {
 
     private static String node(Node node) {
         StringBuilder out = new StringBuilder();
-        out.append("  <g class=\"dag-node dag-node--").append(node.kind()).append("\">\n");
+        out.append("  <g class=\"dag-node dag-node--").append(node.kind()).append('"');
+        if (node.hopId() != null) {
+            // Carried into the markup so a click on the graph can select the steps behind it.
+            out.append(" data-hop=\"").append(escape(node.hopId())).append('"');
+        }
+        out.append(">\n");
         out.append("    <rect x=\"").append(node.x()).append("\" y=\"").append(node.y())
                 .append("\" width=\"").append(NODE_WIDTH).append("\" height=\"").append(NODE_HEIGHT)
                 .append("\" rx=\"2\"/>\n");

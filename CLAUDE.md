@@ -52,6 +52,7 @@ Docker is available (needed for testcontainers integration tests, e.g. Neo4j).
 | `core/canonical/` | Canonical DSL sources, generated types, and the generic `Record`. |
 | `core/observability/` | The §4.7 event taxonomy and its emitters. Depended on by `contracts`. |
 | `core/contracts/` | Hop contracts, the schema validator, quarantine, and the on-disk contract loader. |
+| `control-plane/` | The mapping authoring surface. Calls the runtime's loaders; owns no validator. |
 | `docs/decisions/` | One ADR per pinned decision and per decision taken during implementation. |
 
 Convention plugins are applied explicitly per module. There is deliberately no `allprojects`
@@ -133,6 +134,18 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 - **Neo4j's driver rejects `java.time.Instant` outright.** It has no mapping for it. Store a
   zoned datetime at UTC instead: the same moment, and the property stays temporal so an
   investigator can range-query it rather than string-match a timestamp.
+- **The authoring surface patches mapping text; it never round-trips YAML.** `MappingText` locates
+  and rewrites individual lines. Regenerating the document from `MappingDefinition` would be far
+  less code and would delete every comment in the file -- which is where the reasoning behind each
+  step lives. Do not "simplify" it into a dump-and-reload. The tests assert on comment counts and
+  line counts for exactly this reason.
+- **The control plane carries no validators of its own** -- ADR 0020/0021. `/api/validate` and
+  `/api/edit` both call `MappingLoader`, `TransformFactory`, `ContractLoader` and
+  `ModuleManifestLoader`. If a check is missing from the editor, add it to the loader, never to the
+  editor.
+- **`scrollIntoView({behavior: "smooth"})` is silently ignored** where reduced motion is in effect,
+  including some automation contexts. A jump that sometimes does not happen is worse than one that
+  never animates -- the authoring UI uses instant scrolling deliberately.
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will
@@ -144,7 +157,7 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 
 | # | Question | Blocks | Status |
 |---|---|---|---|
-| §2 / §10.1 | Control plane language: JVM or .NET | Phase 2 | Open. No control plane code exists. Boundary defined in [ADR 0020](docs/decisions/0020-control-plane-boundary.md); the hard constraint is that a control plane must never carry its own copy of the validators. |
+| §2 / §10.1 | ~~Control plane language~~ | — | **Resolved: JVM** — [ADR 0021](docs/decisions/0021-control-plane-is-jvm.md). The deciding constraint was one validator per artifact format, never two ([ADR 0020](docs/decisions/0020-control-plane-boundary.md)). |
 | §10.3 | Multi-tenancy model | Storage layout, policy | Open. Phase 1 proceeds on a stated *assumption* of one tenant per deployment — [ADR 0016](docs/decisions/0016-single-tenant-phase1.md). |
 | §2 / ADR 0005 | Canonical table format if Iceberg cannot run embedded on Windows | Silver storage | Pending a spike. Deviating from the pinned Delta/Iceberg decision needs Jeff's call. |
 
@@ -174,7 +187,8 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Graph projection to Neo4j (§4.6) — criterion 4 proved
 - [x] Replay driver (§5) — criterion 6 proved
 - [x] LE module fixtures and mappings
-- [x] Operator CLI: `validate`, `run`, `inspect` — `replay` awaits the silver store
+- [x] Operator CLI: `validate`, `run`, `inspect`, `author` — `replay` awaits the silver store
+- [x] Mapping authoring surface (§4.8, ADR 0021): live DAG, editable steps, versioned save
 - [x] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)
 

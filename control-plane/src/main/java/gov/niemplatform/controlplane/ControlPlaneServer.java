@@ -52,6 +52,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/mappings", exchange -> respond(exchange, this::mappings));
         server.createContext("/api/mapping", exchange -> respond(exchange, this::mapping));
         server.createContext("/api/validate", exchange -> respond(exchange, this::validate));
+        server.createContext("/api/edit", exchange -> respond(exchange, this::edit));
         server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
         server.createContext("/api/save", exchange -> respond(exchange, this::save));
     }
@@ -133,6 +134,63 @@ public final class ControlPlaneServer implements AutoCloseable {
             node.put("svg", DagSvg.render(report.definition()));
         }
         return node;
+    }
+
+    /**
+     * Applies one structural edit and returns the new text alongside its validation.
+     *
+     * <p>The edit is a text patch, not a regenerated document (see {@link MappingText}): a form
+     * that rewrote the whole file would erase the commentary explaining why each step exists, which
+     * is the most expensive thing in a mapping to reconstruct.
+     *
+     * <p>The result is validated before it is returned, so an edit that breaks the mapping shows
+     * up as a problem in the editor rather than as a file that will not deploy.
+     */
+    private ObjectNode edit(HttpExchange exchange) throws IOException {
+        ObjectNode request = (ObjectNode) json.readTree(body(exchange));
+        MappingText text = new MappingText(request.get("yaml").asText());
+        String hop = request.get("hop").asText();
+        int step = request.path("step").asInt();
+
+        MappingText edited = switch (request.get("op").asText()) {
+            case "setField" -> text.setStepField(hop, step,
+                    request.get("key").asText(), request.get("value").asText());
+            case "setFrom" -> text.setStepFrom(hop, step, strings(request.get("from")));
+            case "setOption" -> text.setStepOption(hop, step,
+                    request.get("key").asText(), request.get("value").asText());
+            case "addStep" -> text.addStep(hop,
+                    request.get("target").asText(), request.get("type").asText(),
+                    strings(request.path("from")));
+            case "removeStep" -> text.removeStep(hop, step);
+            case "moveStep" -> text.moveStep(hop, step, request.get("delta").asInt());
+            default -> throw new IllegalArgumentException(
+                    "unknown edit '" + request.get("op").asText() + "'");
+        };
+
+        String yaml = edited.text();
+        MappingWorkspace.ValidationReport report = workspace.validate(yaml);
+
+        ObjectNode node = json.createObjectNode();
+        node.put("yaml", yaml);
+        node.put("valid", report.valid());
+        ArrayNode problems = node.putArray("problems");
+        report.problems().forEach(problems::add);
+        if (report.definition() != null) {
+            node.set("mapping", describe(report.definition()));
+            node.put("svg", DagSvg.render(report.definition()));
+        }
+        return node;
+    }
+
+    private static java.util.List<String> strings(com.fasterxml.jackson.databind.JsonNode array) {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        array.forEach(element -> {
+            String value = element.asText().trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        });
+        return values;
     }
 
     /** The transform vocabulary an author can choose from, straight from the factory. */

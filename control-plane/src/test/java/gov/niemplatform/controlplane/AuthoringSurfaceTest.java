@@ -323,6 +323,84 @@ class AuthoringSurfaceTest {
         }
 
         @Test
+        @DisplayName("applies a structural edit and returns the patched text with its validation")
+        void appliesAnEdit() throws Exception {
+            var result = post("/api/edit", json.createObjectNode()
+                    .put("yaml", shippedYaml())
+                    .put("op", "setField")
+                    .put("hop", "map-incident")
+                    .put("step", 0)
+                    .put("key", "type")
+                    .put("value", "trim")
+                    .toString());
+
+            assertThat(result.get("valid").asBoolean()).isTrue();
+            assertThat(result.get("yaml").asText()).contains("- target: incidentNumber\n        type: trim");
+            // The graph comes back with the text, so the form and the drawing never disagree.
+            assertThat(result.get("svg").asText()).startsWith("<svg");
+        }
+
+        @Test
+        @DisplayName("leaves the file's commentary intact when a form edits it")
+        void editingKeepsComments() throws Exception {
+            // The reason a form patches text instead of regenerating YAML. Losing this is losing
+            // the reasoning behind every step in the mapping.
+            var result = post("/api/edit", json.createObjectNode()
+                    .put("yaml", shippedYaml())
+                    .put("op", "setField")
+                    .put("hop", "map-person")
+                    .put("step", 1)
+                    .put("key", "type")
+                    .put("value", "lower")
+                    .toString());
+
+            long shipped = shippedYaml().lines().filter(line -> line.stripLeading().startsWith("#")).count();
+            long edited = result.get("yaml").asText().lines()
+                    .filter(line -> line.stripLeading().startsWith("#")).count();
+            assertThat(edited).isEqualTo(shipped);
+        }
+
+        @Test
+        @DisplayName("reports an edit that breaks the mapping instead of refusing to make it")
+        void reportsABreakingEdit() throws Exception {
+            // The author gets the edit they asked for and the problem it caused. Refusing the edit
+            // would make an intermediate state unreachable -- retyping a step before rewiring it.
+            var result = post("/api/edit", json.createObjectNode()
+                    .put("yaml", shippedYaml())
+                    .put("op", "setField")
+                    .put("hop", "map-incident")
+                    .put("step", 0)
+                    .put("key", "type")
+                    .put("value", "sharpen")
+                    .toString());
+
+            assertThat(result.get("yaml").asText()).contains("type: sharpen");
+            assertThat(result.get("valid").asBoolean()).isFalse();
+            assertThat(result.get("problems").toString()).contains("sharpen");
+        }
+
+        @Test
+        @DisplayName("rejects an edit the patcher will not make, changing nothing")
+        void rejectsAnImpossibleEdit() throws Exception {
+            var response = client.send(
+                    HttpRequest.newBuilder(URI.create(server.url() + "/api/edit"))
+                            .POST(HttpRequest.BodyPublishers.ofString(json.createObjectNode()
+                                    .put("yaml", shippedYaml())
+                                    .put("op", "setOption")
+                                    .put("hop", "map-incident")
+                                    .put("step", 0)
+                                    .put("key", "pattern")
+                                    .put("value", "x")
+                                    .toString(), StandardCharsets.UTF_8))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(json.readTree(response.body()).get("error").asText())
+                    .contains("edit it as text");
+        }
+
+        @Test
         @DisplayName("refuses to save a draft that would not load")
         void refusesToSaveABrokenDraft() throws Exception {
             // A mapping on disk that does not load is a deployment that fails at start-up, and the
@@ -363,6 +441,18 @@ class AuthoringSurfaceTest {
                     .contains("map-person-incident")
                     .contains("Incident")
                     .contains("Person");
+        }
+
+        @Test
+        @DisplayName("names the hop behind every node it draws, so the graph can be clicked into")
+        void carriesHopIds() {
+            String svg = DagSvg.render(workspace.load(SHIPPED));
+
+            // The source belongs to no single hop; every other node does.
+            assertThat(svg)
+                    .contains("data-hop=\"map-incident\"")
+                    .contains("data-hop=\"map-person\"")
+                    .contains("data-hop=\"map-person-incident\"");
         }
 
         @Test
