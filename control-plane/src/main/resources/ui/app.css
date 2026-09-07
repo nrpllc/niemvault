@@ -1,0 +1,268 @@
+/* Mapping authoring surface.
+   Same visual identity as the published diagrams: cool paper biased green-grey, deep teal for the
+   flow, burnt amber reserved for divergence. Served from the platform's own resources -- no CDN,
+   no webfont, no build step, because spec section 6 makes air-gapped delivery mandatory. */
+
+:root {
+  --paper: #F1F4F3;
+  --card: #FBFCFB;
+  --ink: #0D1417;
+  --slate: #5B6A6D;
+  --hairline: #D3DBD9;
+  --flow: #0C6F69;
+  --flow-soft: #E2EFED;
+  --divert: #A8481A;
+  --divert-soft: #F7E9E1;
+  --provenance: #454A80;
+
+  --display: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0B1114;
+    --card: #121A1D;
+    --ink: #E6EDEB;
+    --slate: #93A3A5;
+    --hairline: #233034;
+    --flow: #5BC6BC;
+    --flow-soft: #11302E;
+    --divert: #E28A56;
+    --divert-soft: #2C1B12;
+    --provenance: #9BA0DE;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 14px;
+  line-height: 1.5;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- masthead ----------------------------------------------------------- */
+
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--card);
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slate);
+  display: block;
+}
+
+h1 { font-size: 1.05rem; font-weight: 600; margin: 0.15rem 0 0; }
+.detail { color: var(--slate); font-size: 0.78rem; margin: 0.2rem 0 0; }
+
+.actions { display: flex; align-items: center; gap: 0.7rem; }
+
+.status {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid currentColor;
+}
+
+.status--idle { color: var(--slate); }
+.status--valid { color: var(--flow); }
+.status--invalid { color: var(--divert); }
+.status--saved { color: var(--flow); background: var(--flow-soft); }
+
+button {
+  font-family: var(--display);
+  font-size: 0.78rem;
+  padding: 0.42rem 0.85rem;
+  border: 1px solid var(--flow);
+  background: var(--flow);
+  color: var(--card);
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--provenance); outline-offset: 2px; }
+
+/* --- layout ------------------------------------------------------------- */
+
+/* The flow spans the window. It is what is being authored, and a mapping that has to be scrolled
+   sideways to be read end to end defeats the point of drawing it at all. */
+.flow-strip {
+  flex: none;
+  padding: 0.9rem 1.1rem 1rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--paper);
+}
+
+.flow-strip h2 { display: flex; align-items: baseline; gap: 0.7rem; }
+
+.hint {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 0.72rem;
+  color: var(--slate);
+  opacity: 0.85;
+}
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1.15fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+@media (max-width: 68rem) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  body { height: auto; }
+}
+
+main > * { overflow: auto; padding: 1rem 1.1rem; min-width: 0; }
+.rail { border-right: 1px solid var(--hairline); }
+.editor { border-right: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 0.7rem; }
+
+h2 {
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slate);
+  font-weight: 500;
+  margin: 0 0 0.5rem;
+}
+
+.rail h2:not(:first-child) { margin-top: 1.4rem; }
+
+/* --- mapping list ------------------------------------------------------- */
+
+.rail ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+
+.rail li button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.rail li button:hover { border-color: var(--hairline); background: var(--card); }
+.rail li button[aria-current="true"] { border-color: var(--flow); background: var(--flow-soft); }
+.rail li .version { font-size: 0.68rem; color: var(--slate); }
+.rail li button.broken { color: var(--divert); }
+
+.columns { flex-direction: row !important; flex-wrap: wrap; gap: 0.25rem !important; }
+
+.columns li {
+  font-size: 0.68rem;
+  background: var(--flow-soft);
+  color: var(--flow);
+  padding: 0.1rem 0.35rem;
+}
+
+/* --- editor ------------------------------------------------------------- */
+
+.editor-head { flex: none; }
+
+textarea {
+  flex: 1;
+  min-height: 22rem;
+  resize: vertical;
+  font-family: var(--display);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  tab-size: 2;
+  padding: 0.8rem;
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  color: var(--ink);
+}
+
+textarea:focus-visible { outline: 2px solid var(--flow); outline-offset: -1px; }
+
+.problems { flex: none; display: flex; flex-direction: column; gap: 0.3rem; }
+
+.problem {
+  font-size: 0.74rem;
+  background: var(--divert-soft);
+  color: var(--divert);
+  border-left: 3px solid var(--divert);
+  padding: 0.4rem 0.6rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.problem--ok {
+  background: var(--flow-soft);
+  color: var(--flow);
+  border-left-color: var(--flow);
+}
+
+/* --- dag ---------------------------------------------------------------- */
+
+.dag-frame {
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  padding: 0.5rem;
+  /* Wide or deep graphs scroll inside the frame, never the page. Capped so the editor is still
+     on screen on a laptop: a preview that pushes the thing being edited below the fold is a
+     worse trade than a preview that has to be scrolled. */
+  overflow: auto;
+  max-height: 42vh;
+  /* Centred when it fits, left-aligned when it does not: a three-hop mapping should not sit in
+     the corner of an empty strip, and a twenty-hop one should start at its source. */
+  display: flex;
+  justify-content: safe center;
+}
+
+svg.dag { display: block; max-width: none; flex: none; }
+
+.dag-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1; }
+.dag-node--source rect { stroke: var(--slate); }
+.dag-node--hop rect { stroke: var(--flow); stroke-width: 1.5; }
+.dag-node--canonical rect { fill: var(--flow-soft); stroke: var(--flow); }
+
+.dag-title { font-family: var(--display); font-size: 12px; font-weight: 600; fill: var(--ink); }
+.dag-subtitle { font-family: var(--display); font-size: 10px; fill: var(--slate); }
+
+.dag-edge { fill: none; stroke: var(--slate); stroke-width: 1.2; }
+.dag-edge--identity { stroke: var(--provenance); stroke-dasharray: 4 3; }
+.dag-arrow { fill: var(--slate); }
+.dag-edge-label { font-family: var(--display); font-size: 9px; fill: var(--slate); }
+
+/* --- hop cards ---------------------------------------------------------- */
+
+.hop {
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.7rem;
+}
+
+.hop h3 { font-size: 0.85rem; margin: 0 0 0.15rem; font-weight: 600; }
+.hop .meta { font-size: 0.7rem; color: var(--slate); margin: 0 0 0.5rem; }
+
+.steps { width: 100%; border-collapse: collapse; }
+.steps td { padding: 0.18rem 0.4rem 0.18rem 0; font-size: 0.73rem; vertical-align: top; }
+.steps .target { color: var(--ink); white-space: nowrap; }
+.steps .type { color: var(--flow); white-space: nowrap; }
+.steps .from { color: var(--slate); word-break: break-word; }
+.steps tr.scratch td { color: var(--slate); font-style: italic; }

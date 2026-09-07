@@ -11,6 +11,7 @@ dependencies {
     implementation(project(":identity:internal"))
     implementation(project(":storage"))
     implementation(project(":core:content"))
+    implementation(project(":control-plane"))
 
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)

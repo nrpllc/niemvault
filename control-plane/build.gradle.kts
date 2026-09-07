@@ -1,0 +1,21 @@
+plugins {
+    id("niem.java-conventions")
+}
+
+description = "Mapping authoring and catalogue surface (spec §4.8, ADR 0021). JVM, in-process with the validators."
+
+dependencies {
+    // The point of ADR 0021: the authoring surface calls the validators directly rather than
+    // carrying its own. Two validators for one artifact format would drift, and the editor would
+    // start accepting mappings the runtime rejects.
+    api(project(":runtime:engine"))
+    api(project(":core:content"))
+    api(project(":core:contracts"))
+
+    implementation(libs.bundles.jackson)
+    implementation(libs.snakeyaml)
+
+    // The tests drive the surface against the artifacts the law enforcement module actually
+    // ships, so a broken mapping or contract fails here too.
+    testImplementation(project(":modules:law-enforcement"))
+}

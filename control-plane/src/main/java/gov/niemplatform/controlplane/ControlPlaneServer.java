@@ -1,0 +1,299 @@
+package gov.niemplatform.controlplane;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import gov.niemplatform.content.ModuleManifest;
+import gov.niemplatform.runtime.engine.HopDefinition;
+import gov.niemplatform.runtime.engine.MappingDefinition;
+import gov.niemplatform.runtime.transforms.TransformFactory;
+import gov.niemplatform.runtime.transforms.TransformSpec;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Objects;
+
+/**
+ * Serves the mapping authoring surface (ADR 0021).
+ *
+ * <p>The JDK's own HTTP server, no framework. The surface is one page and a handful of endpoints,
+ * and every dependency added here is a dependency that has to be mirrored into an air-gapped
+ * package for every agency (§6). It binds to loopback: this is an authoring tool, not a service,
+ * and Phase 1 has no authentication beyond a stub (§8).
+ *
+ * <p>Every endpoint that judges a mapping delegates to the loaders the runtime uses. The server
+ * decides nothing about validity — that is the point of ADR 0021, and why an editor cannot drift
+ * from the engine.
+ */
+public final class ControlPlaneServer implements AutoCloseable {
+
+    private static final String UI_ROOT = "/ui/";
+
+    private final HttpServer server;
+    private final MappingWorkspace workspace;
+    private final ObjectMapper json = new ObjectMapper();
+
+    public ControlPlaneServer(MappingWorkspace workspace, int port) {
+        this.workspace = Objects.requireNonNull(workspace, "workspace");
+        try {
+            // Loopback only. An authoring tool with no authentication must not be reachable from
+            // anywhere else on the network.
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot bind the control plane to port " + port, e);
+        }
+
+        server.createContext("/", this::serveUi);
+        server.createContext("/api/module", exchange -> respond(exchange, this::module));
+        server.createContext("/api/mappings", exchange -> respond(exchange, this::mappings));
+        server.createContext("/api/mapping", exchange -> respond(exchange, this::mapping));
+        server.createContext("/api/validate", exchange -> respond(exchange, this::validate));
+        server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
+        server.createContext("/api/save", exchange -> respond(exchange, this::save));
+    }
+
+    public void start() {
+        server.start();
+    }
+
+    public int port() {
+        return server.getAddress().getPort();
+    }
+
+    public String url() {
+        return "http://localhost:" + port();
+    }
+
+    @Override
+    public void close() {
+        server.stop(0);
+    }
+
+    // --- endpoints -------------------------------------------------------
+
+    private ObjectNode module(HttpExchange exchange) {
+        ModuleManifest manifest = workspace.manifest();
+        ObjectNode node = json.createObjectNode();
+        node.put("name", manifest.name());
+        node.put("version", manifest.version().toString());
+        node.put("displayName", manifest.displayName());
+        node.put("steward", manifest.steward());
+        node.put("platformVersions", manifest.platformVersions().toString());
+        node.put("canonicalModel", manifest.canonicalModelVersion().toString());
+        node.put("root", workspace.moduleRoot().toString());
+        return node;
+    }
+
+    private ObjectNode mappings(HttpExchange exchange) {
+        ObjectNode node = json.createObjectNode();
+        ArrayNode list = node.putArray("mappings");
+        for (MappingWorkspace.MappingFile mapping : workspace.mappings()) {
+            ObjectNode entry = list.addObject();
+            entry.put("file", mapping.fileName());
+            entry.put("name", mapping.name());
+            entry.put("version", mapping.version());
+            entry.put("loadable", mapping.loadable());
+        }
+        return node;
+    }
+
+    private ObjectNode mapping(HttpExchange exchange) {
+        String file = query(exchange, "file");
+        MappingDefinition definition = workspace.load(file);
+
+        ObjectNode node = describe(definition);
+        node.put("file", file);
+        node.put("source", workspace.source(file));
+        node.put("svg", DagSvg.render(definition));
+        node.put("nextVersion", workspace.nextVersion(definition.version()));
+        return node;
+    }
+
+    /**
+     * Validates candidate YAML and returns the DAG for it.
+     *
+     * <p>Called on every change, which is why it returns the rendered graph alongside the problems:
+     * an author editing a step should see the shape move as they type, not after they save.
+     */
+    private ObjectNode validate(HttpExchange exchange) throws IOException {
+        String yaml = body(exchange);
+        MappingWorkspace.ValidationReport report = workspace.validate(yaml);
+
+        ObjectNode node = json.createObjectNode();
+        node.put("valid", report.valid());
+        ArrayNode problems = node.putArray("problems");
+        report.problems().forEach(problems::add);
+
+        if (report.definition() != null) {
+            node.set("mapping", describe(report.definition()));
+            node.put("svg", DagSvg.render(report.definition()));
+        }
+        return node;
+    }
+
+    /** The transform vocabulary an author can choose from, straight from the factory. */
+    private ObjectNode transforms(HttpExchange exchange) {
+        ObjectNode node = json.createObjectNode();
+        ArrayNode types = node.putArray("types");
+        TransformFactory.TYPES.stream().sorted().forEach(types::add);
+        return node;
+    }
+
+    private ObjectNode save(HttpExchange exchange) throws IOException {
+        ObjectNode request = (ObjectNode) json.readTree(body(exchange));
+        String yaml = request.get("yaml").asText();
+
+        MappingWorkspace.ValidationReport report = workspace.validate(yaml);
+        ObjectNode node = json.createObjectNode();
+        if (!report.valid()) {
+            // Refused rather than saved with a warning. A mapping on disk that does not load is a
+            // deployment that fails at start-up, and the editor is the last place to catch it.
+            node.put("saved", false);
+            ArrayNode problems = node.putArray("problems");
+            report.problems().forEach(problems::add);
+            return node;
+        }
+
+        MappingDefinition definition = report.definition();
+        Path written = workspace.saveAsNewVersion(yaml, definition.name(), definition.version());
+        node.put("saved", true);
+        node.put("file", written.getFileName().toString());
+        node.put("qualifiedName", definition.qualifiedName());
+        return node;
+    }
+
+    // --- shaping ---------------------------------------------------------
+
+    private ObjectNode describe(MappingDefinition definition) {
+        ObjectNode node = json.createObjectNode();
+        node.put("name", definition.name());
+        node.put("version", definition.version());
+        node.put("sourceId", definition.sourceId());
+
+        ArrayNode columns = node.putArray("columns");
+        definition.decoder().columns().forEach(columns::add);
+
+        ArrayNode hops = node.putArray("hops");
+        for (HopDefinition hop : definition.hopsInDependencyOrder()) {
+            ObjectNode entry = hops.addObject();
+            entry.put("id", hop.hopId());
+            entry.put("contract", hop.contractName() + "@" + hop.contractVersion());
+            entry.put("entityType", hop.identity().entityType());
+            entry.put("identityMode", hop.identity().mode().name());
+            entry.put("identityDetail", hop.identity().mode() == gov.niemplatform.runtime.engine
+                    .IdentitySpec.Mode.RESOLVE
+                    ? hop.identity().providerId()
+                    : String.join(" + ", hop.identity().deriveFrom()));
+
+            ArrayNode dependsOn = entry.putArray("dependsOn");
+            hop.dependsOn().forEach(dependsOn::add);
+            ArrayNode scratch = entry.putArray("scratch");
+            hop.scratch().forEach(scratch::add);
+
+            ArrayNode steps = entry.putArray("steps");
+            for (TransformSpec step : hop.steps()) {
+                ObjectNode stepNode = steps.addObject();
+                stepNode.put("target", step.target());
+                stepNode.put("type", step.type());
+                ArrayNode from = stepNode.putArray("from");
+                step.from().forEach(from::add);
+                ObjectNode options = stepNode.putObject("options");
+                step.options().forEach(options::put);
+                stepNode.put("scratch", hop.scratch().contains(step.target()));
+            }
+        }
+        return node;
+    }
+
+    // --- plumbing --------------------------------------------------------
+
+    @FunctionalInterface
+    private interface Handler {
+        ObjectNode handle(HttpExchange exchange) throws IOException;
+    }
+
+    private void respond(HttpExchange exchange, Handler handler) throws IOException {
+        try {
+            ObjectNode result = handler.handle(exchange);
+            send(exchange, 200, "application/json", json.writeValueAsBytes(result));
+        } catch (RuntimeException | IOException e) {
+            // The message is the useful part: these are validation and content errors an author
+            // needs to read, not stack traces.
+            ObjectNode error = json.createObjectNode();
+            error.put("error", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            send(exchange, 400, "application/json", json.writeValueAsBytes(error));
+        }
+    }
+
+    private void serveUi(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        String resource = "/".equals(path) ? "index.html" : path.substring(1);
+
+        // Anything with a path separator or traversal is refused: this reads from the jar, and a
+        // request is not permitted to choose which part of it.
+        if (resource.contains("..") || resource.contains("/")) {
+            send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        try (InputStream stream = getClass().getResourceAsStream(UI_ROOT + resource)) {
+            if (stream == null) {
+                send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            send(exchange, 200, contentType(resource), stream.readAllBytes());
+        }
+    }
+
+    private static String contentType(String resource) {
+        if (resource.endsWith(".html")) {
+            return "text/html; charset=utf-8";
+        }
+        if (resource.endsWith(".css")) {
+            return "text/css; charset=utf-8";
+        }
+        if (resource.endsWith(".js")) {
+            return "text/javascript; charset=utf-8";
+        }
+        return "application/octet-stream";
+    }
+
+    private static void send(HttpExchange exchange, int status, String contentType, byte[] body)
+            throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", contentType);
+        exchange.sendResponseHeaders(status, body.length);
+        try (var out = exchange.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
+    private static String body(HttpExchange exchange) throws IOException {
+        return new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private static String query(HttpExchange exchange, String key) {
+        String raw = exchange.getRequestURI().getQuery();
+        if (raw == null) {
+            throw new IllegalArgumentException("'" + key + "' is required");
+        }
+        for (String pair : raw.split("&")) {
+            String[] parts = pair.split("=", 2);
+            if (parts.length == 2 && parts[0].equals(key)) {
+                return java.net.URLDecoder.decode(parts[1], StandardCharsets.UTF_8);
+            }
+        }
+        throw new IllegalArgumentException("'" + key + "' is required");
+    }
+
+    /** Convenience for the CLI: open a module and start serving. */
+    public static ControlPlaneServer open(
+            Path moduleRoot, gov.niemplatform.content.SemanticVersion platformVersion, int port) {
+        ControlPlaneServer server = new ControlPlaneServer(
+                new MappingWorkspace(moduleRoot, platformVersion), port);
+        server.start();
+        return server;
+    }
+}

@@ -355,7 +355,7 @@ flowchart LR
   gout -. ContractViolation .-> ev
   idr -. ResolutionAnomaly .-> ev
 
-  pq -. "replay: range + mapping version" .-> dec
+  pq -. replay a range under a pinned mapping version .-> dec
 </pre>
     </div>
   </section>
@@ -559,8 +559,15 @@ found     String(len=10, shape=####-##-##)</code>
       output &mdash; the criterion the specification says validates the whole architectural bet.
     </p>
     <p>
-      Not yet built: replay is the last unproven criterion. Search and warehouse projections are
-      Phase 2 and Phase 3. Phase 1 has no user interface by design.
+      All seven Phase 1 acceptance criteria are asserted in tests, criterion 6 included: silver and
+      gold are deleted outright, replay runs from bronze alone, and both come back identical &mdash;
+      every canonical record, every node, every edge. The cluster index is emptied first, so
+      identities are re-derived rather than remembered.
+    </p>
+    <p>
+      Not yet done: containers and the air-gapped package, and the NIEM references in the canonical
+      model are asserted rather than verified against a NIEM 6.0 release. Search and warehouse
+      projections are Phase 2 and Phase 3. Phase 1 has no user interface by design.
     </p>
   </footer>
 

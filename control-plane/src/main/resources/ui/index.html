@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapping authoring</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="module">
+    <span class="eyebrow">Domain module</span>
+    <h1 id="module-name">loading…</h1>
+    <p id="module-detail" class="detail"></p>
+  </div>
+  <div class="actions">
+    <span id="status" class="status status--idle">ready</span>
+    <button id="save" type="button" disabled>Save as new version</button>
+  </div>
+</header>
+
+<section class="flow-strip">
+  <h2>Data flow<span class="hint">source, hops, and the canonical records each one emits</span></h2>
+  <div id="dag" class="dag-frame"></div>
+</section>
+
+<main>
+  <nav class="rail" aria-label="Mappings">
+    <h2>Mappings</h2>
+    <ul id="mapping-list"></ul>
+
+    <h2>Source columns</h2>
+    <ul id="column-list" class="columns"></ul>
+  </nav>
+
+  <section class="editor">
+    <div class="editor-head">
+      <h2>Flow</h2>
+      <p class="detail">
+        Edit the YAML below. Everything is validated by the same loaders the runtime uses, so a
+        mapping this accepts is a mapping the pipeline will load.
+      </p>
+    </div>
+    <textarea id="yaml" spellcheck="false" aria-label="Mapping definition"></textarea>
+    <div id="problems" class="problems" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="preview">
+    <h2>Hops</h2>
+    <div id="hops"></div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

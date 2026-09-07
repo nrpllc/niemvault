@@ -32,5 +32,6 @@ include(
     "projections:api",
     "projections:graph",
     "modules:law-enforcement",
+    "control-plane",
     "tools:cli",
 )

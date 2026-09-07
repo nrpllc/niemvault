@@ -37,6 +37,29 @@ distribution checksum.
 
 Integration tests use testcontainers and need a working Docker daemon.
 
+## Authoring a data flow
+
+A mapping is data, not code: it is a versioned YAML artifact a domain steward edits and redeploys
+without a platform build (spec §5). Author one against the module's real contracts:
+
+```bash
+./gradlew :tools:cli:installDist
+./tools/cli/build/install/niem/bin/niem author --module modules/law-enforcement/src/main/resources
+```
+
+That serves the authoring surface on `http://localhost:8088` — loopback only, since Phase 1 has no
+authentication beyond a stub (§8). Editing the flow revalidates it on every change and redraws the
+DAG from source through every hop to the canonical records it emits.
+
+Two things about it are deliberate:
+
+- **It does not carry its own validators.** Every check comes from the loaders the runtime itself
+  uses (ADR 0021), so a mapping the editor accepts is a mapping the pipeline will load. A second
+  validator would eventually disagree with the first, and the disagreement would surface at deploy.
+- **Saving writes a new version.** The file you opened is left exactly as it was. Mappings are
+  versioned artifacts (§7) and changes must be attributable (§4.8), so an in-place edit would
+  quietly rewrite something an auditor may already have signed off.
+
 ## Layout
 
 ```
@@ -47,7 +70,8 @@ identity/      ResolutionProvider SPI and the bundled default resolver
 projections/   ProjectionWriter SPI; Neo4j graph writer (Phase 1)
 modules/       domain modules, law enforcement first
 governance/    catalogue, policy (Phase 2)
-tools/cli/     operator CLI: validate, run, replay, inspect
+tools/cli/     operator CLI: validate, run, replay, inspect, author
+control-plane/ mapping authoring surface (ADR 0021)
 deploy/        Helm chart and manifests
 build-logic/   convention plugins and the canonical model code generator
 ```

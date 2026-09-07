@@ -24,6 +24,7 @@ import picocli.CommandLine.Command;
         subcommands = {
             ValidateCommand.class,
             DescribeCommand.class,
+            AuthorCommand.class,
             RunCommand.class,
             InspectCommand.class,
         })
