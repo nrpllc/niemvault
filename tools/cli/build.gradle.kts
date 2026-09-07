@@ -3,13 +3,16 @@ plugins {
     application
 }
 
-description = "Operator CLI (spec §8): validate, run, inspect."
+description = "Operator CLI (spec §8): validate, describe, author, run, replay, inspect."
 
 dependencies {
     implementation(project(":runtime:engine"))
     implementation(project(":connectors:file"))
     implementation(project(":identity:internal"))
     implementation(project(":storage"))
+    // `replay` rebuilds silver and, when asked, the graph -- so the CLI carries both.
+    implementation(project(":runtime:replay"))
+    implementation(project(":projections:graph"))
     implementation(project(":core:content"))
     implementation(project(":control-plane"))
 

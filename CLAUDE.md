@@ -187,7 +187,7 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Graph projection to Neo4j (§4.6) — criterion 4 proved
 - [x] Replay driver (§5) — criterion 6 proved
 - [x] LE module fixtures and mappings
-- [x] Operator CLI: `validate`, `run`, `inspect`, `author` — `replay` awaits the silver store
+- [x] Operator CLI: `validate`, `describe`, `author`, `run`, `replay`, `inspect` — all of §8's list
 - [x] Mapping authoring surface (§4.8, ADR 0021): live DAG, editable steps, versioned save
 - [x] All 7 acceptance criteria asserted in tests
 - [ ] Containers, Helm, manifests (§6)

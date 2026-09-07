@@ -373,4 +373,77 @@ class NiemCliTest {
             assertThat(stdout()).contains("No sources have landed anything");
         }
     }
+
+    /**
+     * The guards in front of a destructive command.
+     *
+     * <p>Replay drops and rewrites silver. Everything here is about the operator finding out
+     * before that happens rather than after. Rebuilding silver itself needs an object store and is
+     * covered by the replay driver's own docker-tagged tests; what cannot be covered there is the
+     * command refusing to start.
+     */
+    @Nested
+    @DisplayName("replay")
+    class Replay {
+
+        private String[] baseArgs(Path module, String... extra) {
+            List<String> args = new java.util.ArrayList<>(List.of("replay",
+                    "--module", module.toString(),
+                    "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
+                    "--bronze", work.resolve("bronze").toString(),
+                    "--silver-catalog-uri", "jdbc:h2:mem:replay",
+                    "--silver-warehouse", "s3://silver/warehouse"));
+            args.addAll(List.of(extra));
+            return args.toArray(String[]::new);
+        }
+
+        @Test
+        @DisplayName("is offered at all, because §8 puts it in the Phase 1 operator CLI")
+        void isRegistered() {
+            // Asked of the command model rather than of --help output: this is about the command
+            // existing, and routing it through picocli's usage renderer would test the renderer.
+            assertThat(new CommandLine(new NiemCli()).getSubcommands())
+                    .containsKeys("validate", "run", "replay", "inspect");
+        }
+
+        @Test
+        @DisplayName("refuses a single batch combined with a range, rather than picking one")
+        void refusesContradictoryRange() throws IOException {
+            int exit = run(baseArgs(moduleDirectory(), "--batch", "b1", "--from", "b0"));
+
+            assertThat(exit).isEqualTo(1);
+            assertThat(stderr()).contains("cannot be combined with --from or --to");
+        }
+
+        @Test
+        @DisplayName("refuses to start when a credential is expected in the environment and absent")
+        void refusesWithoutTheGraphPassword() throws IOException {
+            // The password is never a command-line option: an option is written to shell history
+            // and is visible in the process list to every user on the machine.
+            int exit = run(baseArgs(moduleDirectory(), "--neo4j-uri", "bolt://localhost:7687"));
+
+            assertThat(exit).isEqualTo(1);
+            assertThat(stderr()).contains(ReplayCommand.NEO4J_PASSWORD);
+        }
+
+        @Test
+        @DisplayName("refuses incoherent content before touching the store it would overwrite")
+        void refusesIncoherentContent() throws IOException {
+            Path module = moduleDirectory();
+            Path mapping = module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml");
+            Files.writeString(mapping, Files.readString(mapping)
+                    .replace("contract: cad-person-to-canonical\n    version: \"1.0.0\"",
+                            "contract: cad-person-to-canonical\n    version: \"2.0.0\""));
+
+            int exit = run("replay",
+                    "--module", module.toString(),
+                    "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
+                    "--bronze", work.resolve("bronze").toString(),
+                    "--silver-catalog-uri", "jdbc:h2:mem:replay",
+                    "--silver-warehouse", "s3://silver/warehouse");
+
+            assertThat(exit).isEqualTo(1);
+            assertThat(stderr()).contains("Content is not coherent");
+        }
+    }
 }
