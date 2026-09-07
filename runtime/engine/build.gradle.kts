@@ -22,4 +22,9 @@ dependencies {
     // The bundled resolver is a test dependency, not a runtime one: the engine talks to the
     // ResolutionProvider SPI and must not know which implementation a deployment installed.
     testImplementation(project(":identity:internal"))
+
+    // The law enforcement module owns the shipped mapping artifact. Reading it from the
+    // classpath rather than keeping a second copy here is what stops the two drifting -- a
+    // duplicated mapping that quietly diverges from the one that ships is worse than no test.
+    testImplementation(project(":modules:law-enforcement"))
 }

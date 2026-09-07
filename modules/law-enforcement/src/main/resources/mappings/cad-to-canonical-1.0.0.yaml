@@ -1,0 +1,166 @@
+# CAD export to canonical, version 1.0.0
+#
+# Spec §5: mappings are data, not code. Changing this file and redeploying the definition changes
+# what the pipeline produces; it does not require a platform build.
+#
+# The source is a denormalised CAD export where each row carries one incident and one involved
+# person. Three hops turn it into three canonical records -- Incident, Person, and the association
+# between them -- which is the whole Phase 1 canonical scope.
+#
+# Content version, not platform version (§7). An agency on an older platform release can take a
+# newer version of this file.
+
+mapping: cad-to-canonical
+version: "1.0.0"
+source: riverton-pd-cad
+
+decode:
+  format: delimited
+  emits: "source:cad-csv/incident-person"
+  # Declared, never read from a header row. A header is a value in the data: trusting it means a
+  # source that reorders its columns silently remaps every field, with no error anywhere.
+  columns:
+    - INC_NUM
+    - CALL_TYPE
+    - RPT_DTTM
+    - ADDR
+    - BEAT
+    - ROLE
+    - NAME_FULL
+    - DOB
+    - SEX
+    - DL_NUM
+
+hops:
+  # ---------------------------------------------------------------------------
+  - id: map-incident
+    contract: cad-incident-to-canonical
+    version: "1.0.0"
+    steps:
+      - target: incidentNumber
+        type: copy
+        from: [INC_NUM]
+
+      # The zone is declared, never inferred. A CAD export writes local wall-clock time with no
+      # offset, and guessing it would shift every incident in the agency by hours.
+      - target: reportedDateTime
+        type: parseDateTime
+        from: [RPT_DTTM]
+        options:
+          pattern: "yyyy/MM/dd HH:mm"
+          zone: "America/Denver"
+
+      - target: locationAddressText
+        type: copy
+        from: [ADDR]
+
+      - target: callTypeCode
+        type: codeMap
+        from: [CALL_TYPE]
+        options:
+          map: "BURG=BURG,THEFT=THEFT,ASSLT=ASSLT,MVA=MVA,DIST=DIST,SUSP=SUSP,WELCK=WELCK"
+          default: "OTHER"
+
+      - target: beat
+        type: copy
+        from: [BEAT]
+
+    # An incident has an authoritative key in its source. Running it through entity resolution
+    # would add uncertainty where none exists.
+    identity:
+      mode: derive
+      entityType: Incident
+      deriveFrom: [incidentNumber]
+      prefix: "INC/RIVERTON-PD/"
+
+  # ---------------------------------------------------------------------------
+  - id: map-person
+    contract: cad-person-to-canonical
+    version: "1.0.0"
+    # "JANE M" on the way to givenName and middleName. Not part of canonical Person, so it is
+    # declared as scratch rather than reaching the output gate as an unexpected field.
+    scratch: [givenNames]
+    steps:
+      # "DOE, JANE M" -> surName DOE, givenName JANE, middleName M.
+      - target: surName
+        type: splitIndex
+        from: [NAME_FULL]
+        options: { delimiter: ",", index: "0" }
+      - target: surName
+        type: upper
+        from: [surName]
+
+      - target: givenNames
+        type: splitIndex
+        from: [NAME_FULL]
+        options: { delimiter: ",", index: "1" }
+      - target: givenName
+        type: splitIndex
+        from: [givenNames]
+        options: { delimiter: " ", index: "0" }
+      - target: givenName
+        type: upper
+        from: [givenName]
+      - target: middleName
+        type: splitIndex
+        from: [givenNames]
+        options: { delimiter: " ", index: "1" }
+
+      - target: birthDate
+        type: parseDate
+        from: [DOB]
+        options: { pattern: "MM/dd/yyyy" }
+
+      - target: sexCode
+        type: codeMap
+        from: [SEX]
+        options:
+          map: "M=M,F=F,X=X,U=U"
+          default: "U"
+
+      # UNK is this agency's sentinel for "not recorded". Carrying it into canonical would make
+      # every downstream consumer learn one agency's vocabulary.
+      - target: driverLicenseId
+        type: nullIf
+        from: [DL_NUM]
+        options: { values: "UNK,N/A,NONE" }
+      - target: driverLicenseId
+        type: regexReplace
+        from: [driverLicenseId]
+        options: { pattern: "[^A-Za-z0-9]", replacement: "" }
+
+    # A person is a real-world thing several sources describe differently, so identity comes from
+    # resolution rather than from any one source's key.
+    identity:
+      mode: resolve
+      entityType: Person
+      provider: bundled-deterministic
+      attributes:
+        surName: surName
+        givenName: givenName
+        birthDate: birthDate
+        driverLicenseId: driverLicenseId
+
+  # ---------------------------------------------------------------------------
+  - id: map-person-incident
+    contract: cad-association-to-canonical
+    version: "1.0.0"
+    dependsOn: [map-person, map-incident]
+    roles:
+      person: map-person
+      incident: map-incident
+    steps:
+      - target: involvementCode
+        type: codeMap
+        from: [ROLE]
+        options:
+          map: "VICT=VICTIM,SUSP=SUSPECT,WITN=WITNESS,RP=REPORTING_PARTY"
+          default: "OTHER"
+
+    # A function of the two entities it links, so the same pair always yields the same
+    # association and a replay does not double every edge in the graph.
+    identity:
+      mode: derive
+      entityType: PersonIncidentAssociation
+      deriveFrom: ["map-incident.canonicalId", "map-person.canonicalId"]
+      prefix: "PIA/"
