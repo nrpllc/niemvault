@@ -23,15 +23,21 @@ dependencies {
 
     // ADR 0005: whether Iceberg can run embedded on a developer machine decides the silver
     // table format. Spiked before it is designed around.
-    testImplementation(libs.iceberg.core)
-    testImplementation(libs.iceberg.api)
-    testImplementation(libs.iceberg.data)
-    testImplementation(libs.iceberg.parquet)
-    testImplementation(libs.iceberg.aws)
-    testImplementation(libs.aws.s3)
-    testImplementation(libs.aws.url.connection.client)
-    testImplementation(libs.aws.sts)
-    testImplementation(libs.h2)
+    // Silver ships as Iceberg (ADR 0005). Implementation, not api: nothing above
+    // storage.api may see an Iceberg type, which is what keeps the backend swappable.
+    implementation(libs.iceberg.core)
+    implementation(libs.iceberg.api)
+    implementation(libs.iceberg.data)
+    implementation(libs.iceberg.parquet)
+    implementation(libs.iceberg.aws)
+    implementation(libs.aws.s3)
+    implementation(libs.aws.url.connection.client)
+    // Iceberg's AwsProperties touches STS model classes during construction even when no role
+    // is assumed, so this is required for S3FileIO to initialise at all.
+    implementation(libs.aws.sts)
+    // Embedded catalog for a single-node deployment. A cluster deployment points the same
+    // catalog at its own database.
+    implementation(libs.h2)
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.minio)
