@@ -28,3 +28,4 @@ deciding stated) · **Superseded**.
 | [0016](0016-single-tenant-phase1.md) | Phase 1 assumes one tenant per deployment | Proposed |
 | [0017](0017-observability-module.md) | Observability events live in their own module | Accepted |
 | [0018](0018-storage-module.md) | Storage zones live in their own module | Accepted |
+| [0019](0019-catalogue-source-vocabulary.md) | The catalogue documents each source's own vocabulary | Deferred |

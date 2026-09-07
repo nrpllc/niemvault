@@ -153,6 +153,12 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —
 ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 
+**Phase 2, decided early so it is not lost:** the catalogue documents each source's own vocabulary
+against canonical terms, not only NIEM provenance — [ADR 0019](docs/decisions/0019-catalogue-source-vocabulary.md).
+It stays unbuilt until Phase 1 acceptance is complete. The one thing to remember meanwhile: when
+the mapping and contract artifact formats are next revised, give each declared column and step an
+optional `doc:`. That meaning is free to capture while authoring and expensive to recover later.
+
 ---
 
 ## Phase 1 progress
