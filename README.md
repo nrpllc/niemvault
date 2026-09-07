@@ -63,6 +63,11 @@ Four things about it are deliberate:
 - **It does not carry its own validators.** Every check comes from the loaders the runtime itself
   uses (ADR 0021), so a mapping the editor accepts is a mapping the pipeline will load. A second
   validator would eventually disagree with the first, and the disagreement would surface at deploy.
+- **Suggestions come from an advisor that proposes and never writes.** The bundled one needs no
+  model, no network and no configuration, so the feature exists in an air-gapped deployment. Point
+  `--bronze` at what has landed and it reads the *shape* of each column — `##/##/####`, never the
+  date — which is what lets it pick `parseDate` **and** its pattern. Every proposal explains itself
+  and is applied by a person. See [ADR 0023](docs/decisions/0023-mapping-advisor.md).
 - **Contracts are edited from the canvas too.** Selecting a source column shows what the contract
   expects of it — type, required, pattern — and changes are written straight to the contract file.
   They live there rather than on a screen of their own because the question an author actually has

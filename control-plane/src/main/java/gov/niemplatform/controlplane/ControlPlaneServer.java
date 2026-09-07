@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -36,6 +37,16 @@ public final class ControlPlaneServer implements AutoCloseable {
     private final HttpServer server;
     private final MappingWorkspace workspace;
     private final ObjectMapper json = new ObjectMapper();
+    private final gov.niemplatform.controlplane.advice.MappingAdvisor advisor =
+            new gov.niemplatform.controlplane.advice.DeterministicAdvisor();
+
+    /**
+     * Bronze, when the operator pointed at one.
+     *
+     * <p>Optional on purpose. A mapping is often written before a single file has landed, and the
+     * advisor works without shapes — less confidently, and it says so.
+     */
+    private Path bronzeRoot;
 
     public ControlPlaneServer(MappingWorkspace workspace, int port) {
         this.workspace = Objects.requireNonNull(workspace, "workspace");
@@ -54,6 +65,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/validate", exchange -> respond(exchange, this::validate));
         server.createContext("/api/edit", exchange -> respond(exchange, this::edit));
         server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
+        server.createContext("/api/suggest", exchange -> respond(exchange, this::suggest));
         server.createContext("/api/contract", exchange -> respond(exchange, this::contract));
         server.createContext("/api/contract/edit", exchange -> respond(exchange, this::editContract));
         server.createContext("/api/save", exchange -> respond(exchange, this::save));
@@ -162,7 +174,7 @@ public final class ControlPlaneServer implements AutoCloseable {
                     request.get("key").asText(), request.get("value").asText());
             case "addStep" -> text.addStep(hop,
                     request.get("target").asText(), request.get("type").asText(),
-                    strings(request.path("from")));
+                    strings(request.path("from")), options(request.path("options")));
             case "removeStep" -> text.removeStep(hop, step);
             case "moveStep" -> text.moveStep(hop, step, request.get("delta").asInt());
             default -> throw new IllegalArgumentException(
@@ -184,6 +196,13 @@ public final class ControlPlaneServer implements AutoCloseable {
         return node;
     }
 
+    private static java.util.Map<String, String> options(
+            com.fasterxml.jackson.databind.JsonNode object) {
+        java.util.Map<String, String> values = new java.util.LinkedHashMap<>();
+        object.fields().forEachRemaining(entry -> values.put(entry.getKey(), entry.getValue().asText()));
+        return values;
+    }
+
     private static java.util.List<String> strings(com.fasterxml.jackson.databind.JsonNode array) {
         java.util.List<String> values = new java.util.ArrayList<>();
         array.forEach(element -> {
@@ -193,6 +212,81 @@ public final class ControlPlaneServer implements AutoCloseable {
             }
         });
         return values;
+    }
+
+    /** Points the advisor at landed data, so it can read column shapes (ADR 0023). */
+    public ControlPlaneServer profilingFrom(Path bronze) {
+        this.bronzeRoot = bronze;
+        return this;
+    }
+
+    /**
+     * Proposes steps for canonical fields the hop does not yet produce.
+     *
+     * <p>Proposals only. Nothing here writes: every suggestion is applied by a person through the
+     * same edit path a hand-made change takes, and validated by the same loaders (ADR 0023).
+     */
+    private ObjectNode suggest(HttpExchange exchange) throws IOException {
+        ObjectNode request = (ObjectNode) json.readTree(body(exchange));
+        String hopId = request.get("hop").asText();
+        MappingWorkspace.ValidationReport report = workspace.validate(request.get("yaml").asText());
+
+        ObjectNode node = json.createObjectNode();
+        ArrayNode suggestions = node.putArray("suggestions");
+        node.put("advisor", advisor.id());
+        if (report.definition() == null) {
+            return node;
+        }
+
+        MappingDefinition definition = report.definition();
+        HopDefinition hop = definition.hops().stream()
+                .filter(candidate -> candidate.hopId().equals(hopId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("no hop '" + hopId + "'"));
+
+        var target = ArtifactTypes.byName(hop.identity().entityType());
+        if (target.isEmpty()) {
+            return node;
+        }
+
+        var shapes = shapes(definition);
+        node.put("shapesObserved", shapes.size());
+
+        var context = new gov.niemplatform.controlplane.advice.MappingAdvisor.Context(
+                definition.decoder().columns(),
+                shapes,
+                target.get(),
+                hop.steps().stream().map(TransformSpec::target).toList(),
+                List.copyOf(TransformFactory.TYPES));
+
+        for (var suggestion : advisor.suggest(context)) {
+            ObjectNode entry = suggestions.addObject();
+            entry.put("target", suggestion.target());
+            entry.put("type", suggestion.transformType());
+            ArrayNode from = entry.putArray("from");
+            suggestion.from().forEach(from::add);
+            ObjectNode options = entry.putObject("options");
+            suggestion.options().forEach(options::put);
+            entry.put("confidence", suggestion.confidence());
+            entry.put("rationale", suggestion.rationale());
+        }
+        return node;
+    }
+
+    /** Column shapes from what has landed, or none if no bronze was given. */
+    private java.util.Map<String, gov.niemplatform.observability.ValueShape> shapes(
+            MappingDefinition definition) {
+        if (bronzeRoot == null) {
+            return java.util.Map.of();
+        }
+        try (var bronze = new gov.niemplatform.storage.parquet.ParquetBronzeStore(bronzeRoot)) {
+            return new gov.niemplatform.controlplane.advice.ColumnProfiler()
+                    .profile(bronze, definition);
+        } catch (RuntimeException unreadable) {
+            // No shapes is a supported state, and losing the suggestions entirely because bronze is
+            // unreadable would be a worse answer than weaker suggestions.
+            return java.util.Map.of();
+        }
     }
 
     /** The contract gating a hop, as the editor needs to show it. */

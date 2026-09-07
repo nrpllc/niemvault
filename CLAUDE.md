@@ -143,6 +143,14 @@ but we could not cite the exact type, and a guessed provenance is worse than non
   assign in order and later steps read earlier results -- `surName` is produced by a split and then
   consumed by an upper. One node per *name* would make that a cycle. Each write gets its own node
   and each read binds to the most recent earlier write. Do not "simplify" it to one node per field.
+- **An advisor never sees a record value** -- [ADR 0023](docs/decisions/0023-mapping-advisor.md).
+  `MappingAdvisor.Context` is the enforcement point, not a convention: it carries names, NIEM types
+  and `ValueShape`, and has no field that can hold a value. Do not add one. Any remote endpoint an
+  agency configures is bound by the same type.
+- **The bundled advisor is the floor, not a stopgap.** In an air-gapped deployment with no endpoint
+  configured, `DeterministicAdvisor` is the only advisor that will ever run. Its synonym table is
+  what makes it useful on a real feed -- `DOB` scores zero against `birthDate` on every generic
+  similarity measure.
 - **A contract is written in place; a mapping is versioned up.** Deliberately different. A contract
   describes what a source *actually sends* -- once the source changes, the old description is not
   something anyone wants left running. A mapping is a reviewed decision about meaning. Bumping a
@@ -174,6 +182,7 @@ but we could not cite the exact type, and a guessed provenance is worse than non
 |---|---|---|---|
 | §2 / §10.1 | ~~Control plane language~~ | — | **Resolved: JVM** — [ADR 0021](docs/decisions/0021-control-plane-is-jvm.md). The deciding constraint was one validator per artifact format, never two ([ADR 0020](docs/decisions/0020-control-plane-boundary.md)). |
 | §10.3 | Multi-tenancy model | Storage layout, policy | Open. Phase 1 proceeds on a stated *assumption* of one tenant per deployment — [ADR 0016](docs/decisions/0016-single-tenant-phase1.md). |
+| §2 / §6 | Whether an agency may ever let an advisor read sampled record values | Advisor quality | Open. Phase 1 proceeds on shapes only — [ADR 0023](docs/decisions/0023-mapping-advisor.md). Changing it needs its own ADR and an agency-level opt-in, not a config flag. |
 | §2 / ADR 0005 | Canonical table format if Iceberg cannot run embedded on Windows | Silver storage | Pending a spike. Deviating from the pinned Delta/Iceberg decision needs Jeff's call. |
 
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —

@@ -144,6 +144,7 @@ async function edit(request) {
     });
     el('yaml').value = report.yaml;
     accept(report, report.yaml);
+    loadSuggestions();
   } catch (error) {
     // An edit the text patcher will not make -- an option that spans lines, a step that cannot move
     // any further. Say so and change nothing.
@@ -254,9 +255,79 @@ function showHop() {
   canvas.render(hop.graph);
   canvas.select(state.selected);
   renderInspector();
-  // The contract arrives after the drawing rather than blocking it. A column's expectations are
+  // The contract and the suggestions arrive after the drawing rather than blocking it. Both are
   // detail on demand; the flow is what the author came to look at.
   loadContract().then(renderInspector);
+  loadSuggestions();
+}
+
+/*
+ * Proposals for canonical fields this step does not yet produce.
+ *
+ * The advisor proposes and a person accepts (ADR 0023). Nothing here applies anything on its own,
+ * and every proposal shows its reasoning, because an author has to be able to disagree with it
+ * before it enters an artifact that will be audited.
+ */
+async function loadSuggestions() {
+  const container = el('suggestions');
+  container.replaceChildren();
+  if (!state.hopId) return;
+
+  try {
+    const result = await api('/api/suggest', {
+      method: 'POST',
+      body: JSON.stringify({ hop: state.hopId, yaml: el('yaml').value }),
+    });
+    el('advisor').textContent = result.advisor
+      + (result.shapesObserved ? ` · ${result.shapesObserved} column shapes read` : ' · names only');
+
+    if (!result.suggestions.length) {
+      container.append(hint('Nothing to propose — every field this step can fill is filled.'));
+      return;
+    }
+    result.suggestions.forEach((suggestion) => container.append(suggestionCard(suggestion)));
+  } catch (error) {
+    container.append(hint('Suggestions unavailable: ' + error.message));
+  }
+}
+
+function suggestionCard(suggestion) {
+  const card = document.createElement('div');
+  card.className = 'suggestion';
+
+  const head = document.createElement('div');
+  head.className = 'suggestion-head';
+  const what = document.createElement('span');
+  what.className = 'suggestion-what';
+  what.textContent = `${suggestion.from.join(', ')} → ${suggestion.target}`;
+  const score = document.createElement('span');
+  // Shown rather than used as a cutoff: a low-confidence proposal for a field nothing else covers
+  // is still the most useful thing on the panel.
+  score.className = 'suggestion-score';
+  score.textContent = Math.round(suggestion.confidence * 100) + '%';
+  head.append(what, score);
+
+  const how = document.createElement('p');
+  how.className = 'detail';
+  how.textContent = `${suggestion.type}${Object.keys(suggestion.options || {}).length
+    ? ' · ' + Object.entries(suggestion.options).map(([k, v]) => `${k} ${v}`).join(' · ') : ''}`;
+
+  const why = document.createElement('p');
+  why.className = 'detail suggestion-why';
+  why.textContent = suggestion.rationale;
+
+  const actions = document.createElement('div');
+  actions.className = 'inspector-actions';
+  actions.append(action('Accept', () => edit({
+    op: 'addStep',
+    target: suggestion.target,
+    type: suggestion.type,
+    from: suggestion.from,
+    options: suggestion.options || {},
+  })));
+
+  card.append(head, how, why, actions);
+  return card;
 }
 
 function nodeById(id) {

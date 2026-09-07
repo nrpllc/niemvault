@@ -374,6 +374,31 @@ svg.canvas {
   border-left-color: var(--flow);
 }
 
+/* --- suggestions ---------------------------------------------------------- */
+
+#suggestions { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem; }
+
+.suggestion {
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--provenance);
+  background: var(--paper);
+  padding: 0.45rem 0.55rem;
+}
+
+.suggestion-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.suggestion-what { font-size: 0.74rem; font-weight: 600; word-break: break-word; }
+
+.suggestion-score {
+  font-size: 0.66rem;
+  color: var(--provenance);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* The reasoning, not the score, is what an author judges a proposal on. */
+.suggestion-why { font-style: italic; }
+.suggestion .inspector-actions { margin: 0.4rem 0 0; }
+
 /* --- the source, folded away ---------------------------------------------- */
 
 .source {

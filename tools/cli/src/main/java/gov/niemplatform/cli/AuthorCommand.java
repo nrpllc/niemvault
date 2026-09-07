@@ -28,13 +28,26 @@ final class AuthorCommand implements Callable<Integer> {
             description = "Port to serve on. Default: ${DEFAULT-VALUE}")
     int port;
 
+    @Option(names = "--bronze",
+            description = "Bronze root. Lets suggestions read the shape of columns that have landed "
+                    + "-- never their values (ADR 0023). Omitted: suggestions from names alone.")
+    Path bronzeRoot;
+
     @Override
     public Integer call() throws Exception {
         try (ControlPlaneServer server = ControlPlaneServer.open(
                 moduleDirectory.toAbsolutePath().normalize(), PlatformVersion.running(), port)) {
 
+            if (bronzeRoot != null) {
+                server.profilingFrom(bronzeRoot.toAbsolutePath().normalize());
+            }
+
             System.out.printf("Mapping authoring: %s%n", server.url());
             System.out.printf("  module  %s%n", moduleDirectory.toAbsolutePath().normalize());
+            System.out.println(bronzeRoot == null
+                    ? "  shapes  not read -- pass --bronze to let suggestions see column shapes"
+                    : "  shapes  read from " + bronzeRoot.toAbsolutePath().normalize()
+                            + " (shapes only, never values)");
             System.out.println("  Saving writes a new mapping version; the file you opened is left as it was.");
             System.out.println("  Press Ctrl+C to stop.");
 

@@ -157,8 +157,20 @@ public final class MappingText {
 
     // --- adding, removing, reordering --------------------------------------
 
-    /** Appends a step to the end of a hop, which is where a new one almost always belongs. */
+    /** Appends a step with no options. */
     public MappingText addStep(String hopId, String target, String type, List<String> from) {
+        return addStep(hopId, target, type, from, java.util.Map.of());
+    }
+
+    /**
+     * Appends a step to the end of a hop, which is where a new one almost always belongs.
+     *
+     * <p>Options are written with the step rather than in a second edit, so accepting a suggestion
+     * that carries a date pattern lands as one change an author can read, not as a step that is
+     * briefly wrong followed by a fix.
+     */
+    public MappingText addStep(String hopId, String target, String type, List<String> from,
+            java.util.Map<String, String> options) {
         List<Block> steps = stepBlocks(hopId);
         int indent;
         int at;
@@ -181,6 +193,13 @@ public final class MappingText {
             block.add(pad + "  from: ["
                     + from.stream().map(MappingText::scalar).reduce((a, b) -> a + ", " + b).orElse("")
                     + "]");
+        }
+        if (!options.isEmpty()) {
+            block.add(pad + "  options: { "
+                    + options.entrySet().stream()
+                            .map(option -> option.getKey() + ": " + scalar(option.getValue()))
+                            .reduce((a, b) -> a + ", " + b).orElse("")
+                    + " }");
         }
 
         List<String> edited = new ArrayList<>(lines);
