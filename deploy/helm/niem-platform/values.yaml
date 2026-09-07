@@ -1,0 +1,131 @@
+# NIEM Integration Platform — deployment values.
+#
+# Defaults are the safe end of every choice. A value that would expose data or widen access has to
+# be set deliberately; nothing here does it for you.
+
+image:
+  repository: niem-platform
+  tag: ""            # empty means Chart.appVersion
+  # Digest wins over tag when set. In an air-gapped install the image is loaded from a tarball and
+  # there is no registry to resolve a tag against, so pin the digest.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# --- the domain module ------------------------------------------------------
+#
+# Content, not platform (spec section 7). Mounted rather than baked into the image so a platform
+# patch does not force a content release, or the reverse.
+module:
+  # Where the module's mappings/ and contracts/ are mounted inside the container.
+  mountPath: /srv/modules/active
+  # How the module gets there. `configMap` suits a module small enough to fit; `pvc` suits one
+  # delivered as files; `none` means you are supplying your own volume in extraVolumes.
+  source: configMap        # configMap | pvc | none
+  configMapName: ""        # required when source is configMap
+  claimName: ""            # required when source is pvc
+  # The mapping to run, relative to mountPath.
+  mapping: mappings/cad-to-canonical-1.0.0.yaml
+
+# --- ingest -----------------------------------------------------------------
+ingest:
+  enabled: true
+  # A CronJob, not a Deployment. Phase 1's connector is a file drop: it is a job that lands what has
+  # arrived and exits, and modelling it as a long-lived service would mean a process whose health is
+  # unrelated to whether any data moved.
+  schedule: "*/15 * * * *"
+  # Never two ingests at once. Both would land the same drop file, and bronze would carry it twice
+  # under different batch ids -- appendable by design, so nothing would reject it.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  # backoffLimit 0: a failed ingest is investigated, not retried blindly. The drop file is still
+  # there and bronze is append-only, so nothing is lost by not retrying.
+  backoffLimit: 0
+  engine: FLINK           # FLINK | DIRECT
+  mode: BATCH             # BATCH | STREAMING
+  filePattern: "*.csv"
+  skipHeaderLines: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+
+# --- storage ----------------------------------------------------------------
+storage:
+  bronze:
+    # Bronze is the record of what a source actually sent (section 4.4) and is never rewritten.
+    # It gets a persistent volume, not emptyDir: losing it loses the ability to replay, which is
+    # the platform's central claim.
+    existingClaim: ""
+    size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+
+  silver:
+    # Empty means canonical records are mapped and discarded, and every run says so out loud.
+    enabled: false
+    catalogUri: ""         # e.g. jdbc:postgresql://catalog/niem
+    warehouse: ""          # e.g. s3://silver/warehouse
+    catalogName: niem
+    s3:
+      endpoint: ""         # empty uses the AWS default for the region
+      region: us-east-1
+      accessKeyId: ""
+      # The secret is read from a Kubernetes Secret, never from values. Anything written here ends
+      # up in `helm get values`, in CI logs, and in whatever stores the release history.
+      existingSecret: ""
+      secretKey: NIEM_S3_SECRET_ACCESS_KEY
+
+  graph:
+    # Rebuilt by replay only. An ingest does not touch the graph in Phase 1.
+    enabled: false
+    uri: ""                # e.g. bolt://neo4j:7687
+    user: neo4j
+    existingSecret: ""
+    secretKey: NIEM_NEO4J_PASSWORD
+
+# --- the drop directory -----------------------------------------------------
+drop:
+  # Where the source writes files the file-drop connector picks up.
+  existingClaim: ""
+  size: 5Gi
+  storageClass: ""
+  accessModes: [ReadWriteMany]
+
+# --- the authoring surface --------------------------------------------------
+#
+# Off, and it stays off until Phase 1's authentication stub is replaced. See ADR 0024. Reach it with
+# `kubectl port-forward` instead; that authenticates through the cluster's own API server, which is
+# the property the surface itself does not yet have.
+authoring:
+  enabled: false
+  # Ignored unless enabled. Kept ClusterIP-only on purpose: there is no value of this that makes an
+  # unauthenticated authoring surface safe to expose, and offering LoadBalancer here would imply
+  # otherwise.
+  port: 8088
+
+# --- pod hardening ----------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: niem-platform
+description: >-
+  NIEM Integration Platform. Scheduled ingest and on-demand replay for one domain module.
+type: application
+
+# The chart's own version. Deliberately not the platform's: a chart fix and a platform release are
+# different events, and tying them would force one whenever the other happens (spec section 7).
+version: 0.1.0
+
+# Overridden per environment. Pinned by digest in an air-gapped install, where the image is loaded
+# from a tarball and there is no registry to resolve a tag against.
+appVersion: "0.1.0-SNAPSHOT"

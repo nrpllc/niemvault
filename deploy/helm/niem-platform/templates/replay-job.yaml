@@ -1,0 +1,73 @@
+{{/*
+  Replay, as a suspended Job.
+
+  Created but not run. Replay drops and rewrites every canonical table it produces, so it is not
+  something a chart install should perform, and not something that should happen on a schedule. It
+  is created suspended so an operator has a correct, pre-wired job to unsuspend when they want one:
+
+    kubectl create job --from=cronjob/... is not available for a plain Job, so instead:
+    kubectl patch job <name> -p '{"spec":{"suspend":false}}'
+
+  Add --dry-run to the args first if you want it to report what it would destroy and stop.
+*/}}
+{{- if .Values.storage.silver.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "niem.fullname" . }}-replay
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: replay
+  annotations:
+    # Kept across upgrades so the pre-wired job stays available rather than being recreated in a
+    # half-configured state mid-incident.
+    helm.sh/resource-policy: keep
+spec:
+  suspend: true
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "niem.labels" . | nindent 8 }}
+        app.kubernetes.io/component: replay
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: replay
+          image: {{ include "niem.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          args:
+            - replay
+            - --module={{ .Values.module.mountPath }}
+            - --mapping={{ .Values.module.mountPath }}/{{ .Values.module.mapping }}
+            - --bronze=/var/lib/niem/bronze
+            - --silver-catalog-uri={{ .Values.storage.silver.catalogUri }}
+            - --silver-warehouse={{ .Values.storage.silver.warehouse }}
+            - --silver-catalog-name={{ .Values.storage.silver.catalogName }}
+            {{- if .Values.storage.silver.s3.endpoint }}
+            - --s3-endpoint={{ .Values.storage.silver.s3.endpoint }}
+            {{- end }}
+            {{- if .Values.storage.silver.s3.accessKeyId }}
+            - --s3-access-key-id={{ .Values.storage.silver.s3.accessKeyId }}
+            {{- end }}
+            - --s3-region={{ .Values.storage.silver.s3.region }}
+            {{- if .Values.storage.graph.enabled }}
+            - --neo4j-uri={{ required "storage.graph.uri is required when the graph is enabled" .Values.storage.graph.uri }}
+            - --neo4j-user={{ .Values.storage.graph.user }}
+            {{- end }}
+          env:
+            {{- include "niem.credentialEnv" . | nindent 12 }}
+          volumeMounts:
+            {{- include "niem.volumeMounts" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.ingest.resources | nindent 12 }}
+      volumes:
+        {{- include "niem.volumes" . | nindent 8 }}
+{{- end }}

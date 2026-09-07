@@ -61,6 +61,33 @@ dependencies {
 
 val runDockerTests = providers.gradleProperty("docker").isPresent
 
+/**
+ * Opens embedded Flink needs on Java 21.
+ *
+ * Flink's serialisation stack reflects into JDK internals, which Java 21 denies by default. Declared
+ * once and applied to both tests and the shipped application: the CLI runs Flink in-process exactly
+ * as the tests do, so a binary without these is one that passes CI and fails on an operator's
+ * machine. Two lists would drift, and the drift would only show up at runtime.
+ */
+val flinkOpens = listOf(
+    "--add-opens=java.base/java.util=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.time=ALL-UNNAMED",
+    "--add-opens=java.base/java.math=ALL-UNNAMED",
+    "--add-opens=java.base/java.text=ALL-UNNAMED",
+    "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+)
+
+// Applied wherever the application plugin is, so the start script and the container image carry the
+// same flags the tests run with.
+plugins.withId("application") {
+    extensions.configure<JavaApplication>("application") {
+        applicationDefaultJvmArgs = flinkOpens
+    }
+}
+
 tasks.withType<Test>().configureEach {
     useJUnitPlatform {
         // Tests tagged "docker" need a container runtime. Excluded by default so the everyday
@@ -70,18 +97,7 @@ tasks.withType<Test>().configureEach {
             excludeTags("docker")
         }
     }
-    // Flink's serialisation stack reflects into JDK internals, which Java 21 denies by
-    // default. These opens are what let embedded Flink run in-process during tests.
-    jvmArgs(
-        "--add-opens=java.base/java.util=ALL-UNNAMED",
-        "--add-opens=java.base/java.lang=ALL-UNNAMED",
-        "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
-        "--add-opens=java.base/java.time=ALL-UNNAMED",
-        "--add-opens=java.base/java.math=ALL-UNNAMED",
-        "--add-opens=java.base/java.text=ALL-UNNAMED",
-        "--add-opens=java.base/java.nio=ALL-UNNAMED",
-        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
-    )
+    jvmArgs(flinkOpens)
     // Docker Engine 29 refuses API versions below 1.40, and the docker-java client Testcontainers
     // 1.20.4 ships requests v1.32. The engine answers with HTTP 400 and an empty /info payload, so
     // Testcontainers reports "Could not find a valid Docker environment" on a machine where the

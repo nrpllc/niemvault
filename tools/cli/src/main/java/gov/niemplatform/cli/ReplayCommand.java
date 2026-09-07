@@ -58,9 +58,6 @@ import picocli.CommandLine.Option;
         description = "Rebuild silver (and optionally the graph) from bronze under a pinned mapping.")
 final class ReplayCommand implements Callable<Integer> {
 
-    /** Environment variable holding the object store secret. */
-    static final String S3_SECRET = "NIEM_S3_SECRET_ACCESS_KEY";
-
     /** Environment variable holding the graph password. */
     static final String NEO4J_PASSWORD = "NIEM_NEO4J_PASSWORD";
 
@@ -101,7 +98,7 @@ final class ReplayCommand implements Callable<Integer> {
     String s3Endpoint;
 
     @Option(names = "--s3-access-key-id",
-            description = "Object store access key id. The secret is read from $" + S3_SECRET + ".")
+            description = "Object store access key id. The secret is read from $" + SilverOptions.S3_SECRET + ".")
     String s3AccessKeyId;
 
     @Option(names = "--s3-region", defaultValue = "us-east-1",
@@ -139,9 +136,9 @@ final class ReplayCommand implements Callable<Integer> {
             return 1;
         }
 
-        String secret = System.getenv(S3_SECRET);
+        String secret = System.getenv(SilverOptions.S3_SECRET);
         if (s3AccessKeyId != null && secret == null) {
-            System.err.println("--s3-access-key-id was given but $" + S3_SECRET + " is not set.");
+            System.err.println("--s3-access-key-id was given but $" + SilverOptions.S3_SECRET + " is not set.");
             return 1;
         }
         if (neo4jUri != null && System.getenv(NEO4J_PASSWORD) == null) {

@@ -101,6 +101,32 @@ so an air-gapped build can verify its own citations (§6). See
 [ADR 0011](docs/decisions/0011-niem-reference-verification.md) — including the three real errors this
 found in content that had passed every other check.
 
+## Deploying
+
+One image, both delivery modes (§6) — the same artifact the vendor cloud pushes in managed mode is
+what an agency loads from a tarball in an air-gapped one.
+
+```bash
+docker build -f deploy/Dockerfile -t niem-platform:dev .
+bash deploy/package-airgapped.sh          # image tarball + chart + modules + checksums
+helm install le deploy/helm/niem-platform --set module.configMapName=le-module
+```
+
+The image carries the platform and nothing else. Domain modules are versioned content on their own
+release cycle (§7), so they are mounted rather than baked in — otherwise a platform patch would force
+a content release, and the reverse.
+
+Ingest runs as a CronJob, because Phase 1's connector is a file drop: a job that lands what arrived
+and exits, not a service whose health is unrelated to whether any data moved. Replay ships as a
+**suspended** Job, since it drops and rewrites every canonical table it produces and is not something
+an install should perform.
+
+The authoring surface is off by default, has no Service, and binds to loopback. That is the access
+control, not an oversight: `kubectl port-forward` is the only way in, which puts the cluster's own
+authentication, RBAC and audit in front of a surface that has none of its own
+([ADR 0024](docs/decisions/0024-authoring-surface-is-not-exposed.md)). Credentials come from
+Kubernetes Secrets and never from `values.yaml`.
+
 ## Layout
 
 ```

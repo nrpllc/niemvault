@@ -1,0 +1,78 @@
+{{/*
+  The authoring surface.
+
+  Off by default and deliberately hard to expose. Phase 1 has no authentication beyond a stub (spec
+  section 8), and the surface writes mapping and contract artifacts -- the files that decide what the
+  pipeline does with an agency's data. Reachable in-cluster without authentication, that is an
+  unauthenticated write path to the platform's behaviour.
+
+  The server binds to 127.0.0.1 inside the pod, which is not an oversight -- it is the enforcement.
+  A Service cannot reach a loopback listener, so the only way in is `kubectl port-forward`, which
+  connects into the pod's own network namespace. That routes every access through the cluster's API
+  server, which authenticates it, authorises it against RBAC, and audits it.
+
+  So the authentication Phase 1 does not have is supplied by Kubernetes, and it cannot be
+  accidentally bypassed: there is no Service, no Ingress and no NodePort here, and adding one would
+  not work even if someone tried.
+
+    kubectl port-forward deploy/<release>-niem-platform-authoring 8088:8088
+
+  See ADR 0024.
+*/}}
+{{- if .Values.authoring.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "niem.fullname" . }}-authoring
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: authoring
+  annotations:
+    niemplatform.gov/unauthenticated: >-
+      This workload has no authentication (spec section 8, Phase 1). Reach it with kubectl
+      port-forward. Do not place an Ingress or a LoadBalancer in front of it.
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "niem.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: authoring
+  template:
+    metadata:
+      labels:
+        {{- include "niem.labels" . | nindent 8 }}
+        app.kubernetes.io/component: authoring
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: authoring
+          image: {{ include "niem.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          args:
+            - author
+            - --module={{ .Values.module.mountPath }}
+            - --port={{ .Values.authoring.port }}
+            - --bronze=/var/lib/niem/bronze
+          # Declared for documentation and port-forward's convenience only. The listener is bound
+          # to loopback, so nothing in the cluster can connect to it through this port.
+          ports:
+            - name: http
+              containerPort: {{ .Values.authoring.port }}
+          volumeMounts:
+            {{- include "niem.volumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        {{- include "niem.volumes" . | nindent 8 }}
+{{- end }}

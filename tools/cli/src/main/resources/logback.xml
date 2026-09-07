@@ -44,6 +44,16 @@
   <logger name="org.apache.hadoop" level="ERROR"/>
   <logger name="org.apache.avro" level="WARN"/>
   <logger name="org.apache.flink" level="WARN"/>
+  <!--
+    A batch job that has finished shuts the MiniCluster down while the collect sink's coordinator is
+    still trying to reach it, and the coordinator logs the resulting "MiniCluster is not yet running"
+    with a full stack trace at WARN. The job has already produced its records: the trace is a
+    shutdown race, not a failure.
+
+    Silenced because the alternative is worse. An operator who sees a stack trace on every clean run
+    learns that stack traces here mean nothing, and then misses the one that matters.
+  -->
+  <logger name="org.apache.flink.streaming.api.operators.collect" level="ERROR"/>
   <logger name="org.apache.iceberg" level="WARN"/>
   <logger name="software.amazon.awssdk" level="WARN"/>
 

@@ -84,6 +84,10 @@ final class RunCommand implements Callable<Integer> {
             description = "Write quarantined records here as JSON lines, values intact.")
     Path quarantineOut;
 
+    /** Where canonical records are stored. Shared with `replay` so the two cannot disagree. */
+    @picocli.CommandLine.Mixin
+    SilverOptions silver = new SilverOptions();
+
     @Option(names = "--run-id", defaultValue = "cli",
             description = "Run identifier carried on every event. Default: ${DEFAULT-VALUE}")
     String runId;
@@ -128,6 +132,14 @@ final class RunCommand implements Callable<Integer> {
             return 1;
         }
 
+        // Checked before anything lands. Finding out about a missing credential after a feed has
+        // been ingested but before it could be stored leaves an operator replaying to catch up.
+        var silverProblem = silver.problem();
+        if (silverProblem.isPresent()) {
+            System.err.println(silverProblem.get() + ".");
+            return 1;
+        }
+
         ConnectorConfig config = ConnectorConfig.of(
                 artifacts.mapping().sourceId(),
                 "file-drop-cli",
@@ -149,7 +161,12 @@ final class RunCommand implements Callable<Integer> {
         connector.configure(config);
 
         long canonicalCount;
+        Map<String, Long> silverWritten = Map.of();
+        var silverStore = silver.open();
         try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot)) {
+            SilverWriter silverWriter = silverStore
+                    .map(store -> new SilverWriter(store, artifacts.canonicalTypes()))
+                    .orElse(null);
             var landing = new LandingService(bronze, emitter).land(connector, config, runId);
             System.out.printf("Landed %d record(s) in %d batch(es) for source '%s'.%n",
                     landing.recordsLanded(), landing.receipts().size(), config.sourceId());
@@ -176,8 +193,16 @@ final class RunCommand implements Callable<Integer> {
                     emitter);
 
             canonicalCount = engine == Engine.DIRECT
-                    ? mapLanded(bronze, config.sourceId(), landed, pipeline)
-                    : mapThroughFlink(bronze, config.sourceId(), landed, artifacts, quarantineFile());
+                    ? mapLanded(bronze, config.sourceId(), landed, pipeline, silverWriter)
+                    : mapThroughFlink(bronze, config.sourceId(), landed, artifacts, quarantineFile(),
+                            silverWriter);
+
+            if (silverWriter != null) {
+                silverWriter.flush();
+                silverWritten = silverWriter.written();
+            }
+        } finally {
+            silverStore.ifPresent(store -> store.close());
         }
 
         if (engine == Engine.DIRECT) {
@@ -186,6 +211,7 @@ final class RunCommand implements Callable<Integer> {
         } else {
             summariseDistributed(canonicalCount);
         }
+        reportSilver(silverWritten);
 
         // A run that quarantined records is not a failed run -- spec §4.2 is explicit that bad
         // data must not halt the pipeline -- but it is not a clean one either, and a scheduled
@@ -224,7 +250,8 @@ final class RunCommand implements Callable<Integer> {
             String sourceId,
             BronzeRange range,
             ArtifactSet artifacts,
-            Path quarantineDirectory) throws Exception {
+            Path quarantineDirectory,
+            SilverWriter silverWriter) throws Exception {
 
         List<RawEnvelope> envelopes;
         try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
@@ -259,6 +286,9 @@ final class RunCommand implements Callable<Integer> {
         }
 
         List<Record> canonical = FlinkMappingJob.run(factory, envelopes, options, runId);
+        if (silverWriter != null) {
+            silverWriter.acceptAll(canonical);
+        }
 
         if (canonicalOut != null) {
             try (BufferedWriter out = Files.newBufferedWriter(canonicalOut, StandardCharsets.UTF_8)) {
@@ -273,12 +303,17 @@ final class RunCommand implements Callable<Integer> {
     }
 
     private long mapLanded(
-            ParquetBronzeStore bronze, String sourceId, BronzeRange range, MappingPipeline pipeline)
-            throws IOException {
+            ParquetBronzeStore bronze, String sourceId, BronzeRange range, MappingPipeline pipeline,
+            SilverWriter silverWriter) throws IOException {
         if (canonicalOut == null) {
             try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
-                return landed.mapToLong(envelope ->
-                        pipeline.process(envelope, runId).canonicalRecords().size()).sum();
+                return landed.mapToLong(envelope -> {
+                    List<Record> produced = pipeline.process(envelope, runId).canonicalRecords();
+                    if (silverWriter != null) {
+                        silverWriter.acceptAll(produced);
+                    }
+                    return produced.size();
+                }).sum();
             }
         }
         long written = 0;
@@ -341,7 +376,27 @@ final class RunCommand implements Callable<Integer> {
         if (canonicalOut != null) {
             System.out.printf("Canonical records written to %s.%n", canonicalOut);
         }
-        System.out.println("Silver was not written: the canonical store is not built yet (ADR 0005).");
+    }
+
+    /**
+     * Says what reached the canonical store, or that nothing did and why.
+     *
+     * <p>Never silently nothing. A scheduled ingest that lands and maps but stores nothing looks
+     * healthy in every log line except the one that matters.
+     */
+    private void reportSilver(Map<String, Long> written) {
+        if (!silver.requested()) {
+            System.out.println(
+                    "Silver was not written: no --silver-catalog-uri given, so records were mapped "
+                            + "and discarded. Bronze holds the source data and can be replayed.");
+            return;
+        }
+        System.out.printf("Silver: %s%n", silver.describe());
+        written.forEach((type, count) ->
+                System.out.printf("  %-28s %d record(s) appended%n", type, count));
+        if (written.isEmpty()) {
+            System.out.println("  nothing appended");
+        }
     }
 
     private void summarise(
@@ -371,6 +426,5 @@ final class RunCommand implements Callable<Integer> {
         }
         // Said plainly rather than left to be inferred. A run that looked like it had populated
         // silver would be worse than one that refused to run at all.
-        System.out.println("Silver was not written: the canonical store is not built yet (ADR 0005).");
     }
 }

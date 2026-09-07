@@ -1,0 +1,28 @@
+# Gradle output directories, matched by position rather than by name.
+#
+# `**/build/` looks like the obvious pattern and is a trap: it also matches the Java package
+# `gov/niemplatform/build/`, which silently removes the canonical model's code generator from the
+# build context. The image then builds far enough to fail with "plugin implementation class not
+# found", which points nowhere near the cause.
+#
+# A Gradle project directory is at depth 0, 1 or 2 here, so its build/ is too. A package path is
+# deeper, and never matches.
+/build
+/*/build
+/*/*/build
+.gradle/
+
+# Local tooling and editor state.
+.idea/
+.vscode/
+.zen/
+*.iml
+
+# History is large and the build does not read it.
+.git/
+.github/
+
+# Documentation and demos are not inputs to the platform binary.
+docs/
+demo/
+*.md

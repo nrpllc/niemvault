@@ -1,0 +1,74 @@
+{{- if .Values.ingest.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "niem.fullname" . }}-ingest
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  schedule: {{ .Values.ingest.schedule | quote }}
+  # Forbid, not Replace. Two ingests would land the same drop file and bronze would carry it twice
+  # under different batch ids -- append-only by design, so nothing downstream would reject it.
+  concurrencyPolicy: {{ .Values.ingest.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.ingest.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.ingest.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      # A failed ingest is looked at, not retried blindly. The drop file is still there and bronze
+      # is append-only, so nothing is lost by declining to retry.
+      backoffLimit: {{ .Values.ingest.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "niem.labels" . | nindent 12 }}
+            app.kubernetes.io/component: ingest
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          containers:
+            - name: ingest
+              image: {{ include "niem.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              args:
+                - run
+                - --module={{ .Values.module.mountPath }}
+                - --mapping={{ .Values.module.mountPath }}/{{ .Values.module.mapping }}
+                - --drop=/srv/drop
+                - --bronze=/var/lib/niem/bronze
+                - --engine={{ .Values.ingest.engine }}
+                - --mode={{ .Values.ingest.mode }}
+                - --pattern={{ .Values.ingest.filePattern }}
+                - --skip-header-lines={{ .Values.ingest.skipHeaderLines }}
+                # Carried on every observability event, so a run can be traced back to the job that
+                # produced it (spec section 4.7).
+                - --run-id=$(JOB_NAME)
+                {{- include "niem.silverArgs" . | nindent 16 }}
+              env:
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                {{- include "niem.credentialEnv" . | nindent 16 }}
+              volumeMounts:
+                {{- include "niem.volumeMounts" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.ingest.resources | nindent 16 }}
+          volumes:
+            {{- include "niem.volumes" . | nindent 12 }}
+          {{- with .Values.nodeSelector }}
+          nodeSelector: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.affinity }}
+          affinity: {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

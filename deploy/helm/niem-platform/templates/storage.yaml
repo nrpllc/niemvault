@@ -1,0 +1,49 @@
+{{/*
+  Bronze and the drop directory.
+
+  Bronze is the record of what a source actually sent (spec section 4.4) and is never rewritten. It
+  gets a persistent volume rather than emptyDir because losing it loses the ability to replay, which
+  is the platform's central claim -- and a claim that only holds while the pod lives is not one.
+
+  Both are skipped when an existing claim is named, so an operator can point at storage they already
+  manage rather than having the chart create it.
+*/}}
+{{- if not .Values.storage.bronze.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "niem.fullname" . }}-bronze
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bronze
+  annotations:
+    # Bronze survives an uninstall on purpose. `helm uninstall` removing the only copy of what the
+    # sources sent would be an irreversible act triggered by a routine command.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: {{- toYaml .Values.storage.bronze.accessModes | nindent 4 }}
+  {{- if .Values.storage.bronze.storageClass }}
+  storageClassName: {{ .Values.storage.bronze.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.bronze.size }}
+{{- end }}
+{{- if not .Values.drop.existingClaim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "niem.fullname" . }}-drop
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: drop
+spec:
+  accessModes: {{- toYaml .Values.drop.accessModes | nindent 4 }}
+  {{- if .Values.drop.storageClass }}
+  storageClassName: {{ .Values.drop.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.drop.size }}
+{{- end }}

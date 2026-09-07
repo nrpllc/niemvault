@@ -192,6 +192,24 @@ class NiemCliTest {
         }
 
         @Test
+        @DisplayName("refuses a half-configured silver store before landing anything")
+        void refusesHalfConfiguredSilver() throws IOException {
+            // Discovering this after a feed is ingested but before it could be stored leaves an
+            // operator replaying to catch up. Recoverable only because bronze exists.
+            Path module = moduleDirectory();
+            int exit = run("run", "--engine", "DIRECT",
+                    "--module", module.toString(),
+                    "--mapping", module.resolve("mappings").resolve("cad-to-canonical-1.0.0.yaml").toString(),
+                    "--drop", dropWith("incidents.csv").toString(),
+                    "--bronze", work.resolve("bronze").toString(),
+                    "--silver-warehouse", "s3://silver/warehouse");
+
+            assertThat(exit).isEqualTo(1);
+            assertThat(stderr()).contains("--silver-catalog-uri and --silver-warehouse are given together");
+            assertThat(work.resolve("bronze")).as("nothing was landed").doesNotExist();
+        }
+
+        @Test
         @DisplayName("silver not being written is stated, not left to be inferred")
         void silverGapIsStated() throws IOException {
             Path module = moduleDirectory();

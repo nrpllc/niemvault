@@ -146,6 +146,17 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   assign in order and later steps read earlier results -- `surName` is produced by a split and then
   consumed by an upper. One node per *name* would make that a cycle. Each write gets its own node
   and each read binds to the most recent earlier write. Do not "simplify" it to one node per field.
+- **`.dockerignore` must not use `**/build/`.** It also matches the Java package
+  `gov/niemplatform/build/`, which silently drops the canonical code generator from the build
+  context; the image then fails with "plugin implementation class not found", which points nowhere
+  near the cause. Gradle output is matched by position instead: `/build`, `/*/build`, `/*/*/build`.
+- **The authoring surface binds to loopback, and that is the deployment's access control** --
+  [ADR 0024](docs/decisions/0024-authoring-surface-is-not-exposed.md). A Service cannot reach it, so
+  `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
+  audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
+  Service.
+- **`run` appends to silver; `replay` drops and rewrites it.** Same store, opposite obligations.
+  Appending on replay would double every record it reprocessed and make criterion 6 unprovable.
 - **An advisor never sees a record value** -- [ADR 0023](docs/decisions/0023-mapping-advisor.md).
   `MappingAdvisor.Context` is the enforcement point, not a convention: it carries names, NIEM types
   and `ValueShape`, and has no field that can hold a value. Do not add one. Any remote endpoint an
@@ -218,7 +229,7 @@ optional `doc:`. That meaning is free to capture while authoring and expensive t
 - [x] Mapping authoring surface (§4.8, ADR 0021): field-level flow canvas, direct editing,
       versioned save. No YAML required to author a mapping.
 - [x] All 7 acceptance criteria asserted in tests
-- [ ] Containers, Helm, manifests (§6)
+- [x] Containers, Helm chart, air-gapped packaging (§6)
 
 - [x] NIEM references verified against a real release (§4.1, ADR 0011)
 
