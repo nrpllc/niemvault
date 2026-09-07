@@ -153,7 +153,7 @@ ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 - [x] Connector SPI and file drop connector (§4.3)
 - [x] Bronze landing (§4.4)
 - [ ] Identity resolution (§4.5)
-- [ ] Mapping DAG on embedded Flink (§5)
+- [x] Mapping DAG on embedded Flink (§5) — criterion 7 proved
 - [ ] Graph projection to Neo4j (§4.6)
 - [ ] Replay driver (§5)
 - [ ] LE module fixtures and mappings

@@ -21,7 +21,16 @@ public enum FieldType {
     DECIMAL(BigDecimal.class),
     BOOLEAN(Boolean.class),
     /** A reference to another canonical entity by its platform-assigned identity. */
-    REF(CanonicalRef.class);
+    REF(CanonicalRef.class),
+    /**
+     * The platform-assigned identity carried by every canonical record.
+     *
+     * <p>Distinct from {@link #STRING} on purpose. An identity that validated as a plain string
+     * would let a mapping put anything in the field, and the mismatch would only surface when
+     * something tried to materialise the typed record -- deep inside a projection, far from the
+     * mapping that caused it.
+     */
+    IDENTITY(CanonicalId.class);
 
     private final Class<?> javaType;
 

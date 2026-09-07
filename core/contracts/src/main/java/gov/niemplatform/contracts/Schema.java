@@ -63,7 +63,7 @@ public record Schema(
     public static Schema ofCanonical(CanonicalTypeDescriptor descriptor) {
         List<FieldExpectation> expectations = new ArrayList<>();
         expectations.add(new FieldExpectation(
-                CanonicalTypeDescriptor.CANONICAL_ID_FIELD, FieldType.STRING, true, false,
+                CanonicalTypeDescriptor.CANONICAL_ID_FIELD, FieldType.IDENTITY, true, false,
                 List.of(), null, null));
 
         for (CanonicalRoleDescriptor role : descriptor.roles()) {
