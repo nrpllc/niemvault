@@ -260,6 +260,17 @@ citable types, and would bury the domains in the coverage browser.
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —
 ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 
+**Built:** the graph is readable, not only writable — `Neo4jIncidentReader` and `niem incident`.
+An incident, everyone on it with their role, and where those people appear on other incidents,
+which is the only question a graph is needed for. **Named `incident`, not `case`, deliberately**:
+the canonical model has `Incident` and no `Case`, and a case aggregates incidents and carries a
+lifecycle, so `niem case` would promise an aggregation that does not exist. A test asserts there is
+no `case` subcommand. Label and relationship naming moved into `GraphNaming`, shared by reader and
+writer — a reader matching `PersonIncidentAssociation` against a written
+`PERSON_INCIDENT_ASSOCIATION` returns an empty result that looks exactly like an incident with
+nobody on it. The view records redact values in `toString` per ADR 0015; a view is *more* exposed
+than a record, because it is assembled to be looked at and so reaches logs a record never does.
+
 **Built:** the NIEM coverage browser — `niem coverage`, `/api/coverage`, and the NIEM view in the
 authoring surface. Answers "conformant to how much of NIEM?": 2 of 18 domains, 16 of 27,148
 declarations, with both extensions and their written reasons. Untouched domains are listed

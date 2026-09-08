@@ -299,16 +299,16 @@ public final class Neo4jProjectionWriter implements ProjectionWriter {
         return identity.value();
     }
 
-    /** Node label: the canonical type name, which is already PascalCase by the DSL's rules. */
+    // Naming lives in GraphNaming, shared with the reader. The writer creating
+    // PERSON_INCIDENT_ASSOCIATION while a reader matches PersonIncidentAssociation produces no
+    // error at all -- just an empty result indistinguishable from an incident with nobody on it.
+
     private static String label(CanonicalTypeDescriptor descriptor) {
-        return descriptor.name();
+        return GraphNaming.label(descriptor.name());
     }
 
-    /** Relationship type: the canonical association name in Neo4j's SCREAMING_SNAKE convention. */
     private static String relationshipType(CanonicalTypeDescriptor descriptor) {
-        return descriptor.name()
-                .replaceAll("([a-z0-9])([A-Z])", "$1_$2")
-                .toUpperCase(Locale.ROOT);
+        return GraphNaming.relationshipType(descriptor.name());
     }
 
     /**

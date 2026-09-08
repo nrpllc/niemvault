@@ -19,7 +19,9 @@ public class ProjectionException extends RuntimeException {
         APPLY,
         REBUILD,
         COUNT,
-        CONNECT
+        CONNECT,
+        /** Reading a projection back. A projection is written from silver and read by an operator. */
+        READ
     }
 
     private final Operation operation;
