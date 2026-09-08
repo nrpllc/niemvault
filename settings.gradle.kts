@@ -21,6 +21,7 @@ include(
     "core:observability",
     "core:content",
     "core:lineage",
+    "core:disclosure",
     "storage",
     "runtime:engine",
     "runtime:transforms",

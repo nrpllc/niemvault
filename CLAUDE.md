@@ -52,6 +52,7 @@ Docker is available (needed for testcontainers integration tests, e.g. Neo4j).
 | `core/canonical/` | Canonical DSL sources, generated types, and the generic `Record`. |
 | `core/observability/` | The §4.7 event taxonomy and its emitters. Depended on by `contracts`. |
 | `core/contracts/` | Hop contracts, the schema validator, quarantine, and the on-disk contract loader. |
+| `core/disclosure/` | The append-only record of what crossed an agency boundary (§4.8, ADR 0026). |
 | `control-plane/` | The mapping authoring surface. Calls the runtime's loaders; owns no validator. |
 | `docs/decisions/` | One ADR per pinned decision and per decision taken during implementation. |
 
@@ -155,6 +156,13 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
   audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
   Service.
+- **A disclosure record names records and cannot contain one.** An audit log holding the data it
+  audits is a second copy with weaker access controls and longer retention -- the log of who saw what
+  becomes the easiest place to see it. `DisclosureRecord` has no field that can hold a value, and a
+  test asserts it by reflection. Do not add one.
+- **`DisclosureLog.disclosing` writes the record before it releases anything.** If the record cannot
+  be written, nothing crosses the boundary. An agency that cannot write to its own audit log has lost
+  the right to release data until it can, because it can no longer say what it released.
 - **A bronze store belongs to one agency and refuses another's, on open** --
   [ADR 0026](docs/decisions/0026-isolation-by-construction.md). A `.tenant` marker is written on
   first use and checked every time. Shared logical multi-tenancy is **not built and not supported**:

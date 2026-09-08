@@ -115,6 +115,21 @@ filters correctly by tenant" is a promise about code that a lawyer cannot audit.
 this is only safe alongside managed operation, and it raises the price of connecting agencies, which
 federation has to bring back down.
 
+## The disclosure record
+
+Every cross-agency release is recorded before it happens: who asked, under what authority, what they
+actually got, what was withheld and why, and who decided. Append-only, one record per line, readable
+without this software — an auditor will not have it installed.
+
+It names records and cannot contain one. An audit log holding the data it audits is a second copy of
+that data, usually with weaker access controls and longer retention, so the log of who saw what
+becomes the easiest place to see it. A reviewer needs to know that two Person records went to the
+state under a named statute and one was withheld as sealed; they rarely need to know who those people
+are.
+
+`DisclosureLog.disclosing` writes the record and only then produces what is released, so the ordering
+cannot be got wrong. If the record cannot be written, nothing crosses the boundary.
+
 ## The catalogue
 
 ```bash
