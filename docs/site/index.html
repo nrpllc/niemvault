@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NiemVault</title>
 
 <style>
@@ -243,6 +248,48 @@
   .panel h3 { font-family: var(--mono); font-size: 0.86rem; font-weight: 600; margin: 0 0 0.5rem; color: var(--flow); }
   .panel p { margin: 0; font-size: 0.97rem; }
 
+  /* ===================== decisions ==================================== */
+
+  .adr-entry { border-bottom: 1px solid var(--hairline); }
+
+  .adr-entry summary {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr) 5.5rem;
+    gap: 0.9rem;
+    align-items: baseline;
+    padding: 0.62rem 0;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .adr-entry summary::-webkit-details-marker { display: none; }
+  .adr-entry summary:hover .adr-title { color: var(--flow); }
+  .adr-entry summary:focus-visible { outline: 2px solid var(--provenance); outline-offset: 2px; }
+
+  .adr-num {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--provenance);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .adr-title { font-size: 1rem; }
+  .adr-status { font-family: var(--mono); font-size: 0.68rem; color: var(--slate); text-align: right; }
+
+  .adr-entry[open] .adr-title { color: var(--flow); font-weight: 600; }
+  .adr-entry > p { margin: 0 0 0.9rem; padding-left: 4.3rem; max-width: 40rem; font-size: 0.98rem; }
+  .adr-entry.superseded .adr-title { color: var(--slate); }
+
+  /* A decision reached by its own link is marked, so it is obvious which one was meant. */
+  .adr-entry:target { background: var(--flow-soft); }
+  .adr-entry:target summary { padding-left: 0.5rem; margin-left: -0.5rem; }
+
+  @media (max-width: 34rem) {
+    .adr-entry summary { grid-template-columns: 3.4rem minmax(0, 1fr); }
+    .adr-status { grid-column: 2; text-align: left; }
+    .adr-entry > p { padding-left: 0; }
+  }
+
   .cost { border-top: 1px solid var(--hairline); padding-top: 1.2rem; margin-bottom: 1.8rem; }
   .cost h3 { font-size: 1.06rem; }
   .cost p { margin: 0; }
@@ -309,7 +356,9 @@
 
   footer p { margin: 0 0 0.5rem; }
 </style>
+</head>
 
+<body>
 <div class="topbar">
   <div class="topbar-inner">
     <a class="wordmark" href="#overview" aria-label="NiemVault, overview">
@@ -327,6 +376,7 @@
       <a href="#isolation">Isolation</a>
       <a href="#architecture">Architecture</a>
       <a href="#integrating">Integrating</a>
+      <a href="#mapping">A mapping</a>
       <a href="#operating">Operating</a>
       <a href="#proof">Proof</a>
       <a href="#decisions">Decisions</a>
@@ -736,6 +786,179 @@ decided   sgt.k.oyelaran@riverton.pd.gov</pre>
   </section>
 </main>
 
+<!-- ============================ MAPPING =============================== -->
+<main class="page" id="view-mapping" hidden>
+  <header>
+    <span class="eyebrow">A mapping, end to end</span>
+    <h1>Ten columns to three records</h1>
+    <p class="thesis">
+      The concrete thing an integrator asks to see. A synthetic CAD export from a fictional agency,
+      through the pipeline, to canonical NIEM types — with <strong>every judgement call visible</strong>.
+    </p>
+  </header>
+
+  <section>
+    <h2>What the source sends</h2>
+    <p>
+      One row per person per incident, which is why the incident fields repeat. Ten columns,
+      declared in the mapping rather than read from a header row: a header is a value in the data,
+      and trusting it means a source that reorders its columns silently remaps every field with no
+      error anywhere.
+    </p>
+    <pre>INC_NUM,CALL_TYPE,RPT_DTTM,ADDR,BEAT,ROLE,NAME_FULL,DOB,SEX,DL_NUM
+2026-000114,BURG,2026/03/04 11:20,"418 W 9TH ST",3A,VICT,"DOE, JANE M",03/14/1988,F,K447-1902</pre>
+  </section>
+
+  <section>
+    <h2>What the agency means by it</h2>
+    <p class="section-lede">
+      The half of the catalogue that cannot be derived from the data, the column name, or the NIEM
+      reference. It exists in the head of whoever wrote the mapping until they write it down.
+    </p>
+
+    <div class="panel">
+      <h3>CALL_TYPE</h3>
+      <p>Initial call classification as the dispatcher entered it. It is what the caller reported,
+        not what was found: a call typed <code>BURG</code> may be cleared as unfounded and the code is
+        not revised. Not an offence code and must not be read as one.</p>
+    </div>
+    <div class="panel">
+      <h3>BEAT</h3>
+      <p>The agency's own operational districting — not a postal, census or municipal boundary — and
+        it is redrawn periodically without notice.</p>
+    </div>
+    <div class="panel">
+      <h3>DL_NUM</h3>
+      <p>The literal <code>UNK</code> appears where no licence was provided. It is a tier-one identity
+        key, so treating <code>UNK</code> as an identifier would resolve every such person into a
+        single cluster.</p>
+    </div>
+    <div class="panel">
+      <h3>SEX</h3>
+      <p><code>U</code> is used both for “unknown” and for “not asked”, and the source does not
+        distinguish between them.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Three hops</h2>
+    <p class="section-lede">
+      Each gated by its own contract, in both directions. The third depends on the first two, because
+      an association cannot be built before the things it associates.
+    </p>
+
+    <div class="zones">
+      <div class="zone-row zone-bronze">
+        <span class="name">map-incident</span>
+        <p>Five steps to a canonical <code>Incident</code>. Identity <em>derived</em> from the
+          incident number — a CAD system assigns it at call creation and never reuses it, so running
+          it through entity resolution would add uncertainty where none exists.</p>
+      </div>
+      <div class="zone-row zone-silver">
+        <span class="name">map-person</span>
+        <p>Ten steps to a canonical <code>Person</code>. Identity <em>resolved</em>, because a person
+          has no authoritative key in a CAD export.</p>
+      </div>
+      <div class="zone-row zone-gold">
+        <span class="name">map-person-incident</span>
+        <p>One step to the association. Identity derived from both endpoints, so the same pair always
+          yields the same association and a replay does not double every edge in the graph.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The interesting column</h2>
+    <p>
+      <code>NAME_FULL</code> arrives as one packed field and becomes three canonical fields. The
+      intermediate value is declared <em>scratch</em>: it exists to be split further and never reaches
+      the record, so it is not an unexpected field at the output gate.
+    </p>
+    <pre>"DOE, JANE M"
+  ├─ splitIndex "," 0 ─→ surName ──── upper ─→ DOE
+  └─ splitIndex "," 1 ─→ givenNames        (scratch)
+                          ├─ splitIndex " " 0 → givenName ─ upper → JANE
+                          └─ splitIndex " " 1 → middleName ──────── M</pre>
+    <p>
+      The catalogue reports the ends of that chain, not its middle: <code>NAME_FULL</code> becomes
+      <code>surName</code>, <code>givenName</code> and <code>middleName</code>. That it passes through
+      two splits on the way is the mapping's business, not the reviewer's.
+    </p>
+  </section>
+
+  <section>
+    <h2>The judgement calls</h2>
+
+    <article class="principle">
+      <h3>A zone that cannot be inferred is stated</h3>
+      <p>
+        <code>RPT_DTTM</code> is local wall-clock time with no offset. The mapping states
+        <code>America/Denver</code> explicitly, because guessing it would shift every incident in the
+        agency by hours — silently, and identically wrong across the whole feed.
+      </p>
+      <pre>- target: reportedDateTime
+  type: parseDateTime
+  from: [RPT_DTTM]
+  options:
+    pattern: "yyyy/MM/dd HH:mm"
+    zone: "America/Denver"</pre>
+      <p>
+        The mapping advisor will read a column's shape and propose the pattern, and it deliberately
+        refuses to propose the zone. It is not in the data, and a confident wrong answer is worse than
+        no answer.
+      </p>
+    </article>
+
+    <article class="principle">
+      <h3>A date pattern is a contract, not a convenience</h3>
+      <p>
+        The person contract pins the inbound shape of <code>DOB</code>. That single line is what turns
+        a source quietly switching from <code>MM/dd/yyyy</code> to ISO into a quarantined record and a
+        structured violation event — rather than into silently missing dates of birth across the whole
+        agency.
+      </p>
+      <pre>- name: DOB
+  type: string
+  pattern: "^\\d{2}/\\d{2}/\\d{4}$"</pre>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        A format change upstream becoming an absence downstream, with nothing anywhere reporting it.
+      </span>
+    </article>
+
+    <article class="principle">
+      <h3>A deviation is recorded as a deviation</h3>
+      <p>
+        The source expresses involvement as one role code on the person-incident link. NIEM's justice
+        domain models victim, subject and witness as distinct association types. Collapsing them to a
+        code keeps the slice to one association type — and that is written down as a granularity
+        choice with a migration path, not left as an undocumented difference for an integrator to
+        discover.
+      </p>
+      <p>
+        The association's own provenance is <code>nc:ActivityPersonAssociationType</code>, verified
+        against a published NIEM 6.0 release. It was modelled as a platform extension until that could
+        be checked — and turned out not to need to be.
+      </p>
+    </article>
+  </section>
+
+  <section>
+    <h2>What comes out</h2>
+    <p>Ten source rows produce thirty canonical records and six person clusters.</p>
+    <pre>Landed 10 record(s) in 1 batch(es) for source 'riverton-pd-cad'.
+Mapped 30 canonical record(s).
+Resolved 6 person cluster(s).
+Silver:  https://…#Person                     10 record(s) appended
+         https://…#Incident                   10 record(s) appended
+         https://…#PersonIncidentAssociation  10 record(s) appended</pre>
+    <p>
+      Six clusters from ten rows, because the same people recur across incidents — which is the whole
+      point of resolution, and the third acceptance criterion.
+    </p>
+  </section>
+</main>
+
 <!-- =========================== OPERATING ============================== -->
 <main class="page" id="view-operating" hidden>
   <header>
@@ -864,44 +1087,229 @@ niem catalogue  what a source sends and what it means</pre>
       Every decision is recorded with the consequences accepted and the alternatives rejected.
       <strong>Deferred</strong> means the question is real and the answer is not yet owed.
     </p>
+    <p class="section-lede">
+      Open any one for the reasoning. Each has its own address, so a single decision can be linked
+      straight into a procurement conversation. Full text lives in <code>docs/decisions/</code>.
+    </p>
   </header>
 
   <section>
-    <div class="scroll">
-      <table>
-        <caption>Full text in <code>docs/decisions/</code>, one file each.</caption>
-        <thead><tr><th scope="col">ADR</th><th scope="col">Decision</th><th scope="col">Status</th></tr></thead>
-        <tbody>
-          <tr><td class="num">0001</td><td>Java 21 and Apache Flink for bronze to silver</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0002</td><td>Spark or warehouse SQL for silver to gold</td><td class="status">Deferred</td></tr>
-          <tr><td class="num">0003</td><td>Gradle with the Kotlin DSL</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0004</td><td>Bronze as append-only Parquet with a JSON envelope</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0005</td><td>Table format for canonical silver storage</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0006</td><td>Neo4j for the Phase 1 graph projection</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0007</td><td>Elasticsearch for the search projection</td><td class="status">Deferred</td></tr>
-          <tr><td class="num">0008</td><td>Warehouse projection</td><td class="status">Deferred</td></tr>
-          <tr><td class="num">0009</td><td>Containers and Kubernetes for both delivery modes</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0010</td><td>YAML config, schema-validated on load</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0011</td><td>NIEM references must be verified against a release, not asserted</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0012</td><td>An intermediate YAML DSL is the canonical source of truth</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0013</td><td>Synthetic CAD CSV as the Phase 1 reference source</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0014</td><td>The bundled resolver is deterministic in Phase 1</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0015</td><td>Record <code>toString</code> never exposes values</td><td class="status">Accepted</td></tr>
-          <tr class="superseded"><td class="num">0016</td><td>Phase 1 assumes one tenant per deployment</td><td class="status">Superseded</td></tr>
-          <tr><td class="num">0017</td><td>Observability events live in their own module</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0018</td><td>Storage zones live in their own module</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0019</td><td>The catalogue documents each source's own vocabulary</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0020</td><td>The control plane's boundary, and the domain module contract</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0021</td><td>The control plane is JVM</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0022</td><td>Node layout is computed, never stored in the mapping</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0023</td><td>AI-assisted authoring runs behind an SPI, never on record values</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0024</td><td>The authoring surface is reachable only through the cluster's own front door</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0025</td><td>A tenant is an agency, not a deployment, and tenants federate</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0026</td><td>One tenant per deployment, enforced rather than promised</td><td class="status">Accepted</td></tr>
-          <tr><td class="num">0027</td><td>Two kinds of boundary, one path into canonical</td><td class="status">Accepted</td></tr>
-        </tbody>
-      </table>
-    </div>
+      <details class="adr-entry" id="adr-0001">
+        <summary>
+          <span class="adr-num">0001</span>
+          <span class="adr-title">Java 21 and Apache Flink for bronze to silver</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>One engine for both batch and streaming, so the same mapping definition runs unchanged in either &mdash; the seventh acceptance criterion, and the bet the whole architecture rests on.</p>
+      </details>
+      <details class="adr-entry" id="adr-0002">
+        <summary>
+          <span class="adr-num">0002</span>
+          <span class="adr-title">Spark or warehouse SQL for silver to gold</span>
+          <span class="adr-status">Deferred</span>
+        </summary>
+        <p>Silver to gold is a different problem from bronze to silver, and choosing its engine before there is a gold projection worth optimising would be guessing.</p>
+      </details>
+      <details class="adr-entry" id="adr-0003">
+        <summary>
+          <span class="adr-num">0003</span>
+          <span class="adr-title">Gradle with the Kotlin DSL</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>No dynamic versions and no snapshots anywhere: an air-gapped mirror can resolve neither, and a build that only works with internet access is not a build this platform can ship.</p>
+      </details>
+      <details class="adr-entry" id="adr-0004">
+        <summary>
+          <span class="adr-num">0004</span>
+          <span class="adr-title">Bronze as append-only Parquet with a JSON envelope</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>The bytes that arrived, preserved exactly, with where they came from, when they landed, what the source asserted, and a content hash. Never rewritten, because it is the only thing nothing else can reconstruct.</p>
+      </details>
+      <details class="adr-entry" id="adr-0005">
+        <summary>
+          <span class="adr-num">0005</span>
+          <span class="adr-title">Table format for canonical silver storage</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Iceberg with a JDBC catalogue and S3 file IO, which touches no Hadoop filesystem &mdash; so it runs on an operator&rsquo;s Windows workstation as well as in a cluster, without the usual winutils archaeology.</p>
+      </details>
+      <details class="adr-entry" id="adr-0006">
+        <summary>
+          <span class="adr-num">0006</span>
+          <span class="adr-title">Neo4j for the Phase 1 graph projection</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Connections between people and incidents are the query the graph exists to answer. Every write is a MERGE on canonical identity, so applying the same change set twice changes nothing.</p>
+      </details>
+      <details class="adr-entry" id="adr-0007">
+        <summary>
+          <span class="adr-num">0007</span>
+          <span class="adr-title">Elasticsearch for the search projection</span>
+          <span class="adr-status">Deferred</span>
+        </summary>
+        <p>Real, and not yet owed. Phase 1 has no search surface to serve.</p>
+      </details>
+      <details class="adr-entry" id="adr-0008">
+        <summary>
+          <span class="adr-num">0008</span>
+          <span class="adr-title">Warehouse projection</span>
+          <span class="adr-status">Deferred</span>
+        </summary>
+        <p>Phase 3. Deferred rather than dismissed: the projection interface exists so it can be added without disturbing what is already there.</p>
+      </details>
+      <details class="adr-entry" id="adr-0009">
+        <summary>
+          <span class="adr-num">0009</span>
+          <span class="adr-title">Containers and Kubernetes for both delivery modes</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>One image for managed and air-gapped alike. No on-prem-only code path, because a feature that cannot work air-gapped is designed wrong.</p>
+      </details>
+      <details class="adr-entry" id="adr-0010">
+        <summary>
+          <span class="adr-num">0010</span>
+          <span class="adr-title">YAML config, schema-validated on load</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Unrecognised keys are errors, not warnings. A silently ignored key is how a provenance annotation goes missing without anyone noticing.</p>
+      </details>
+      <details class="adr-entry" id="adr-0011">
+        <summary>
+          <span class="adr-num">0011</span>
+          <span class="adr-title">NIEM references must be verified against a release, not asserted</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>An unverified provenance does not announce itself &mdash; it is well-formed, plausible, and reads exactly like a citation. Verifying against a real NIEM 6.0 release found three wrong ones, including an extension the platform never needed.</p>
+      </details>
+      <details class="adr-entry" id="adr-0012">
+        <summary>
+          <span class="adr-num">0012</span>
+          <span class="adr-title">An intermediate YAML DSL is the canonical source of truth</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>The model is authored as a DSL and generates Java, rather than the reverse. Every type, field and role declares NIEM provenance or an extension with a written justification &mdash; never neither, never both.</p>
+      </details>
+      <details class="adr-entry" id="adr-0013">
+        <summary>
+          <span class="adr-num">0013</span>
+          <span class="adr-title">Synthetic CAD CSV as the Phase 1 reference source</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Realistic enough to exercise every failure mode &mdash; packed names, an absent value that looks present, a zone that is not in the data &mdash; without using anyone&rsquo;s real records to build a platform.</p>
+      </details>
+      <details class="adr-entry" id="adr-0014">
+        <summary>
+          <span class="adr-num">0014</span>
+          <span class="adr-title">The bundled resolver is deterministic in Phase 1</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Tiered keys, normalised, with a licence number weighted differently from a name and date of birth. Deterministic because a replay must reach the same identities, and because a probabilistic match nobody can explain is not evidence.</p>
+      </details>
+      <details class="adr-entry" id="adr-0015">
+        <summary>
+          <span class="adr-num">0015</span>
+          <span class="adr-title">Record toString never exposes values</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>A canonical record prints its type and field names and no data. Every new type carrying record values inherits the obligation, and the compiler will not enforce it.</p>
+      </details>
+      <details class="adr-entry superseded" id="adr-0016">
+        <summary>
+          <span class="adr-num">0016</span>
+          <span class="adr-title">Phase 1 assumes one tenant per deployment</span>
+          <span class="adr-status">Superseded</span>
+        </summary>
+        <p>A stated assumption to be unblocked, not a resolution. It correctly named cluster identifiers as the sharpest edge, and it was right: retrofitting a tenant into them means re-resolving history. Superseded by 0025.</p>
+      </details>
+      <details class="adr-entry" id="adr-0017">
+        <summary>
+          <span class="adr-num">0017</span>
+          <span class="adr-title">Observability events live in their own module</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>The event taxonomy is depended on by contracts, so it cannot depend on them. Separating it is what keeps the dependency acyclic.</p>
+      </details>
+      <details class="adr-entry" id="adr-0018">
+        <summary>
+          <span class="adr-num">0018</span>
+          <span class="adr-title">Storage zones live in their own module</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Bronze carries no delete and silver does. That difference is a property of the zone, and putting them together would blur it.</p>
+      </details>
+      <details class="adr-entry" id="adr-0019">
+        <summary>
+          <span class="adr-num">0019</span>
+          <span class="adr-title">The catalogue documents each source&rsquo;s own vocabulary</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>NIEM provenance answers what standard a field comes from. A glossary answers what this agency calls it and what they meant &mdash; the half that cannot be reconstructed once the person who knew it has moved on.</p>
+      </details>
+      <details class="adr-entry" id="adr-0020">
+        <summary>
+          <span class="adr-num">0020</span>
+          <span class="adr-title">The control plane&rsquo;s boundary, and the domain module contract</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>The hard constraint: a control plane must never carry its own copy of the validators. Two validators for one artifact format drift, and the drift surfaces at deploy.</p>
+      </details>
+      <details class="adr-entry" id="adr-0021">
+        <summary>
+          <span class="adr-num">0021</span>
+          <span class="adr-title">The control plane is JVM</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Decided by that constraint rather than by preference. In-process with the validators means the editor and the engine cannot disagree about whether a mapping is valid.</p>
+      </details>
+      <details class="adr-entry" id="adr-0022">
+        <summary>
+          <span class="adr-num">0022</span>
+          <span class="adr-title">Node layout is computed, never stored in the mapping</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Coordinates are not part of what a mapping means. Storing them would make two mappings that behave identically differ on disk because somebody dragged a box, and every such move a commit for a reviewer to read past.</p>
+      </details>
+      <details class="adr-entry" id="adr-0023">
+        <summary>
+          <span class="adr-num">0023</span>
+          <span class="adr-title">AI-assisted authoring runs behind an SPI, never on record values</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>The bundled advisor needs no model, no network and no configuration, so the feature exists in an air-gapped deployment. Its context type has no field that can hold a value, so no implementation can leak one &mdash; including a remote endpoint an agency configures.</p>
+      </details>
+      <details class="adr-entry" id="adr-0024">
+        <summary>
+          <span class="adr-num">0024</span>
+          <span class="adr-title">The authoring surface is reachable only through the cluster&rsquo;s own front door</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>It binds to loopback and ships with no Service, so kubectl port-forward is the only way in &mdash; which puts the API server&rsquo;s authentication, RBAC and audit in front of a surface that has none of its own.</p>
+      </details>
+      <details class="adr-entry" id="adr-0025">
+        <summary>
+          <span class="adr-num">0025</span>
+          <span class="adr-title">A tenant is an agency, not a deployment, and tenants federate</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Cluster identities are seeded with the agency, so two agencies holding the same licence number cannot merge into one person by accident. Linking across agencies becomes a deliberate, attributable assertion &mdash; which is the only kind that can be explained to a court.</p>
+      </details>
+      <details class="adr-entry" id="adr-0026">
+        <summary>
+          <span class="adr-num">0026</span>
+          <span class="adr-title">One tenant per deployment, enforced rather than promised</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Shared logical multi-tenancy is not built. There is no cross-tenant read path to secure because there is none, and a store refuses another agency&rsquo;s data on open rather than filtering it on read.</p>
+      </details>
+      <details class="adr-entry" id="adr-0027">
+        <summary>
+          <span class="adr-num">0027</span>
+          <span class="adr-title">Two kinds of boundary, one path into canonical</span>
+          <span class="adr-status">Accepted</span>
+        </summary>
+        <p>Foreign systems get arbitrary protocols and schemas; federation between our own tenants gets one interface. And a connector must declare whether its records may lawfully be kept, because an append-only landing zone would otherwise create an unlawful retention by doing the obviously correct thing.</p>
+      </details>
   </section>
 
   <section>
@@ -912,9 +1320,10 @@ niem catalogue  what a source sends and what it means</pre>
     </p>
     <p>
       Whether a non-retainable response may be cached for the life of a single investigation, and by
-      what authority — a question for counsel per jurisdiction, which the platform should be able to
-      express either way rather than assume. Whether a shared deployment is ever permitted for
-      agencies whose data classifications differ. And the trust model underneath federation itself.
+      what authority &mdash; a question for counsel per jurisdiction, which the platform should be
+      able to express either way rather than assume. Whether a shared deployment is ever permitted
+      for agencies whose data classifications differ. And the trust model underneath federation
+      itself.
     </p>
   </section>
 </main>
@@ -926,7 +1335,8 @@ niem catalogue  what a source sends and what it means</pre>
      moment the site is served from anywhere other than the repository — and this has to open from
      the repository too.
   */
-  const VIEWS = ['overview', 'isolation', 'architecture', 'integrating', 'operating', 'proof', 'decisions'];
+  const VIEWS = ['overview', 'isolation', 'architecture', 'integrating', 'mapping', 'operating',
+                 'proof', 'decisions'];
 
   function show(name) {
     const view = VIEWS.includes(name) ? name : 'overview';
@@ -950,7 +1360,25 @@ niem catalogue  what a source sends and what it means</pre>
   }
 
   function route() {
-    show(location.hash.replace('#', ''));
+    const hash = location.hash.replace('#', '');
+
+    /*
+       A single decision has its own address, so it can be linked straight into a procurement
+       conversation. #adr-0026 opens the decisions view, expands that one, and scrolls to it —
+       otherwise the link would land somebody on a closed list and leave them hunting.
+    */
+    const adr = /^adr-(\d{4})$/.exec(hash);
+    if (adr) {
+      show('decisions');
+      const entry = document.getElementById(hash);
+      if (entry) {
+        entry.open = true;
+        entry.scrollIntoView({ block: 'center' });
+      }
+      return;
+    }
+
+    show(hash);
     // A view change is a page change: start at the top, as a real navigation would.
     window.scrollTo(0, 0);
   }
@@ -958,3 +1386,5 @@ niem catalogue  what a source sends and what it means</pre>
   window.addEventListener('hashchange', route);
   route();
 </script>
+</body>
+</html>
