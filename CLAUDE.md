@@ -156,6 +156,15 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
   audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
   Service.
+- **A connector declares its interaction mode and its retention posture; neither has a default** --
+  [ADR 0027](docs/decisions/0027-foreign-feeds-and-federation.md). A default retention would be
+  `RETAINED`, and an author who did not think about it would silently land data that may not lawfully
+  be kept. `LandingService` refuses a `TRANSIENT` source before it opens it, because bronze is
+  append-only and a transient record written by mistake cannot be taken back out.
+- **Foreign integration and federation are different boundaries.** Foreign systems get arbitrary
+  protocols, schemas and modes -- that is where the mess lives. Federation between our own tenants is
+  one interface speaking canonical and NIEM, with no per-partner variation. An integration that will
+  not fit federation is a foreign integration; it does not become a dialect of federation.
 - **A disclosure record names records and cannot contain one.** An audit log holding the data it
   audits is a second copy with weaker access controls and longer retention -- the log of who saw what
   becomes the easiest place to see it. `DisclosureRecord` has no field that can hold a value, and a

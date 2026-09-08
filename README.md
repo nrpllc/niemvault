@@ -115,6 +115,25 @@ filters correctly by tenant" is a promise about code that a lawyer cannot audit.
 this is only safe alongside managed operation, and it raises the price of connecting agencies, which
 federation has to bring back down.
 
+## Foreign feeds and federation
+
+Two boundaries, deliberately not the same thing
+([ADR 0027](docs/decisions/0027-foreign-feeds-and-federation.md)).
+
+A state or federal system dictates its own protocol, schema and interaction model, and may not speak
+NIEM at all. That is a mapping problem, and mapping is what this platform is for — it is never a
+reason to bend the canonical model. Push, poll and live query are properties of a connector; all
+three land through the same contract-gated path, because two ways into canonical means one of them is
+not validated.
+
+Federation between tenants running this platform is one interface, speaking canonical and NIEM, with
+no per-partner variation. Foreign adapters absorb variation; federation does not.
+
+A connector also declares whether its records may be **kept**. Criminal history responses frequently
+may not be — the rules permit use for the purpose at hand and forbid a copy — so a `TRANSIENT` source
+is refused at the point of landing rather than filtered afterwards. Its only durable trace is the
+disclosure record, which is exactly what you are permitted to keep.
+
 ## The disclosure record
 
 Every cross-agency release is recorded before it happens: who asked, under what authority, what they

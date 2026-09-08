@@ -81,6 +81,19 @@ public final class LandingService {
         Objects.requireNonNull(connector, "connector");
         Objects.requireNonNull(config, "config");
 
+        // Landing is the act of keeping something. A source whose records may not be retained
+        // cannot be landed, and refusing here rather than filtering later is the difference between
+        // a rule and a hope: bronze is append-only, so a transient record written by mistake cannot
+        // be taken back out (ADR 0027).
+        if (!connector.retention().landsInBronze()) {
+            throw new ConnectorConfigurationException(
+                    config.sourceId(), config.connectorInstanceId(),
+                    List.of(new ConnectorConfigurationException.Problem("retention",
+                            "this source is " + connector.retention() + ": its records may not be "
+                                    + "retained, so they cannot be landed in bronze. Use it for the "
+                                    + "request at hand and record the disclosure (ADR 0026, 0027)")));
+        }
+
         List<BronzeBatchReceipt> receipts = new ArrayList<>();
         List<RawEnvelope> pending = new ArrayList<>(batchSize);
         long landed = 0;

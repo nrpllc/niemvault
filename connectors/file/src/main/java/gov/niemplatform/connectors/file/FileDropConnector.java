@@ -3,6 +3,8 @@ package gov.niemplatform.connectors.file;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorConfigurationException;
 import gov.niemplatform.connectors.api.ConnectorType;
+import gov.niemplatform.connectors.api.InteractionMode;
+import gov.niemplatform.connectors.api.RetentionPosture;
 import gov.niemplatform.connectors.api.HealthStatus;
 import gov.niemplatform.connectors.api.SourceConnector;
 import gov.niemplatform.connectors.api.SourceHandle;
@@ -92,6 +94,19 @@ public final class FileDropConnector implements SourceConnector {
 
     public FileDropConnector(Clock clock) {
         this.clock = clock;
+    }
+
+    @Override
+    public InteractionMode interactionMode() {
+        // The platform reads the drop directory on its own schedule; the source just leaves files.
+        return InteractionMode.POLL;
+    }
+
+    @Override
+    public RetentionPosture retention() {
+        // A file an agency placed in its own drop directory is its own data, landed in its own
+        // bronze. Nothing here is somebody else's response to hold under somebody else's rules.
+        return RetentionPosture.RETAINED;
     }
 
     @Override

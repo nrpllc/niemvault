@@ -36,3 +36,4 @@ deciding stated) · **Superseded**.
 | [0024](0024-authoring-surface-is-not-exposed.md) | The authoring surface is reachable only through the cluster's own front door | Accepted |
 | [0025](0025-tenancy-and-federation.md) | A tenant is an agency, not a deployment, and tenants federate | Accepted |
 | [0026](0026-isolation-by-construction.md) | One tenant per deployment, enforced rather than promised | Accepted |
+| [0027](0027-foreign-feeds-and-federation.md) | Two kinds of boundary, one path into canonical | Accepted |

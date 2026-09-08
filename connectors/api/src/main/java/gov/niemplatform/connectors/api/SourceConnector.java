@@ -29,6 +29,24 @@ public interface SourceConnector extends AutoCloseable {
     ConnectorType type();
 
     /**
+     * How records arrive from this source (ADR 0027).
+     *
+     * <p>Declared rather than inferred, so a source's shape is a fact the catalogue and the operator
+     * can read rather than something discovered by watching it behave.
+     */
+    InteractionMode interactionMode();
+
+    /**
+     * Whether records from this source may be kept (ADR 0027).
+     *
+     * <p>Required, with no default. A default would be {@code RETAINED}, and a connector whose author
+     * did not think about retention would silently land data that may not lawfully be kept. Making
+     * every connector state it is the point: this is a legal question, and the person writing the
+     * adapter is the one who knows the answer.
+     */
+    RetentionPosture retention();
+
+    /**
      * Applies transport configuration.
      *
      * @throws ConnectorConfigurationException if the settings are unusable, naming every problem
