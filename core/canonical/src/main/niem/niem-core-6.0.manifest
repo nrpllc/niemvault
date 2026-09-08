@@ -4,6 +4,9 @@
 # verify every provenance claim offline: an air-gapped build must be able to check its
 # own NIEM references (spec section 6).
 #
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain niem-core
+#
 # source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/niem-core.xsd
 # sha256: b35ef8938dead814b6964e8a8a4a74091a990da73520a7ac7d0d5676148c3065
 # bytes:  734469

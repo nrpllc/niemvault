@@ -1,0 +1,53 @@
+# NIEM 6.0 release manifest -- infrastructure-protection
+#
+# Generated from the published schema, not written by hand. Committed so the build can
+# verify every provenance claim offline: an air-gapped build must be able to check its
+# own NIEM references (spec section 6).
+#
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain infrastructure-protection
+#
+# source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/infrastructureProtection.xsd
+# sha256: 7b57c27e708fb4d7312cbaee05c4f063f66843705da77140ed82f1dcff75ae6e
+# bytes:  17098
+prefix ip
+namespace https://docs.oasis-open.org/niemopen/ns/model/domains/infrastructureProtection/6.0/
+T AssetCategoryType
+T AssetStatusCodeSimpleType
+T AssetStatusCodeType
+T AssetType
+T SectorType
+T SegmentType
+T SubsectorType
+T SubsegmentType
+E Asset
+E AssetAliasName
+E AssetAugmentationPoint
+E AssetCategory
+E AssetCategoryAugmentationPoint
+E AssetCategoryDescriptionText
+E AssetCategoryID
+E AssetCategoryName
+E AssetID
+E AssetName
+E AssetStatusCode
+E Sector
+E SectorAugmentationPoint
+E SectorName
+E SectorTaxonomyDescriptionText
+E SectorTaxonomyID
+E Segment
+E SegmentAugmentationPoint
+E SegmentName
+E SegmentTaxonomyDescriptionText
+E SegmentTaxonomyID
+E SubSector
+E SubSectorName
+E SubSectorTaxonomyDescriptionText
+E SubSectorTaxonomyID
+E SubSegment
+E SubSegmentDescriptionText
+E SubSegmentName
+E SubSegmentTaxonomyID
+E SubsectorAugmentationPoint
+E SubsegmentAugmentationPoint

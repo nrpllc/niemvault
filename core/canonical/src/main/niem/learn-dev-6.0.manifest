@@ -1,0 +1,120 @@
+# NIEM 6.0 release manifest -- learn-dev
+#
+# Generated from the published schema, not written by hand. Committed so the build can
+# verify every provenance claim offline: an air-gapped build must be able to check its
+# own NIEM references (spec section 6).
+#
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain learn-dev
+#
+# source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/learn-dev.xsd
+# sha256: 066118b553b8604a00e6364fba890199c4f219dfa2c47830e7613b3eb643ade6
+# bytes:  48512
+prefix lrn-dev
+namespace https://docs.oasis-open.org/niemopen/ns/model/domains/learn-dev/6.0/
+T CourseInteractionModeCodeSimpleType
+T CourseInteractionModeCodeType
+T CourseRepeatCodeSimpleType
+T CourseRepeatCodeType
+T CourseSectionType
+T CourseType
+T EmploymentPositionAugmentationType
+T InstructionalProgramType
+T IntelligenceTestType
+T LanguageAugmentationType
+T SexCodeSimpleType
+T SexCodeType
+T StudentAugmentationType
+E Course
+E CourseAcademicGradeScaleText
+E CourseAcademicGradeStatusText
+E CourseAcademicGradeText
+E CourseAddDate
+E CourseAdditionalInformationText
+E CourseAdministratorInstructionText
+E CourseApplicableEducationLevelText
+E CourseAugmentationPoint
+E CourseBeginDate
+E CourseCertificationDescriptionText
+E CourseCodeSystemName
+E CourseCompletionSpecialRequirementText
+E CourseCreditBasisCategoryText
+E CourseCreditLevelCategoryText
+E CourseCreditUnitsCode
+E CourseDepartmentName
+E CourseDescriptionText
+E CourseDistanceEducationProgramEnrollmentIndicator
+E CourseDropDate
+E CourseEndDate
+E CourseExpirationIndicator
+E CourseFundingProgramName
+E CourseGradePointAverageApplicabilityIndicator
+E CourseHonorsIndicator
+E CourseInstructionFacility
+E CourseInstructionMethodText
+E CourseInteractionModeCode
+E CourseLanguage
+E CourseLevelCategoryText
+E CourseLevelCharacteristicText
+E CourseNarrativeExplanationGradeText
+E CourseNumberID
+E CourseObjectiveText
+E CourseOverrideSchoolName
+E CoursePrerequisiteText
+E CoursePreviousVersionDate
+E CoursePublicationDate
+E CourseQualityPointsEarnedValue
+E CourseRepeatCode
+E CourseRepeatabilityMaximumQuantity
+E CourseSection
+E CourseSectionAugmentationPoint
+E CourseSectionEndDate
+E CourseSectionEnrollmentStatusCategoryText
+E CourseSectionEntryCategoryText
+E CourseSectionExitCategoryText
+E CourseSectionExitWithdrawalDate
+E CourseSectionID
+E CourseSectionInstructionMethodText
+E CourseSectionMaximumCapacityQuantity
+E CourseSectionNumberID
+E CourseSectionRequiredTimeCompletionMinutesQuantity
+E CourseSectionSingleSexClassStatusCode
+E CourseSectionStartDate
+E CourseSecurityRequirementText
+E CourseSpecialNoteText
+E CourseSubjectAbbreviationID
+E CourseSubjectAbbreviationText
+E CourseSubjectMatterName
+E CourseTitleName
+E CourseTrainingGroupName
+E CourseUniformRequirementsText
+E CourseWorkloadText
+E EmploymentPositionAugmentation
+E EmploymentPositionRelatedCompetencyText
+E EmploymentPositionRequiredCompetencyText
+E EmploymentPositionRequiredCredentialText
+E InstructionalProgram
+E InstructionalProgramAugmentationPoint
+E InstructionalProgramID
+E IntelligenceTestAugmentationPoint
+E IntelligenceTestCategoryText
+E LanguageAugmentation
+E LanguageFamilyAbstract
+E LanguageFamilyText
+E PersonACTScoreValue
+E PersonCognitiveFlexibilityTest
+E PersonGeneralCognitiveAbilityText
+E PersonGeneralIntelligenceText
+E PersonInductiveReasoningText
+E PersonIntelligenceTest
+E PersonMemoryText
+E PersonMetacognitionTest
+E PersonNumericalAbilityText
+E PersonPerceptualSpeedText
+E PersonSATScoreValue
+E PersonSpatialVisualizationText
+E PersonVerbalComprehensionText
+E PersonWordFluencyText
+E PersonWorkingMemoryCapacityTest
+E StudentAugmentation
+E StudentIdentificationSystemName

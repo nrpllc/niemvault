@@ -1,0 +1,86 @@
+# NIEM 6.0 release manifest -- agriculture
+#
+# Generated from the published schema, not written by hand. Committed so the build can
+# verify every provenance claim offline: an air-gapped build must be able to check its
+# own NIEM references (spec section 6).
+#
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain agriculture
+#
+# source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/agriculture.xsd
+# sha256: 7537fbac08e1f3fda51609a6ee947cc8c61225e451da570437ee6e458f427ad8
+# bytes:  34885
+prefix ag
+namespace https://docs.oasis-open.org/niemopen/ns/model/domains/agriculture/6.0/
+T AcreageSubmissionFileType
+T AgricultureProductionPlanType
+T CustomerInfoType
+T FarmCropAcreageType
+T FieldCropAcreageType
+T GeospatialSourceInfoType
+T ProducerShareType
+T TractCropAcreageType
+E AcreageCalculationProjectionCode
+E AcreageSubmissionFile
+E AcreageSubmissionFileAugmentationPoint
+E AdministrativeCountyFSACode
+E AdministrativeStateFSACode
+E AgricultureProductionPlan
+E AgricultureProductionPlanAugmentationPoint
+E CLUID
+E CLUProducerReviewRequestIndicator
+E CoreProductCategoryCode
+E CoreProductCode
+E CropYearValue
+E CroppingPracticeCode
+E CustomerInfo
+E CustomerInfoAugmentationPoint
+E CustomerInterAgencyIdentificationID
+E FarmCropAcreage
+E FarmCropAcreageAugmentationPoint
+E FarmNumberID
+E FieldCropAcreage
+E FieldCropAcreageAugmentationPoint
+E FieldNumberID
+E FileCustomerID
+E FinalPlantedDate
+E FinalReportedAcreageValue
+E GeospatialDataSubmissionMethodCode
+E GeospatialShapeModifiedIndicator
+E GeospatialShapeModifiedOtherReasonText
+E GeospatialShapeModifiedReasonCode
+E GeospatialShapeProcessDate
+E GeospatialShapeSourceCode
+E GeospatialSourceDataCreationDateTime
+E GeospatialSourceInfo
+E GeospatialSourceInfoAugmentationPoint
+E IrrigationPracticeCode
+E LocationCoordinatesAbstract
+E LocationLineStringCoordinatesAdapter
+E LocationMultiSurfaceCoordinatesAdapter
+E LocationPointCoordinatesAdapter
+E LocationPolygonCoordinatesAdapter
+E MICSCode
+E MICSName
+E OrganicPracticeCategoryCode
+E OriginalPlantedDate
+E OriginalReportedAcreageValue
+E OriginatorIdentificationID
+E PlantedDateModifiedIndicator
+E PlantedDateModifiedOtherReasonText
+E PlantedDateModifiedReasonCode
+E PrecisionAgriculturalSubMeterAccuracyIndicator
+E ProducerShare
+E ProducerShareAugmentationPoint
+E ProducerSharePercent
+E ProductIntendedUseCode
+E ProductPlantingCode
+E ReportedAcreageModifiedIndicator
+E ReportedAcreageModifiedOtherReasonText
+E ReportedAcreageModifiedReasonCode
+E SubfieldNumberID
+E TaxIdentificationCategoryCode
+E TaxIdentificationID
+E TractCropAcreage
+E TractCropAcreageAugmentationPoint
+E TractNumberID

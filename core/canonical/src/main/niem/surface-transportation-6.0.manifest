@@ -1,0 +1,129 @@
+# NIEM 6.0 release manifest -- surface-transportation
+#
+# Generated from the published schema, not written by hand. Committed so the build can
+# verify every provenance claim offline: an air-gapped build must be able to check its
+# own NIEM references (spec section 6).
+#
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain surface-transportation
+#
+# source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/st.xsd
+# sha256: 57f3c99b3798635376b006b64864cf7813877473e6d4cfd642d165bcc4bf840d
+# bytes:  77995
+prefix st
+namespace https://docs.oasis-open.org/niemopen/ns/model/domains/surfaceTransportation/6.0/
+T CategoryOfGovernmentOwnershipCodeSimpleType
+T CategoryOfGovernmentOwnershipCodeType
+T FederalAidRouteCodeSimpleType
+T FederalAidRouteCodeType
+T FunctionalClassCodeSimpleType
+T FunctionalClassCodeType
+T InterchangeCategoryCodeSimpleType
+T InterchangeCategoryCodeType
+T IntersectionJunctionGeometryCodeSimpleType
+T IntersectionJunctionGeometryCodeType
+T IntersectionJunctionTrafficControlCodeSimpleType
+T IntersectionJunctionTrafficControlCodeType
+T InventoryDirectionCodeSimpleType
+T InventoryDirectionCodeType
+T LocationAugmentationType
+T LocationRoadwayType
+T MedianCategoryCodeSimpleType
+T MedianCategoryCodeType
+T OneTwoWayOperationCodeSimpleType
+T OneTwoWayOperationCodeType
+T RoadWayPresenceBicycleFacilityCodeSimpleType
+T RoadWayPresenceBicycleFacilityCodeType
+T RoadWayPresenceBicycleSignedBicycleRouteCodeSimpleType
+T RoadWayPresenceBicycleSignedBicycleRouteCodeType
+T RoadwayAccessControlCodeSimpleType
+T RoadwayAccessControlCodeType
+T RoadwayAnnualAverageDailyTrafficType
+T RoadwayCategoryBeginningRampTerminalCodeSimpleType
+T RoadwayCategoryBeginningRampTerminalCodeType
+T RoadwayCategoryEndingRampTerminalCodeSimpleType
+T RoadwayCategoryEndingRampTerminalCodeType
+T RoadwayFunctionalClassCodeSimpleType
+T RoadwayFunctionalClassCodeType
+T RoadwayIntersectionTrafficControlCategoryCodeSimpleType
+T RoadwayIntersectionTrafficControlCategoryCodeType
+T RoadwayLightingCodeSimpleType
+T RoadwayLightingCodeType
+T RoadwayNumberLanesCodeSimpleType
+T RoadwayNumberLanesCodeType
+T RoadwayPavementLongitudinalMarkingCenterlinePresenceCodeSimpleType
+T RoadwayPavementLongitudinalMarkingCenterlinePresenceCodeType
+T RoadwayPavementLongitudinalMarkingEdgeLinePresenceCodeSimpleType
+T RoadwayPavementLongitudinalMarkingEdgeLinePresenceCodeType
+T RoadwayPavementLongitudinalMarkingLaneLineMarkingsCodeSimpleType
+T RoadwayPavementLongitudinalMarkingLaneLineMarkingsCodeType
+T RuralUrbanDesignationCodeSimpleType
+T RuralUrbanDesignationCodeType
+T SurfaceCodeSimpleType
+T SurfaceCodeType
+T TrafficAccessControlCodeSimpleType
+T TrafficAccessControlCodeType
+E AADTRampNumeric
+E AADTRampYearDate
+E AADTRoadIntersectingNumeric
+E AADTRoadIntersectingYearDate
+E ApproachID
+E AverageAnnualDailyTrafficNumeric
+E AverageAnnualDailyTrafficYearDate
+E BeginningRampTerminalLocationID
+E BridgeStructure
+E CategoryOfGovernmentOwnershipCode
+E EndingRampTerminalLocationID
+E FederalAidRouteCode
+E FunctionalClassAbstract
+E FunctionalClassCode
+E InterchangeCategoryCode
+E InterchangeID
+E IntersectionCategoryAbstract
+E IntersectionCategoryCode
+E IntersectionJunctionGeometryCode
+E IntersectionJunctionTrafficControlAbstract
+E IntersectionJunctionTrafficControlCategoryCode
+E InventoryDirectionCode
+E JunctionID
+E LocationAugmentation
+E LocationRoadCrossingPoint
+E LocationRoadway
+E LocationRoadwayAugmentationPoint
+E MedianCategoryCode
+E OneTwoWayOperationCode
+E RampLengthValue
+E RoadwayAnnualAverageDailyTrafficAugmentationPoint
+E RoadwayAnnualAverageDailyTrafficQuantity
+E RoadwayAnnualAverageDailyTrafficYearDate
+E RoadwayCategoryBeginningRampTerminalCode
+E RoadwayCategoryEndingRampTerminalCode
+E RoadwayCurveApplicableIndicator
+E RoadwayCurveLengthMeasure
+E RoadwayCurveRadiusLengthMeasure
+E RoadwayCurveSuperelevationMeasure
+E RoadwayGradeAbstract
+E RoadwayGradeCode
+E RoadwayGradeSlopePercent
+E RoadwayHorizontalAlignmentAbstract
+E RoadwayHorizontalAlignmentCode
+E RoadwayInclinationValue
+E RoadwayIntersectionAverageAnnualDailyEnteringTrafficQuantity
+E RoadwayLaneWidthMeasure
+E RoadwayLightingAbstract
+E RoadwayLightingCode
+E RoadwayMedianWidthMeasure
+E RoadwayNationalHighwayPartAbstract
+E RoadwayNationalHighwayPartCode
+E RoadwayRailwayCrossingIdentification
+E RoadwayShoulderWidthMeasure
+E RoadwayStructureIdentification
+E RouteNumeric
+E RuralUrbanDesignationCode
+E SegmentBeginPointLocation
+E SegmentEndPointLocation
+E SegmentID
+E SegmentLengthValue
+E SurfaceCode
+E ThroughLanesNumeric
+E TrafficAccessControlCode

@@ -1,0 +1,79 @@
+# NIEM 6.0 release manifest -- intelligence
+#
+# Generated from the published schema, not written by hand. Committed so the build can
+# verify every provenance claim offline: an air-gapped build must be able to check its
+# own NIEM references (spec section 6).
+#
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain intelligence
+#
+# source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/intelligence.xsd
+# sha256: 3f26c91b3648a349515b76c781503b9ff8d6428023752068d79386b4e2de15b2
+# bytes:  28622
+prefix intel
+namespace https://docs.oasis-open.org/niemopen/ns/model/domains/intelligence/6.0/
+T AgencyInterestCategoryType
+T AgencyInterestOtherCategoryType
+T AgencySubjectHandlingType
+T AgencySubjectInterestType
+T BiometricCaptureAugmentationType
+T ContactInformationAugmentationType
+T IdentificationAugmentationType
+T LocationAugmentationType
+T PersonAugmentationType
+T PersonIdentityAssociationAugmentationType
+T PersonInIDType
+T PersonOtherIDType
+T PotentialIdentityMatchAssociationType
+T SubjectHandlingType
+E AgencyInterestCategory
+E AgencyInterestCategoryAugmentationPoint
+E AgencyInterestCategoryCodeText
+E AgencyInterestCategoryDescriptionText
+E AgencyInterestCategoryText
+E AgencyInterestOtherCategory
+E AgencyInterestOtherCategoryAugmentationPoint
+E AgencyName
+E AgencySubjectHandling
+E AgencySubjectHandlingAugmentationPoint
+E AgencySubjectHandlingFBICodeText
+E AgencySubjectInterestAugmentationPoint
+E AuthenticIndicator
+E AuthenticatedIdentity
+E BiometricCaptureAugmentation
+E CBEFFText
+E ContactInformationAugmentation
+E ContactSatelliteTelephoneNumber
+E ConveyanceRegistrationIdentification
+E CountryFIPS10-4PlusNCTCCodeText
+E FBIECRCode
+E IdentificationAugmentation
+E LocationAugmentation
+E LocationGlobalRegionCodeText
+E LocationUsageText
+E PersonAffiliationAssociation
+E PersonAgencySubjectInterest
+E PersonAugmentation
+E PersonEyeDescriptionText
+E PersonIdentityAssociationAugmentation
+E PersonInIDAugmentationPoint
+E PersonInIdentification
+E PersonMultimediaIDBinary
+E PersonOccupationName
+E PersonOtherIDAugmentationPoint
+E PersonSystemIdentification
+E PhysicalFeatureCategoryCodeText
+E PotentialIdentityMatchAssociation
+E PotentialIdentityMatchAssociationAugmentationPoint
+E PotentialIdentityMatchDescriptionText
+E PrimaryIdentity
+E StateINACodeText
+E SubjectCategoryCodeText
+E SubjectHandling
+E SubjectHandlingAgencyName
+E SubjectHandlingAugmentationPoint
+E SubjectHandlingCodeText
+E SubjectHandlingDescriptionText
+E SubjectReasonOnListText
+E SystemIdentification
+E ThreatCategoryCode

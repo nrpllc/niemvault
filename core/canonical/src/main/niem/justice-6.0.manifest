@@ -4,6 +4,9 @@
 # verify every provenance claim offline: an air-gapped build must be able to check its
 # own NIEM references (spec section 6).
 #
+# Regenerate with:
+#   java tools/niem-manifest/GenerateNiemManifests.java --domain justice
+#
 # source: https://docs.oasis-open.org/niemopen/niem-model/v6.0/ps02/xsd/domains/justice.xsd
 # sha256: d2b6de4ac1dbed827ef8d37991bca47bc29b08a1ad1ea0a7ee530812807e3ae6
 # bytes:  1638308
