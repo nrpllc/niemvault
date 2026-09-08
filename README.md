@@ -17,6 +17,12 @@ falls over. Most of the design follows from that.
 
 ---
 
+## The decisions site
+
+`docs/site/index.html` is a readable account of the decisions and what they cost — what was made
+impossible, why, and what each one prevents. It lives here rather than in a separate repository so it
+is versioned alongside the ADRs it summarises and cannot drift from them.
+
 ## Reading order
 
 | Document | What it covers |

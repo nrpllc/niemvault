@@ -1,0 +1,633 @@
+<title>NiemVault Decisions</title>
+
+<style>
+  /* The platform's own identity, carried into its documentation: cool paper biased green-grey,
+     deep teal for flow, burnt amber reserved for divergence and risk, indigo for provenance.
+     Serif for prose, because this reads like a filing rather than a product page. */
+  :root {
+    --paper: #F1F4F3;
+    --card: #FBFCFB;
+    --ink: #0D1417;
+    --slate: #5B6A6D;
+    --hairline: #D3DBD9;
+    --flow: #0C6F69;
+    --flow-soft: #E2EFED;
+    --divert: #A8481A;
+    --divert-soft: #F7E9E1;
+    --provenance: #454A80;
+
+    --prose: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0B1114;
+      --card: #121A1D;
+      --ink: #E6EDEB;
+      --slate: #93A3A5;
+      --hairline: #233034;
+      --flow: #5BC6BC;
+      --flow-soft: #11302E;
+      --divert: #E28A56;
+      --divert-soft: #2C1B12;
+      --provenance: #9BA0DE;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0B1114;
+    --card: #121A1D;
+    --ink: #E6EDEB;
+    --slate: #93A3A5;
+    --hairline: #233034;
+    --flow: #5BC6BC;
+    --flow-soft: #11302E;
+    --divert: #E28A56;
+    --divert-soft: #2C1B12;
+    --provenance: #9BA0DE;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--prose);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  /* --- masthead --------------------------------------------------------- */
+
+  header.masthead { border-bottom: 1px solid var(--hairline); padding-bottom: 2rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--slate);
+    display: block;
+    margin-bottom: 0.9rem;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 5vw, 3rem);
+    line-height: 1.12;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+  }
+
+  .thesis { font-size: 1.14rem; color: var(--ink); margin: 0 0 1.6rem; max-width: 38rem; }
+  .thesis strong { color: var(--flow); font-weight: 600; }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2rem;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--slate);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* --- sections --------------------------------------------------------- */
+
+  section { margin-top: 3.5rem; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--slate);
+    font-weight: 500;
+    margin: 0 0 0.4rem;
+  }
+
+  .section-lede {
+    font-size: 1.02rem;
+    color: var(--slate);
+    margin: 0 0 2rem;
+    max-width: 36rem;
+  }
+
+  /* --- a principle ------------------------------------------------------ */
+
+  article.principle {
+    border-top: 1px solid var(--hairline);
+    padding-top: 1.6rem;
+    margin-bottom: 2.6rem;
+  }
+
+  article.principle h3 {
+    font-size: 1.3rem;
+    line-height: 1.3;
+    font-weight: 600;
+    margin: 0 0 0.7rem;
+    text-wrap: balance;
+  }
+
+  article.principle p { margin: 0 0 0.9rem; }
+  article.principle p:last-child { margin-bottom: 0; }
+
+  /*
+    Every one of these decisions exists to prevent a specific failure, so every one of them names it.
+    A structural device that encodes something true about the content rather than decorating it.
+  */
+  .prevents {
+    display: block;
+    border-left: 3px solid var(--divert);
+    background: var(--divert-soft);
+    padding: 0.7rem 0.95rem;
+    margin: 1.1rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  .prevents .label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.63rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--divert);
+    margin-bottom: 0.25rem;
+  }
+
+  .adr {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--provenance);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--provenance) 35%, transparent);
+  }
+
+  .adr:hover { border-bottom-color: var(--provenance); }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--flow-soft);
+    color: var(--flow);
+    padding: 0.08em 0.32em;
+    border-radius: 2px;
+  }
+
+  /* --- verified --------------------------------------------------------- */
+
+  .found {
+    border: 1px solid var(--hairline);
+    background: var(--card);
+    padding: 1.2rem 1.3rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .found h3 {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+    color: var(--flow);
+  }
+
+  .found p { margin: 0; font-size: 0.97rem; }
+
+  /* --- costs ------------------------------------------------------------ */
+
+  .cost { border-top: 1px solid var(--hairline); padding-top: 1.2rem; margin-bottom: 1.8rem; }
+  .cost h3 { font-size: 1.08rem; font-weight: 600; margin: 0 0 0.5rem; }
+  .cost p { margin: 0; }
+
+  /* --- decision index --------------------------------------------------- */
+
+  .index-wrap { overflow-x: auto; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 34rem; }
+  caption { text-align: left; color: var(--slate); font-size: 0.9rem; padding-bottom: 0.8rem; }
+
+  th, td {
+    text-align: left;
+    padding: 0.42rem 0.8rem 0.42rem 0;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: baseline;
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--slate);
+    font-weight: 500;
+  }
+
+  td.num { font-family: var(--mono); color: var(--provenance); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.status { font-family: var(--mono); font-size: 0.72rem; color: var(--slate); white-space: nowrap; }
+  tr.superseded td { color: var(--slate); }
+
+  footer {
+    margin-top: 4rem;
+    border-top: 1px solid var(--hairline);
+    padding-top: 1.4rem;
+    font-size: 0.86rem;
+    color: var(--slate);
+  }
+
+  footer p { margin: 0 0 0.5rem; }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <span class="eyebrow">NIEM Integration Platform</span>
+    <h1>Decisions, and what they cost</h1>
+    <p class="thesis">
+      A platform for moving criminal justice records between agencies. Most of what follows is a
+      record of things deliberately made <strong>impossible</strong> — because in this domain, the
+      failures that end a product are the ones nobody chose.
+    </p>
+    <ul class="facts">
+      <li><b>27</b> decisions recorded</li>
+      <li><b>428</b> tests</li>
+      <li><b>Phase&nbsp;1</b> complete</li>
+    </ul>
+  </header>
+
+  <section>
+    <h2>The shape of it</h2>
+    <p class="section-lede">
+      Source data lands byte-for-byte and is never rewritten. Everything downstream is a function of
+      that landing and a versioned mapping, so it can be deleted and reproduced exactly. Every hop
+      between the two is gated by a contract that quarantines what does not fit rather than passing
+      it on.
+    </p>
+    <p>
+      NIEM is the canonical form throughout, and every provenance claim in the model is resolved
+      against a published NIEM 6.0 release when the code is generated. A mapping is data, not code:
+      a domain steward edits it and redeploys without a platform build.
+    </p>
+  </section>
+
+  <section>
+    <h2>What is made impossible</h2>
+    <p class="section-lede">
+      Each of these is narrower than the obvious design. Each was chosen because the wider version
+      fails in a way that cannot be explained afterwards.
+    </p>
+
+    <article class="principle">
+      <h3>A deployment holds one agency's data and refuses everyone else's</h3>
+      <p>
+        Shared logical multi-tenancy is not built and not supported. There is no tenant column and no
+        filter to remember, because there is no cross-tenant read path at all. A store records the
+        agency it belongs to the first time it stores anything and refuses another's on open —
+        before a single record is written, because the landing zone is append-only and an interleave
+        cannot be undone.
+      </p>
+      <p>
+        Logical isolation is only ever as good as every read path remembering to filter. That check
+        must be correct in every query, every projection and every new feature, forever. One omission
+        is an unauthorised disclosure between agencies.
+      </p>
+      <p>
+        <em>“Your records are in your own database”</em> is something an agency's counsel can verify
+        in a sentence. <em>“Every query filters correctly by tenant”</em> is a promise about code that
+        a lawyer cannot audit and a court will not take on faith.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        Two agencies' records mixing in one store, discovered later, in data that by design is never
+        rewritten.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0026-isolation-by-construction.md">ADR 0026</a></p>
+    </article>
+
+    <article class="principle">
+      <h3>Linking a person across agencies is an assertion, never a coincidence</h3>
+      <p>
+        Identity is seeded with the agency that minted it. The same person, known to a county and to
+        the state by the same licence number, resolves to two distinct identities. Connecting them is
+        a deliberate act, recorded with a who, a when and a why.
+      </p>
+      <p>
+        Before this, both agencies derived the same identifier and their records merged — silently,
+        as a property of a hash function, with no log line and no notification.
+      </p>
+      <p>
+        An automatic merge across jurisdictions is the failure that ends a criminal justice product.
+        It cannot be explained to a court, it cannot be retracted cleanly, and nobody can say who
+        decided it. A deliberate link can be reviewed, disputed and withdrawn.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        Two people becoming one, or one person's record following them between agencies, because a
+        hash collided.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0025-tenancy-and-federation.md">ADR 0025</a></p>
+    </article>
+
+    <article class="principle">
+      <h3>If the disclosure cannot be recorded, the disclosure does not happen</h3>
+      <p>
+        Every cross-agency release is written to an append-only log <em>before</em> anything moves:
+        who asked, under what authority, what they got, what was withheld and why, and who decided.
+        The ordering is structural — a caller cannot release first and log afterwards.
+      </p>
+      <p>
+        The consequence is deliberate. An agency that cannot write to its own audit log has lost the
+        right to release data until it can, because it can no longer say what it released.
+      </p>
+      <p>
+        The log names records and has nowhere to put one. An audit log containing the data it audits
+        is a second copy of that data, usually with weaker access controls and longer retention — so
+        the log of who saw what becomes the easiest place to see it. Refusals are recorded with the
+        same weight as releases, because <em>“did anyone try to get this?”</em> is the first question
+        asked when misuse is suspected.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        A release with no record of it, produced by exactly the conditions an auditor cares about — a
+        crash, a full disk, a partition.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0026-isolation-by-construction.md">ADR 0026</a></p>
+    </article>
+
+    <article class="principle">
+      <h3>Some responses may not be kept, so they are never landed</h3>
+      <p>
+        This does not follow from architecture. It follows from law. Responses from criminal history
+        systems are frequently not retainable: the rules permit use for the purpose at hand and forbid
+        keeping a copy.
+      </p>
+      <p>
+        A platform whose landing zone is append-only and permanent would create an unlawful retention
+        by doing the obviously correct thing. So a connector declares whether its records may be kept,
+        with no default — a default would be “keep it”, and an author who had not considered the
+        question would land data unlawfully. A <code>TRANSIENT</code> source is refused at the point
+        of landing, not filtered afterwards.
+      </p>
+      <p>
+        Its only durable trace is the disclosure record, which is not a coincidence: what you are
+        permitted to keep about a non-retainable response is precisely the fact that you requested it.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        An unlawful retention created by a correct-looking default, in a store that cannot delete.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0027-foreign-feeds-and-federation.md">ADR 0027</a></p>
+    </article>
+
+    <article class="principle">
+      <h3>One validator, and one path into canonical</h3>
+      <p>
+        The authoring surface owns no validation logic. It calls the same loaders the runtime calls,
+        so a mapping the editor accepts is a mapping the pipeline will load. Two validators for one
+        artifact format would drift, and the drift would surface at deploy.
+      </p>
+      <p>
+        The same applies to arrival. Push, poll and live query are properties of a connector, not
+        different pipelines — all three pass the same contract-gated hops. Two ways into canonical
+        means one of them is not validated, and given what gets integrated, it would be the one
+        carrying criminal history from a state system.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        A second, quieter route into the canonical model that nobody remembered to check.
+      </span>
+      <p style="margin-top:1rem">
+        <a class="adr" href="../decisions/0021-control-plane-is-jvm.md">ADR 0021</a> ·
+        <a class="adr" href="../decisions/0027-foreign-feeds-and-federation.md">ADR 0027</a>
+      </p>
+    </article>
+
+    <article class="principle">
+      <h3>Records never print their values</h3>
+      <p>
+        A canonical record's <code>toString</code> shows its type and field names and no data. Contract
+        violations carry a redacted shape — <code>###-##-####</code>, never the number. The mapping
+        advisor that proposes how a column should map is given names, types and those shapes, and its
+        context type has no field capable of holding a value, so no implementation can leak one.
+      </p>
+      <p>
+        That constraint turns out not to cost anything. Knowing a column is always two digits, a
+        slash, two digits, a slash and four digits is what picks the right date transform and its
+        pattern. Knowing whose date of birth it is adds nothing.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        Personal data reaching a log, a terminal, a screenshot, or a model, by way of a debug line
+        nobody thought about.
+      </span>
+      <p style="margin-top:1rem">
+        <a class="adr" href="../decisions/0015-records-redact-values.md">ADR 0015</a> ·
+        <a class="adr" href="../decisions/0023-mapping-advisor.md">ADR 0023</a>
+      </p>
+    </article>
+
+    <article class="principle">
+      <h3>Provenance is checked, not asserted</h3>
+      <p>
+        Every NIEM reference in the canonical model is resolved against a published NIEM 6.0 release
+        when the code is generated, from manifests committed to the repository so an air-gapped build
+        can verify its own citations. A model whose citations cannot be checked does not build.
+      </p>
+      <p>
+        An unverified provenance does not announce itself. It is well-formed, plausible, and reads
+        exactly like a citation — so it survives review, gets copied into the next model, and is
+        discovered by an integrator whose data will not exchange.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        A model that claims to be NIEM-conformant and is not, found by the party trying to exchange
+        with it.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0011-niem-reference-verification.md">ADR 0011</a></p>
+    </article>
+
+    <article class="principle">
+      <h3>The authoring surface has no front door of its own</h3>
+      <p>
+        It writes the mappings and contracts that decide what the pipeline does with an agency's data,
+        so write access to it is write access to the platform's behaviour. It binds to loopback inside
+        its pod and ships with no Service, no Ingress and no NodePort.
+      </p>
+      <p>
+        The only way in is <code>kubectl port-forward</code>, which routes every access through the
+        cluster's API server — authenticated, authorised against RBAC, and audited. The authentication
+        it does not have is supplied by a component the agency's security team has already reviewed,
+        and it cannot be bypassed by adding a Service later, because a Service would not reach it.
+      </p>
+      <span class="prevents">
+        <span class="label">Prevents</span>
+        An unauthenticated write path to the platform's behaviour, reachable by anything on the pod
+        network.
+      </span>
+      <p style="margin-top:1rem"><a class="adr" href="../decisions/0024-authoring-surface-is-not-exposed.md">ADR 0024</a></p>
+    </article>
+  </section>
+
+  <section>
+    <h2>What this costs</h2>
+    <p class="section-lede">
+      Stated here rather than left to be discovered. A design document that lists only its strengths
+      is a sales document.
+    </p>
+
+    <div class="cost">
+      <h3>It is only safe alongside managed operation</h3>
+      <p>
+        Ten small agencies each running their own deployment means ten patch cadences, and the
+        unpatched one is the real attack vector — far more than architectural leakage ever is. The
+        answer for an agency that cannot run infrastructure is a deployment operated for them, not a
+        slice of somebody else's database.
+      </p>
+    </div>
+
+    <div class="cost">
+      <h3>Failure to connect is a harm too</h3>
+      <p>
+        An investigator who never learns the person in front of them is wanted in the next county has
+        also been failed by the system, and that is the harm NIEM exists to address. Physical
+        isolation raises the cost of connecting agencies, so federation has to be good, cheap and
+        routine — or this trades a disclosure risk for an investigative one. Confidentiality failures
+        make the news; connection failures make the inquiry.
+      </p>
+    </div>
+
+    <div class="cost">
+      <h3>A non-retainable source cannot be replayed</h3>
+      <p>
+        Rebuilding everything from what arrived depends on having kept what arrived. Where nothing may
+        be kept, replay is not available — and no surface may offer it for such a source, because
+        offering it would be a lie about what the system can prove.
+      </p>
+    </div>
+
+    <div class="cost">
+      <h3>Federation is designed, not built</h3>
+      <p>
+        The identifiers, the disclosure record and the boundary rules exist so that federation is
+        built to them rather than retrofitted with them. The exchange itself, and the trust model
+        underneath it, are still ahead.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the checks found</h2>
+    <p class="section-lede">
+      Each of these passed every other test the platform had, and was found by verifying a claim
+      rather than by exercising a feature.
+    </p>
+
+    <div class="found">
+      <h3>Three wrong NIEM citations</h3>
+      <p>
+        Resolving the model against a real NIEM 6.0 release found that <code>nc:PersonSexCode</code>
+        is the right name in the wrong namespace, <code>nc:DriverLicenseIdentification</code> does not
+        exist anywhere in NIEM 6.0, and an association modelled as a platform extension had a real
+        NIEM type all along — so the platform was carrying an extension it did not need, with the
+        interoperability cost that implies.
+      </p>
+    </div>
+
+    <div class="found">
+      <h3>An ingest that stored nothing</h3>
+      <p>
+        The pipeline landed source data, mapped it, and discarded the result, while printing a line
+        that had been true when it was written and false for a long time afterwards. Every unit test
+        passed, because none of them asked where the records went. It was found by running the
+        container and reading the output.
+      </p>
+    </div>
+
+    <div class="found">
+      <h3>A canonical store that could only be written once</h3>
+      <p>
+        The catalogue could be created and never reopened, so the second scheduled ingest would have
+        failed — the normal case, every fifteen minutes. It was invisible because every test used a
+        fresh catalogue.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decision index</h2>
+    <div class="index-wrap">
+      <table>
+        <caption>Every decision is recorded with its reasoning and its consequences. Deferred means the question is real and the answer is not yet owed.</caption>
+        <thead>
+          <tr><th scope="col">ADR</th><th scope="col">Decision</th><th scope="col">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">0001</td><td>Java 21 and Apache Flink for bronze to silver</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0002</td><td>Spark or warehouse SQL for silver to gold</td><td class="status">Deferred</td></tr>
+          <tr><td class="num">0003</td><td>Gradle with the Kotlin DSL</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0004</td><td>Bronze as append-only Parquet with a JSON envelope</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0005</td><td>Table format for canonical silver storage</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0006</td><td>Neo4j for the Phase 1 graph projection</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0007</td><td>Elasticsearch for the search projection</td><td class="status">Deferred</td></tr>
+          <tr><td class="num">0008</td><td>Warehouse projection</td><td class="status">Deferred</td></tr>
+          <tr><td class="num">0009</td><td>Containers and Kubernetes for both delivery modes</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0010</td><td>YAML config, schema-validated on load</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0011</td><td>NIEM references must be verified against a release, not asserted</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0012</td><td>An intermediate YAML DSL is the canonical source of truth</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0013</td><td>Synthetic CAD CSV as the Phase 1 reference source</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0014</td><td>The bundled resolver is deterministic in Phase 1</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0015</td><td>Record <code>toString</code> never exposes values</td><td class="status">Accepted</td></tr>
+          <tr class="superseded"><td class="num">0016</td><td>Phase 1 assumes one tenant per deployment</td><td class="status">Superseded</td></tr>
+          <tr><td class="num">0017</td><td>Observability events live in their own module</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0018</td><td>Storage zones live in their own module</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0019</td><td>The catalogue documents each source's own vocabulary</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0020</td><td>The control plane's boundary, and the domain module contract</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0021</td><td>The control plane is JVM</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0022</td><td>Node layout is computed, never stored in the mapping</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0023</td><td>AI-assisted authoring runs behind an SPI, never on record values</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0024</td><td>The authoring surface is reachable only through the cluster's own front door</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0025</td><td>A tenant is an agency, not a deployment, and tenants federate</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0026</td><td>One tenant per deployment, enforced rather than promised</td><td class="status">Accepted</td></tr>
+          <tr><td class="num">0027</td><td>Two kinds of boundary, one path into canonical</td><td class="status">Accepted</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Still open</h2>
+    <p class="section-lede">
+      Questions with real answers that are not yet owed. Recorded so that nobody resolves them by
+      accident.
+    </p>
+    <p>
+      Whether a non-retainable response may be cached for the life of a single investigation, and by
+      what authority — a question for counsel per jurisdiction, which the platform should be able to
+      express either way rather than assume. Whether a shared deployment is ever permitted for
+      agencies whose data classifications differ. And the trust model underneath federation itself.
+    </p>
+  </section>
+
+  <footer>
+    <p>Full reasoning for every decision is in <code>docs/decisions/</code>, one file each, with the
+      consequences accepted and the alternatives rejected.</p>
+    <p>Phase 1 complete: all seven acceptance criteria proven in tests, including the one that
+      matters — the identical mapping definition running unchanged in batch and streaming, producing
+      identical canonical output.</p>
+  </footer>
+
+</div>
