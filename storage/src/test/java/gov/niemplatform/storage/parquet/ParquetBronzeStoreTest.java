@@ -43,7 +43,7 @@ class ParquetBronzeStoreTest {
 
     @BeforeEach
     void setUp() {
-        store = new ParquetBronzeStore(root, Clock.fixed(INGEST, ZoneOffset.UTC));
+        store = new ParquetBronzeStore(root, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), Clock.fixed(INGEST, ZoneOffset.UTC));
     }
 
     private static RawEnvelope envelope(String payload, String offset, Instant asserted) {
@@ -136,7 +136,7 @@ class ParquetBronzeStoreTest {
         void numberingSurvivesRestart() {
             store.append(batchOf(envelope("a", "f#000001", null)));
 
-            ParquetBronzeStore restarted = new ParquetBronzeStore(root, Clock.fixed(INGEST, ZoneOffset.UTC));
+            ParquetBronzeStore restarted = new ParquetBronzeStore(root, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), Clock.fixed(INGEST, ZoneOffset.UTC));
             restarted.append(batchOf(envelope("b", "f#000002", null)));
 
             assertThat(restarted.batches(SOURCE)).extracting(BronzeBatchReceipt::batchId)

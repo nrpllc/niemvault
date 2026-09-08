@@ -147,7 +147,7 @@ class CadEndToEndTest {
         FileDropConnector connector = new FileDropConnector(FIXED);
         connector.configure(config);
 
-        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeDir, FIXED)) {
+        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeDir, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
             new LandingService(bronze, emitter, FIXED, 1_000).land(connector, config, "run-1");
 
             MappingPipeline pipeline = new MappingPipeline(
@@ -202,7 +202,7 @@ class CadEndToEndTest {
         FileDropConnector connector = new FileDropConnector(FIXED);
         connector.configure(config);
 
-        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, FIXED)) {
+        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
             new LandingService(bronze, emitter, FIXED, 1_000).land(connector, config, "run-1");
 
             try (Stream<RawEnvelope> landed = bronze.read(SOURCE_ID, BronzeRange.all())) {

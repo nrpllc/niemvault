@@ -281,7 +281,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         if (bronzeRoot == null) {
             return java.util.Map.of();
         }
-        try (var bronze = new gov.niemplatform.storage.parquet.ParquetBronzeStore(bronzeRoot)) {
+        try (var bronze = gov.niemplatform.storage.parquet.ParquetBronzeStore.openExisting(bronzeRoot)) {
             return new gov.niemplatform.controlplane.advice.ColumnProfiler()
                     .profile(bronze, definition);
         } catch (RuntimeException unreadable) {

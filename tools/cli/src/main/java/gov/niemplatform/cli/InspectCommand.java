@@ -51,7 +51,15 @@ final class InspectCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot)) {
+        // A root that nothing has landed in has no tenant, because nothing has claimed it. That is
+        // an ordinary state before the first ingest, not an error, and opening a store to discover
+        // it would report the absence of data as a failure to read it.
+        if (nothingHasLanded()) {
+            System.out.println("No sources have landed anything under " + bronzeRoot);
+            return 0;
+        }
+
+        try (ParquetBronzeStore bronze = ParquetBronzeStore.openExisting(bronzeRoot)) {
             List<String> sources = sourceId != null ? List.of(sourceId) : bronze.sources();
             if (sources.isEmpty()) {
                 System.out.println("No sources have landed anything under " + bronzeRoot);
@@ -114,6 +122,19 @@ final class InspectCommand implements Callable<Integer> {
                 envelope.sourceAssertedTimestamp().map(Object::toString).orElse("(none)"));
         if (showPayloads) {
             System.out.printf("          %s%n", envelope.payloadAsText());
+        }
+    }
+
+    /** Whether this root is absent or empty, which is the normal state before a first ingest. */
+    private boolean nothingHasLanded() {
+        if (!java.nio.file.Files.isDirectory(bronzeRoot)) {
+            return true;
+        }
+        try (var entries = java.nio.file.Files.list(bronzeRoot)) {
+            return entries.findAny().isEmpty();
+        } catch (java.io.IOException unreadable) {
+            // Unreadable is not empty. Let the store report why.
+            return false;
         }
     }
 }

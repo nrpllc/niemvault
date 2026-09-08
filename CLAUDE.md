@@ -155,6 +155,11 @@ namespace — it is `j:PersonSexCode`), `nc:DriverLicenseIdentification` (does n
   `kubectl port-forward` is the only route, which puts the API server's authentication, RBAC and
   audit in front of a surface that has none of its own. Do not "fix" the bind address to add a
   Service.
+- **A bronze store belongs to one agency and refuses another's, on open** --
+  [ADR 0026](docs/decisions/0026-isolation-by-construction.md). A `.tenant` marker is written on
+  first use and checked every time. Shared logical multi-tenancy is **not built and not supported**:
+  there is no cross-tenant read path to secure because there is no cross-tenant read path. Do not
+  add a tenant column and a filter -- that is a reversal of the decision, not an extension of it.
 - **`ClusterId` is seeded with the tenant, and an index belongs to one** — [ADR 0025](docs/decisions/0025-tenancy-and-federation.md).
   Without it, two agencies sharing a deployment and holding the same licence number derive the same
   identifier and their records merge, silently. Cross-agency linking is a deliberate assertion, never

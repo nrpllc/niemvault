@@ -35,3 +35,4 @@ deciding stated) · **Superseded**.
 | [0023](0023-mapping-advisor.md) | AI-assisted authoring runs behind an SPI, never on record values | Accepted |
 | [0024](0024-authoring-surface-is-not-exposed.md) | The authoring surface is reachable only through the cluster's own front door | Accepted |
 | [0025](0025-tenancy-and-federation.md) | A tenant is an agency, not a deployment, and tenants federate | Accepted |
+| [0026](0026-isolation-by-construction.md) | One tenant per deployment, enforced rather than promised | Accepted |

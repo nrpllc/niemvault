@@ -86,13 +86,104 @@ public final class ParquetBronzeStore implements BronzeStore {
     private final ObjectMapper json = new ObjectMapper();
     private final ReentrantLock appendLock = new ReentrantLock();
 
-    public ParquetBronzeStore(Path root) {
-        this(root, Clock.systemUTC());
+    /**
+     * The file naming the agency this store belongs to.
+     *
+     * <p>Written the first time anything is stored and checked on every open. A deployment serves
+     * one tenant (ADR 0026), and this is what makes that a property of the store rather than a
+     * statement in a document.
+     */
+    private static final String TENANT_MARKER = ".tenant";
+
+    private final gov.niemplatform.canonical.meta.TenantId tenant;
+
+    public ParquetBronzeStore(Path root, gov.niemplatform.canonical.meta.TenantId tenant) {
+        this(root, tenant, Clock.systemUTC());
     }
 
-    public ParquetBronzeStore(Path root, Clock clock) {
+    /**
+     * Opens a bronze store for one agency.
+     *
+     * @throws BronzeStorageException if the root already holds another agency's data. Refused on
+     *     open rather than filtered on read: two agencies' raw records interleaved in one store is
+     *     not a condition to detect later, and bronze is append-only, so there is no undoing it
+     */
+    public ParquetBronzeStore(
+            Path root, gov.niemplatform.canonical.meta.TenantId tenant, Clock clock) {
         this.root = Objects.requireNonNull(root, "root").toAbsolutePath();
+        this.tenant = Objects.requireNonNull(tenant, "tenant");
         this.clock = Objects.requireNonNull(clock, "clock");
+        claimForTenant();
+    }
+
+    /**
+     * Opens an existing store for reading, adopting whatever tenant it already declares.
+     *
+     * <p>For readers that observe a store rather than write to one — the authoring surface profiling
+     * column shapes, for instance. It reads the claim rather than making one, and refuses a store
+     * that does not say whose it is, because a reader that guesses is a reader that reports one
+     * agency's data as another's.
+     */
+    public static ParquetBronzeStore openExisting(Path root) {
+        Path marker = root.toAbsolutePath().resolve(TENANT_MARKER);
+        try {
+            if (!Files.exists(marker)) {
+                throw new BronzeStorageException(Operation.READ, "(unknown)", root.toString(),
+                        "this store does not declare a tenant, so nothing can say whose data it is");
+            }
+            return new ParquetBronzeStore(root, gov.niemplatform.canonical.meta.TenantId.of(
+                    Files.readString(marker, java.nio.charset.StandardCharsets.UTF_8).trim()));
+        } catch (IOException e) {
+            throw new BronzeStorageException(Operation.READ, "(unknown)", root.toString(),
+                    "cannot read the tenant of this store", e);
+        }
+    }
+
+    /** The agency whose records this store holds. */
+    public gov.niemplatform.canonical.meta.TenantId tenant() {
+        return tenant;
+    }
+
+    /**
+     * Claims an empty root for this tenant, or verifies an existing claim.
+     *
+     * <p>The check is the whole point of ADR 0026. Without it, two runs against one bronze root
+     * under different tenants interleave two agencies' raw data and nothing notices -- and raw data
+     * is the one thing the platform promises never to rewrite.
+     */
+    private void claimForTenant() {
+        Path marker = root.resolve(TENANT_MARKER);
+        try {
+            if (Files.exists(marker)) {
+                String claimed = Files.readString(marker, java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (!claimed.equals(tenant.value())) {
+                    throw new BronzeStorageException(Operation.INTEGRITY, tenant.value(),
+                            root.toString(),
+                            "this store belongs to '" + claimed + "' and cannot also hold data for '"
+                                    + tenant.value() + "'. A deployment serves one agency "
+                                    + "(ADR 0026); give this tenant its own store");
+                }
+                return;
+            }
+            Files.createDirectories(root);
+            // Only claim a root that has nothing in it. A root with batches but no marker predates
+            // this check, and silently stamping somebody's name on data of unknown origin is worse
+            // than refusing to touch it.
+            try (var existing = Files.list(root)) {
+                if (existing.findAny().isPresent()) {
+                    throw new BronzeStorageException(Operation.INTEGRITY, tenant.value(),
+                            root.toString(),
+                            "this store already holds data but does not say whose it is. Claiming it "
+                                    + "for '" + tenant.value() + "' would assert an origin nobody "
+                                    + "recorded; write " + TENANT_MARKER + " deliberately if you know "
+                                    + "the answer");
+                }
+            }
+            Files.writeString(marker, tenant.value(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new BronzeStorageException(Operation.INTEGRITY, tenant.value(), root.toString(),
+                    "cannot establish the tenant of this store", e);
+        }
     }
 
     // --- append ----------------------------------------------------------

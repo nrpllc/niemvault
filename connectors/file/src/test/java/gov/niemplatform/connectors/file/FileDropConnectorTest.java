@@ -282,7 +282,7 @@ class FileDropConnectorTest {
             writeDrop("incidents.csv", INCIDENTS_CSV);
             var emitter = new RecordingObservabilityEmitter();
 
-            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, FIXED)) {
+            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
                 var landing = new LandingService(bronze, emitter, FIXED, 1_000);
                 var result = landing.land(configured(defaultConfig()), defaultConfig(), "run-1");
 
@@ -304,7 +304,7 @@ class FileDropConnectorTest {
             writeDrop("incidents.csv", "HEADER\na\nb\nc\nd\ne\n");
             var emitter = new RecordingObservabilityEmitter();
 
-            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, FIXED)) {
+            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
                 var landing = new LandingService(bronze, emitter, FIXED, 2);
                 var result = landing.land(configured(defaultConfig()), defaultConfig(), "run-1");
 
@@ -327,7 +327,7 @@ class FileDropConnectorTest {
                     Duration.ofHours(1));
 
             var emitter = new RecordingObservabilityEmitter();
-            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, FIXED)) {
+            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
                 new LandingService(bronze, emitter, FIXED, 1_000)
                         .land(configured(withSla), withSla, "run-1");
             }
@@ -343,7 +343,7 @@ class FileDropConnectorTest {
                     java.nio.file.attribute.FileTime.from(NOW.minus(Duration.ofDays(30))));
 
             var emitter = new RecordingObservabilityEmitter();
-            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, FIXED)) {
+            try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED)) {
                 new LandingService(bronze, emitter, FIXED, 1_000)
                         .land(configured(defaultConfig()), defaultConfig(), "run-1");
             }

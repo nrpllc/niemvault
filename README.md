@@ -101,6 +101,20 @@ so an air-gapped build can verify its own citations (§6). See
 [ADR 0011](docs/decisions/0011-niem-reference-verification.md) — including the three real errors this
 found in content that had passed every other check.
 
+## Isolation
+
+A deployment serves exactly one agency, and says so. A bronze store records the tenant it belongs to
+the first time it stores anything and refuses anyone else's data from then on — on open, before
+anything is written, because bronze is append-only and there is no undoing an interleave.
+
+Shared logical multi-tenancy is deliberately **not built**. There is no cross-tenant read path to
+secure because there is no cross-tenant read path, and no tenant column to remember to filter by.
+"Your records are in your own database" is a claim an agency's counsel can verify; "every query
+filters correctly by tenant" is a promise about code that a lawyer cannot audit. See
+[ADR 0026](docs/decisions/0026-isolation-by-construction.md) — including the costs, which are real:
+this is only safe alongside managed operation, and it raises the price of connecting agencies, which
+federation has to bring back down.
+
 ## The catalogue
 
 ```bash

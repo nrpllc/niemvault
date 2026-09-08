@@ -169,7 +169,7 @@ final class ReplayCommand implements Callable<Integer> {
                 s3Endpoint, s3AccessKeyId, secret, s3Region);
 
         List<ProjectionWriter> projections = new ArrayList<>();
-        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot);
+        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of(tenant));
                 CanonicalStore silver = new IcebergCanonicalStore(silverConfig)) {
 
             List<CanonicalTypeDescriptor> produced = artifacts.canonicalTypes().values().stream()

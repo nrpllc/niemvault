@@ -170,7 +170,7 @@ final class RunCommand implements Callable<Integer> {
         long canonicalCount;
         Map<String, Long> silverWritten = Map.of();
         var silverStore = silver.open();
-        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot)) {
+        try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of(tenant))) {
             SilverWriter silverWriter = silverStore
                     .map(store -> new SilverWriter(store, artifacts.canonicalTypes()))
                     .orElse(null);

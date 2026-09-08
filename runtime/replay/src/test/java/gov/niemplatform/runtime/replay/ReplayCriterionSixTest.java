@@ -107,7 +107,7 @@ class ReplayCriterionSixTest {
     @BeforeEach
     void setUp() throws IOException {
         createBucket();
-        bronze = new ParquetBronzeStore(Files.createDirectories(work.resolve("bronze")), FIXED);
+        bronze = new ParquetBronzeStore(Files.createDirectories(work.resolve("bronze")), gov.niemplatform.canonical.meta.TenantId.of("test.agency"), FIXED);
         silver = new IcebergCanonicalStore(new IcebergCanonicalStoreConfig(
                 "silver",
                 "jdbc:h2:mem:replay" + (catalogSequence++) + ";DB_CLOSE_DELAY=-1",
