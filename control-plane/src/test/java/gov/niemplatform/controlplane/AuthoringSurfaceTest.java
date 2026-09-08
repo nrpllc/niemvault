@@ -12,6 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -254,6 +256,44 @@ class AuthoringSurfaceTest {
                             .build(),
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             return json.readTree(response.body());
+        }
+
+        @Test
+        @DisplayName("serves NIEM coverage, independent of the open mapping")
+        void servesCoverage() throws Exception {
+            // Describes the model, not the mapping. It has to answer the same way whichever module
+            // happens to be loaded, so nothing here posts a mapping first.
+            JsonNode coverage = getJson("/api/coverage");
+
+            assertThat(coverage.get("namespaceCount").asInt()).isEqualTo(18);
+            assertThat(coverage.get("namespacesTouched").asInt()).isEqualTo(2);
+            assertThat(coverage.get("declared").asInt()).isGreaterThan(27_000);
+            assertThat(coverage.get("cited").asInt()).isPositive();
+        }
+
+        @Test
+        @DisplayName("names the untouched domains too, so coverage has a denominator")
+        void servesUntouchedDomains() throws Exception {
+            JsonNode coverage = getJson("/api/coverage");
+
+            List<String> names = new ArrayList<>();
+            coverage.get("namespaces").forEach(namespace -> names.add(namespace.get("name").asText()));
+
+            assertThat(names).contains("niem-core", "justice", "maritime", "biometrics");
+            // Used first: a reader opens this to see what the model stands on, and seventeen
+            // untouched domains above the two that matter buries the answer.
+            assertThat(names.getFirst()).isEqualTo("niem-core");
+        }
+
+        @Test
+        @DisplayName("sends unresolved as an empty array rather than omitting it")
+        void alwaysSendsUnresolved() throws Exception {
+            // Omitting the field would leave a reader unable to tell "nothing unresolved" from
+            // "this build does not check" -- which is the distinction the field exists to make.
+            JsonNode coverage = getJson("/api/coverage");
+
+            assertThat(coverage.has("unresolved")).isTrue();
+            assertThat(coverage.get("unresolved")).isEmpty();
         }
 
         @Test

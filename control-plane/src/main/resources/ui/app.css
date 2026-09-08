@@ -545,3 +545,121 @@ button.view:not(.is-current):hover { color: var(--ink); }
 }
 
 .source textarea:focus-visible { outline: 2px solid var(--flow); outline-offset: -1px; }
+
+/* --- NIEM coverage -------------------------------------------------------- */
+
+/* Shares the catalogue's frame: same job, a different subject. The catalogue describes one
+   source's vocabulary; this describes the model every source is mapped into. */
+.coverage { flex: 1; overflow: auto; padding: 1.1rem 1.3rem 2rem; min-height: 0; }
+
+.coverage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.coverage-head > div:first-child { max-width: 44rem; }
+.coverage h2 { font-size: 1.05rem; color: var(--ink); text-transform: none; letter-spacing: 0; margin: 0.15rem 0 0; }
+
+.coverage h3 {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin: 1.5rem 0 0.5rem;
+}
+
+/* Neutral, because the number is neither good news nor bad. Amber is this stylesheet's colour for
+   divergence and risk; a count of what the model cites is a fact, and dressing 16 of 27,148 as a
+   warning would editorialise a Phase 1 slice into a failure. */
+.gap--fact {
+  background: transparent;
+  color: var(--slate);
+  border-left-color: var(--hairline);
+}
+
+.gap--fact strong { color: var(--ink); }
+
+/* A citation the release cannot account for is impossible -- the build refuses to generate one.
+   Styled as an alarm rather than a note precisely because seeing it means something is badly wrong. */
+.gap--bad {
+  background: var(--divert-soft);
+  color: var(--divert);
+  border-left-color: var(--divert);
+}
+
+/* --- one domain ----------------------------------------------------------- */
+
+.ns { border-bottom: 1px solid var(--hairline); }
+
+.ns > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) 4.5rem minmax(0, 1fr) 7rem;
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.5rem 0.2rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ns > summary::-webkit-details-marker { display: none; }
+.ns > summary:hover .ns-name { color: var(--flow); }
+.ns > summary:focus-visible { outline: 2px solid var(--provenance); outline-offset: 2px; }
+
+.ns-name { font-size: 0.95rem; color: var(--slate); }
+.ns-prefix { font-family: var(--display); font-size: 0.76rem; color: var(--provenance); }
+.ns-declared { font-size: 0.8rem; color: var(--slate); }
+.ns-cited { font-family: var(--display); font-size: 0.74rem; color: var(--slate); text-align: right; }
+
+/* The two the model stands on have to be findable among sixteen it does not. */
+.ns--used .ns-name { color: var(--ink); font-weight: 600; }
+.ns--used .ns-cited { color: var(--flow); }
+
+.ns-body { padding: 0.2rem 0.2rem 0.9rem 0.6rem; }
+.ns-uri { font-family: var(--display); font-size: 0.7rem; color: var(--slate); margin: 0.6rem 0 0; word-break: break-all; }
+
+.citation {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.22rem 0;
+  font-size: 0.86rem;
+}
+
+.citation-kind { font-family: var(--display); font-size: 0.68rem; color: var(--slate); text-transform: uppercase; }
+.citation-where { color: var(--ink); }
+.citation-niem { font-family: var(--display); font-size: 0.78rem; color: var(--provenance); }
+
+/* --- an extension --------------------------------------------------------- */
+
+/* The justification is the row, not a tooltip on it. §4.1 requires the reason to be written down;
+   hiding it behind an interaction is the same as not having it. */
+.extension {
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--scratch);
+  background: var(--card);
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.extension h4 {
+  font-family: var(--display);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--scratch);
+  margin: 0 0 0.25rem;
+}
+
+.extension p { margin: 0; font-size: 0.88rem; color: var(--ink); max-width: 58rem; }
+
+@media (max-width: 60rem) {
+  .ns > summary { grid-template-columns: minmax(0, 1fr) 4.5rem; }
+  .ns-declared, .ns-cited { grid-column: 1 / -1; text-align: left; }
+  .citation { grid-template-columns: 4.5rem minmax(0, 1fr); }
+  .citation-niem { grid-column: 2; }
+}

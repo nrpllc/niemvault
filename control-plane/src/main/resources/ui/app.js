@@ -332,15 +332,169 @@ function producedRow(produced) {
   return row;
 }
 
+const VIEWS = ['flow', 'catalogue', 'coverage'];
+
 function showView(view) {
-  const catalogue = view === 'catalogue';
-  el('flow-view').hidden = catalogue;
-  el('catalogue-view').hidden = !catalogue;
-  el('view-flow').classList.toggle('is-current', !catalogue);
-  el('view-catalogue').classList.toggle('is-current', catalogue);
-  el('view-flow').setAttribute('aria-selected', String(!catalogue));
-  el('view-catalogue').setAttribute('aria-selected', String(catalogue));
-  if (catalogue) showCatalogue();
+  const current = VIEWS.includes(view) ? view : 'flow';
+
+  VIEWS.forEach((name) => {
+    const pane = name === 'flow' ? el('flow-view') : el(name + '-view');
+    const tab = el('view-' + name);
+    pane.hidden = name !== current;
+    tab.classList.toggle('is-current', name === current);
+    tab.setAttribute('aria-selected', String(name === current));
+  });
+
+  // The mapping strip belongs to the mapping. NIEM coverage describes the model, which is the same
+  // whichever mapping happens to be open, so leaving the strip up would imply a connection.
+  document.querySelector('.flow-strip').hidden = current === 'coverage';
+
+  if (current === 'catalogue') showCatalogue();
+  if (current === 'coverage') showCoverage();
+}
+
+/*
+ * How much of NIEM the canonical model stands on (ADR 0011).
+ *
+ * The build already refuses a provenance that does not resolve. What nobody could see was the other
+ * direction -- given the release, which of it does this platform actually touch. That is the
+ * question an evaluator asks, and the answer was previously only in the DSL sources.
+ *
+ * Loaded once. The model does not change while the page is open, and re-fetching on every tab
+ * switch would make an unchanging answer look like it was being recomputed.
+ */
+let coverageReport = null;
+
+async function showCoverage() {
+  const namespaces = el('coverage-namespaces');
+  if (coverageReport) return;
+
+  namespaces.replaceChildren(hint('Reading the packaged NIEM release…'));
+  try {
+    coverageReport = await api('/api/coverage');
+  } catch (error) {
+    namespaces.replaceChildren(hint('Coverage unavailable: ' + error.message));
+    return;
+  }
+  renderCoverage(coverageReport);
+}
+
+function renderCoverage(report) {
+  el('coverage-headline').textContent =
+    `${report.namespacesTouched} of ${report.namespaceCount} domains`;
+
+  const totals = el('coverage-totals');
+  totals.replaceChildren();
+  const total = gap(`${report.cited} cited`,
+    `of ${report.declared.toLocaleString()} types and elements the release declares`);
+  total.classList.add('gap--fact');
+  totals.append(total);
+
+  // Always rendered when present, never folded away. A citation the release cannot account for
+  // cannot happen -- the build refuses to generate one -- so if it ever appears it is the most
+  // important thing on the page.
+  const unresolved = el('coverage-unresolved');
+  unresolved.replaceChildren();
+  if (report.unresolved.length) {
+    const alarm = document.createElement('div');
+    alarm.className = 'gap gap--bad';
+    alarm.textContent = `${report.unresolved.length} citation(s) the packaged release cannot `
+      + 'account for. The build should have refused this model: '
+      + report.unresolved.map((problem) => `${problem.where} → ${problem.citation}`).join('; ');
+    unresolved.append(alarm);
+  }
+
+  const namespaces = el('coverage-namespaces');
+  namespaces.replaceChildren();
+  report.namespaces.forEach((namespace) => namespaces.append(namespaceRow(namespace)));
+
+  const extensions = el('coverage-extensions');
+  extensions.replaceChildren();
+  if (!report.extensions.length) {
+    extensions.append(hint('The model extends nothing beyond NIEM.'));
+    return;
+  }
+  report.extensions.forEach((extension) => extensions.append(extensionRow(extension)));
+}
+
+/* One domain. Collapsed to a line until asked, because seventeen of eighteen have nothing to say. */
+function namespaceRow(namespace) {
+  const entry = document.createElement('details');
+  entry.className = 'ns' + (namespace.cited ? ' ns--used' : '');
+
+  const summary = document.createElement('summary');
+
+  const name = document.createElement('span');
+  name.className = 'ns-name';
+  name.textContent = namespace.name;
+
+  const prefix = document.createElement('span');
+  prefix.className = 'ns-prefix';
+  prefix.textContent = namespace.prefix;
+
+  const declared = document.createElement('span');
+  declared.className = 'ns-declared';
+  declared.textContent = `${namespace.declaredTypes} types · ${namespace.declaredElements} elements`;
+
+  const cited = document.createElement('span');
+  cited.className = 'ns-cited';
+  cited.textContent = namespace.cited ? `${namespace.cited} cited` : 'untouched';
+
+  summary.append(name, prefix, declared, cited);
+  entry.append(summary);
+
+  const body = document.createElement('div');
+  body.className = 'ns-body';
+  if (!namespace.cited) {
+    // Said outright rather than left as an empty panel. "Nothing here" and "nothing loaded" look
+    // identical when a panel is simply blank.
+    body.append(hint('The canonical model does not stand on this domain.'));
+  } else {
+    namespace.citations.forEach((citation) => body.append(citationRow(citation)));
+  }
+
+  const uri = document.createElement('p');
+  uri.className = 'ns-uri';
+  uri.textContent = namespace.uri;
+  body.append(uri);
+
+  entry.append(body);
+  return entry;
+}
+
+function citationRow(citation) {
+  const row = document.createElement('div');
+  row.className = 'citation';
+
+  const kind = document.createElement('span');
+  kind.className = 'citation-kind';
+  kind.textContent = citation.kind;
+
+  const where = document.createElement('span');
+  where.className = 'citation-where';
+  where.textContent = citation.where;
+
+  const niem = document.createElement('span');
+  niem.className = 'citation-niem';
+  niem.textContent = citation.niemName;
+
+  row.append(kind, where, niem);
+  return row;
+}
+
+/* An extension is a decision with a reason, so the reason is the body of the row, not a tooltip. */
+function extensionRow(extension) {
+  const row = document.createElement('div');
+  row.className = 'extension';
+
+  const where = document.createElement('h4');
+  where.textContent = extension.where;
+
+  const why = document.createElement('p');
+  why.textContent = extension.justification;
+
+  row.append(where, why);
+  return row;
 }
 
 function accept(report, yaml) {
@@ -893,6 +1047,7 @@ el('yaml').addEventListener('input', scheduleValidation);
 el('save').addEventListener('click', save);
 el('view-flow').addEventListener('click', () => showView('flow'));
 el('view-catalogue').addEventListener('click', () => showView('catalogue'));
+el('view-coverage').addEventListener('click', () => showView('coverage'));
 el('relayout').addEventListener('click', () => canvas.reset());
 
 (async function start() {

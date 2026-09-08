@@ -66,6 +66,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/edit", exchange -> respond(exchange, this::edit));
         server.createContext("/api/transforms", exchange -> respond(exchange, this::transforms));
         server.createContext("/api/suggest", exchange -> respond(exchange, this::suggest));
+        server.createContext("/api/coverage", exchange -> respond(exchange, this::coverage));
         server.createContext("/api/catalogue", exchange -> respond(exchange, this::catalogue));
         server.createContext("/api/catalogue/edit", exchange -> respond(exchange, this::editGlossary));
         server.createContext("/api/contract", exchange -> respond(exchange, this::contract));
@@ -103,6 +104,68 @@ public final class ControlPlaneServer implements AutoCloseable {
         node.put("canonicalModel", manifest.canonicalModelVersion().toString());
         node.put("root", workspace.moduleRoot().toString());
         return node;
+    }
+
+    /**
+     * How much of NIEM the canonical model stands on (ADR 0011).
+     *
+     * <p>Reads the release packaged with the platform, not a path an operator configures. There is
+     * one copy of the manifests and the build verified against it, so the browser cannot show
+     * coverage of a release the model was never checked against.
+     *
+     * <p>Independent of the open mapping, and of there being one. This describes the model, which is
+     * the same whichever module is loaded.
+     */
+    private ObjectNode coverage(HttpExchange exchange) {
+        NiemCoverage.Report report = NiemCoverage.of(
+                gov.niemplatform.niem.NiemRelease.fromClasspath(),
+                gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL);
+
+        ObjectNode node = json.createObjectNode();
+        node.put("declared", report.declared());
+        node.put("cited", report.cited());
+        node.put("namespaceCount", report.namespaces().size());
+        node.put("namespacesTouched", report.namespacesTouched());
+
+        ArrayNode namespaces = node.putArray("namespaces");
+        for (NiemCoverage.Namespace namespace : report.namespaces()) {
+            ObjectNode entry = namespaces.addObject();
+            entry.put("name", namespace.name());
+            entry.put("prefix", namespace.prefix());
+            entry.put("uri", namespace.uri());
+            entry.put("declaredTypes", namespace.declaredTypes());
+            entry.put("declaredElements", namespace.declaredElements());
+            entry.put("cited", namespace.cited());
+
+            ArrayNode citations = entry.putArray("citations");
+            namespace.citedTypes().forEach(citation -> citation(citations, citation, "type"));
+            namespace.citedElements().forEach(citation -> citation(citations, citation, "element"));
+        }
+
+        ArrayNode extensions = node.putArray("extensions");
+        for (NiemCoverage.Extension extension : report.extensions()) {
+            ObjectNode entry = extensions.addObject();
+            entry.put("where", extension.where());
+            entry.put("justification", extension.justification());
+        }
+
+        // Always sent, normally empty. A browser that omitted the field would leave a reader with
+        // no way to tell "nothing unresolved" from "this build does not check".
+        ArrayNode unresolved = node.putArray("unresolved");
+        for (NiemCoverage.Unresolved problem : report.unresolved()) {
+            ObjectNode entry = unresolved.addObject();
+            entry.put("where", problem.where());
+            entry.put("citation", problem.citation());
+            entry.put("reason", problem.reason());
+        }
+        return node;
+    }
+
+    private void citation(ArrayNode citations, NiemCoverage.Citation citation, String kind) {
+        ObjectNode entry = citations.addObject();
+        entry.put("kind", kind);
+        entry.put("where", citation.where());
+        entry.put("niemName", citation.niemName());
     }
 
     private ObjectNode mappings(HttpExchange exchange) {

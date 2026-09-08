@@ -260,6 +260,14 @@ citable types, and would bury the domains in the coverage browser.
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —
 ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 
+**Built:** the NIEM coverage browser — `niem coverage`, `/api/coverage`, and the NIEM view in the
+authoring surface. Answers "conformant to how much of NIEM?": 2 of 18 domains, 16 of 27,148
+declarations, with both extensions and their written reasons. Untouched domains are listed
+deliberately — coverage without a denominator is not coverage. It is a **report, not a validator**:
+every rule about what a citation may say stays in the code generator (ADR 0020). When it needed one
+of those rules — that `nc:IncidentType` and `IncidentType` name the same thing — the rule moved into
+the shared `NiemRelease.localName` and the validator calls it, rather than a second copy growing here.
+
 **Built:** the catalogue documents each source's own vocabulary against canonical terms, not only
 NIEM provenance — [ADR 0019](docs/decisions/0019-catalogue-source-vocabulary.md). `niem catalogue`,
 and `Catalogue` in the control plane. `--gaps-only` exits 2 when a term is undocumented or unread,

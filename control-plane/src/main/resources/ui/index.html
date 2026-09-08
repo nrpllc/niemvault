@@ -18,6 +18,7 @@
     <div class="views" role="tablist" aria-label="View">
       <button id="view-flow" type="button" class="view is-current" role="tab" aria-selected="true">Flow</button>
       <button id="view-catalogue" type="button" class="view" role="tab" aria-selected="false">Catalogue</button>
+      <button id="view-coverage" type="button" class="view" role="tab" aria-selected="false">NIEM</button>
     </div>
     <span id="status" class="status status--idle">ready</span>
     <button id="save" type="button" disabled>Save as new version</button>
@@ -77,6 +78,28 @@
 
   <h3>Produces<span class="hint">canonical types, and where their shape comes from</span></h3>
   <div id="catalogue-produces"></div>
+</section>
+
+<section id="coverage-view" class="coverage" hidden aria-label="NIEM coverage">
+  <header class="coverage-head">
+    <div>
+      <span class="eyebrow">NIEM 6.0</span>
+      <h2 id="coverage-headline">—</h2>
+      <p class="detail">
+        What the canonical model stands on, against the release the build verified it against.
+        Domains it does not touch are listed too: coverage without a denominator is not coverage.
+      </p>
+    </div>
+    <div id="coverage-totals" class="gaps"></div>
+  </header>
+
+  <div id="coverage-unresolved"></div>
+
+  <h3>Domains<span class="hint">click one to see every citation into it</span></h3>
+  <div id="coverage-namespaces"></div>
+
+  <h3>Beyond NIEM<span class="hint">deliberate extensions, and why each was taken</span></h3>
+  <div id="coverage-extensions"></div>
 </section>
 
 <details class="source">
