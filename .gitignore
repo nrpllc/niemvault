@@ -1,7 +1,15 @@
 # Gradle
+#
+# Gradle output is matched by position, never as a bare `build/`. An unanchored pattern also
+# matches the Java package `gov/niemplatform/build/`, which silently excluded the entire canonical
+# code generator from the repository -- a clone that cannot build, failing with "plugin
+# implementation class not found", which points nowhere near the cause. The same mistake is
+# documented for .dockerignore in CLAUDE.md; it was live here too.
 .gradle/
-build/
-build-logic/build/
+/build
+/*/build
+/*/*/build
+/*/*/*/build
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
