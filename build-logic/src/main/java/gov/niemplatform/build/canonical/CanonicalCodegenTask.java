@@ -1,5 +1,7 @@
 package gov.niemplatform.build.canonical;
 
+import gov.niemplatform.niem.NiemRelease;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

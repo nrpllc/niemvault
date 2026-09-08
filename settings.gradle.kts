@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 rootProject.name = "niem-platform"
 
 include(
+    "core:niem",
     "core:canonical",
     "core:contracts",
     "core:observability",

@@ -13,3 +13,9 @@ canonicalModel {
     // fails if an extension escapes this prefix, or a NIEM-sourced type strays into it.
     extensionNamespaceRoot.set("https://niemplatform.gov/canonical/extension/")
 }
+
+dependencies {
+    // The release manifests are resources of this module and NiemRelease is how anything reads
+    // them, so the two travel together on a consumer's classpath.
+    api(project(":core:niem"))
+}

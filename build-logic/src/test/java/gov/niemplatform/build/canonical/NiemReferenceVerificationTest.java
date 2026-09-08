@@ -1,5 +1,7 @@
 package gov.niemplatform.build.canonical;
 
+import gov.niemplatform.niem.NiemRelease;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

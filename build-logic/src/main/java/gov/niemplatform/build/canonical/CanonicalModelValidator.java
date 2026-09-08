@@ -1,5 +1,7 @@
 package gov.niemplatform.build.canonical;
 
+import gov.niemplatform.niem.NiemRelease;
+
 import gov.niemplatform.build.canonical.CanonicalDslException.Code;
 import gov.niemplatform.build.canonical.CanonicalDslException.Problem;
 import java.nio.file.Path;

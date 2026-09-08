@@ -40,7 +40,7 @@ public class CanonicalCodegenPlugin implements Plugin<Project> {
                     // Committed manifests, so an air-gapped build can still verify its own NIEM
                     // references (spec section 6, ADR 0011).
                     java.io.File niem = project.getLayout().getProjectDirectory()
-                            .dir("src/main/niem").getAsFile();
+                            .dir("src/main/resources/niem").getAsFile();
                     if (niem.isDirectory()) {
                         task.getNiemReleaseDirectory().set(niem);
                     }
