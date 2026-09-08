@@ -205,6 +205,20 @@ public final class NiemRelease {
     }
 
     /**
+     * The bare name from a citation, which may or may not carry a prefix.
+     *
+     * <p>A NIEM reference is written {@code nc:IncidentType} as often as {@code IncidentType}, and
+     * the prefix is a convenience for the reader rather than part of the name a namespace declares.
+     * Stripping it lives here, with the parser, because both readers of the format need the same
+     * answer: the build's verifier and the coverage browser splitting this differently would show a
+     * citation as covered in one and unresolved in the other.
+     */
+    public static String localName(String reference) {
+        int prefix = reference.indexOf(':');
+        return prefix < 0 ? reference : reference.substring(prefix + 1);
+    }
+
+    /**
      * Finds namespaces that declare a name, so a wrong-namespace citation can be corrected rather
      * than merely rejected.
      *

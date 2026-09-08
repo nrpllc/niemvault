@@ -185,7 +185,7 @@ public final class CanonicalModelValidator {
         // A type-level citation may name a type; a field may name an element, or a type when the
         // member is complex. Both forms are checked against what the namespace actually declares.
         String reference = provenance.reference();
-        String localName = reference.contains(":") ? reference.substring(reference.indexOf(':') + 1) : reference;
+        String localName = NiemRelease.localName(reference);
         boolean asType = typeLevel || provenance.niemElement() == null;
 
         boolean declared = asType
