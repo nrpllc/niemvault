@@ -260,6 +260,18 @@ citable types, and would bury the domains in the coverage browser.
 Resolved during implementation: §10.2 (canonical DSL — ADR 0012), §10.4 (synthetic CAD CSV —
 ADR 0013), §10.5 (deterministic resolver — ADR 0014).
 
+**Built:** completeness accounting — `RecordAccount`, `CompletenessBreach`, and a `Completeness:`
+line on every `run`. The invariant is `produced + quarantined + skipped = landed x hops`. **The
+pipeline keeps the books, not the caller**: reading only `canonicalRecords()` is the natural thing
+to write and is exactly how a drop becomes invisible, because §4.2 makes quarantining routine and a
+short count then looks like an ordinary run over a messy feed. A quarantined or skipped hop
+*balances* — the platform can show you that record; only arithmetic that does not add up is a
+breach. `run` exits **4** on a breach, which outranks 2 (quarantined) and 0 (clean). Checked after
+everything is processed, never mid-run: halting on a residual would abandon records about to map
+fine and make the residual larger. On Flink the driver still cannot see inside its operators, so
+`MappingOperator.close()` emits the breach to the event stream — the finding escapes even though no
+count reaches the driver, and the driver still exits 3.
+
 **Built:** the graph is readable, not only writable — `Neo4jIncidentReader` and `niem incident`.
 An incident, everyone on it with their role, and where those people appear on other incidents,
 which is the only question a graph is needed for. **Named `incident`, not `case`, deliberately**:

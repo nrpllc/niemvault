@@ -148,6 +148,68 @@ class MappingPipelineTest {
     }
 
     @Nested
+    @DisplayName("the pipeline keeps its own books")
+    class Completeness {
+
+        @Test
+        @DisplayName("a clean run balances: every hop of every record accounted for")
+        void cleanRunBalances() {
+            MappingPipeline pipeline = pipeline();
+
+            pipeline.process(CadMappingFixture.envelope(CadMappingFixture.ROW_BURGLARY_VICTIM, 2), "run-1");
+            pipeline.process(CadMappingFixture.envelope(CadMappingFixture.ROW_OTHER_PERSON, 3), "run-1");
+
+            assertThat(pipeline.account().landedCount()).isEqualTo(2);
+            assertThat(pipeline.account().producedCount()).isEqualTo(6);
+            assertThat(pipeline.account().balances()).isTrue();
+            assertThat(pipeline.reportCompleteness("run-1")).isTrue();
+        }
+
+        @Test
+        @DisplayName("a quarantining run still balances, because a rejection is not a loss")
+        void quarantiningRunBalances() {
+            // The distinction the whole account exists to preserve. §4.2 requires bad data not to
+            // halt the pipeline, so quarantining is routine -- and that is exactly what makes a
+            // genuine drop invisible unless something has to add up.
+            MappingPipeline pipeline = pipeline();
+            String corrupted = CadMappingFixture.ROW_BURGLARY_VICTIM.replace("03/14/1988", "1988-03-14");
+
+            pipeline.process(CadMappingFixture.envelope(corrupted, 2), "run-1");
+
+            assertThat(pipeline.account().quarantinedCount()).isPositive();
+            assertThat(pipeline.account().balances())
+                    .as("a record the platform can show you is accounted for")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("a skipped dependent hop is accounted for, not missing")
+        void skippedHopIsAccountedFor() {
+            MappingPipeline pipeline = pipeline();
+            String corrupted = CadMappingFixture.ROW_BURGLARY_VICTIM.replace("03/14/1988", "1988-03-14");
+
+            MappingPipeline.Outcome outcome =
+                    pipeline.process(CadMappingFixture.envelope(corrupted, 2), "run-1");
+
+            assertThat(outcome.skippedHops()).isNotEmpty();
+            assertThat(pipeline.account().skippedCount()).isEqualTo(outcome.skippedHops().size());
+            assertThat(pipeline.account().balances()).isTrue();
+        }
+
+        @Test
+        @DisplayName("emits nothing when the run balances")
+        void balancedRunEmitsNothing() {
+            // An ERROR saying nothing is wrong is how an event stream stops being read.
+            MappingPipeline pipeline = pipeline();
+            pipeline.process(CadMappingFixture.envelope(CadMappingFixture.ROW_BURGLARY_VICTIM, 2), "run-1");
+
+            int before = emitter.emitted().size();
+            assertThat(pipeline.reportCompleteness("run-1")).isTrue();
+            assertThat(emitter.emitted()).hasSize(before);
+        }
+    }
+
+    @Nested
     @DisplayName("criterion 5: bad data is quarantined and reported, and the pipeline continues")
     class Corruption {
 

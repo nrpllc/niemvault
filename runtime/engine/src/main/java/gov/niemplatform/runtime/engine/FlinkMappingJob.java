@@ -169,5 +169,23 @@ public final class FlinkMappingJob {
             // rejected record simply produces no output here rather than failing the job.
             pipeline.process(envelope, runId).canonicalRecords().forEach(out::collect);
         }
+
+        /**
+         * Reports whether this operator's records balanced.
+         *
+         * <p>The driver cannot see any of this: the pipeline, its quarantine sink and its counts
+         * were all constructed in here. Emitting on close is how the finding gets out at all --
+         * through the event stream, which is where a run's other findings already go.
+         *
+         * <p>Per operator instance, so at a parallelism above one there is a report per subtask.
+         * That is the honest shape: each subtask can only balance the records it was given, and a
+         * single total would require a shuffle this job has no reason to do.
+         */
+        @Override
+        public void close() {
+            if (pipeline != null) {
+                pipeline.reportCompleteness(runId);
+            }
+        }
     }
 }

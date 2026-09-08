@@ -12,9 +12,12 @@ import gov.niemplatform.contracts.QuarantinedRecord;
 import gov.niemplatform.identity.api.InMemoryClusterIndex;
 import gov.niemplatform.identity.api.IndexedResolutionProvider;
 import gov.niemplatform.identity.internal.DeterministicResolutionProvider;
+import gov.niemplatform.observability.CompletenessBreach;
 import gov.niemplatform.observability.ContractViolation;
 import gov.niemplatform.observability.LoggingObservabilityEmitter;
 import gov.niemplatform.observability.ObservabilityEmitter;
+import gov.niemplatform.observability.PipelineContext;
+import gov.niemplatform.observability.RecordAccount;
 import gov.niemplatform.observability.RecordingObservabilityEmitter;
 import gov.niemplatform.runtime.engine.ExecutionMode;
 import gov.niemplatform.runtime.engine.FlinkMappingJob;
@@ -32,6 +35,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 import picocli.CommandLine.Command;
@@ -168,6 +172,7 @@ final class RunCommand implements Callable<Integer> {
         connector.configure(config);
 
         long canonicalCount;
+        RecordAccount account = null;
         Map<String, Long> silverWritten = Map.of();
         var silverStore = silver.open();
         try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of(tenant))) {
@@ -199,6 +204,7 @@ final class RunCommand implements Callable<Integer> {
                     quarantine,
                     emitter);
 
+            account = pipeline.account();
             canonicalCount = engine == Engine.DIRECT
                     ? mapLanded(bronze, config.sourceId(), landed, pipeline, silverWriter)
                     : mapThroughFlink(bronze, config.sourceId(), landed, artifacts, quarantineFile(),
@@ -212,9 +218,11 @@ final class RunCommand implements Callable<Integer> {
             silverStore.ifPresent(store -> store.close());
         }
 
+        boolean balanced = true;
         if (engine == Engine.DIRECT) {
             writeQuarantine(quarantine.held());
             summarise(canonicalCount, recorder, quarantine, clusterIndex);
+            balanced = reportCompleteness(account, emitter, config.sourceId());
         } else {
             summariseDistributed(canonicalCount);
         }
@@ -230,7 +238,44 @@ final class RunCommand implements Callable<Integer> {
         if (engine != Engine.DIRECT) {
             return 3;
         }
+        // A breach outranks a clean run and a quarantining one alike. Quarantined records are
+        // accounted for -- the platform knows where they went and can show them to you. An
+        // unbalanced run means it cannot say what happened to data an agency handed it, and that
+        // must never exit zero.
+        if (!balanced) {
+            return 4;
+        }
         return quarantine.size() == 0 ? 0 : 2;
+    }
+
+    /**
+     * Reports whether the run's books balance, and emits a breach when they do not.
+     *
+     * <p>Checked after everything has been processed rather than during. §4.2 requires bad data not
+     * to halt the pipeline, and that applies to this too: stopping mid-run on a residual would
+     * abandon records that were about to be mapped perfectly well, and would make the residual
+     * larger rather than smaller.
+     *
+     * @return whether the account balanced
+     */
+    private boolean reportCompleteness(
+            RecordAccount account, ObservabilityEmitter emitter, String sourceId) {
+        if (account == null) {
+            return true;
+        }
+        System.out.printf("Completeness: %s%n", account.summary());
+
+        PipelineContext context = PipelineContext.of(sourceId, runId);
+        Optional<CompletenessBreach> breach = account.breach(context);
+        if (breach.isEmpty()) {
+            return true;
+        }
+
+        emitter.emit(breach.get());
+        System.err.println("COMPLETENESS BREACH: " + breach.get().summary());
+        System.err.println("Records landed that the platform cannot account for. Bronze holds the "
+                + "source data and can be replayed; do not treat this run's silver as complete.");
+        return false;
     }
 
     /** Where the Flink path writes quarantined records, since an in-memory sink cannot travel. */

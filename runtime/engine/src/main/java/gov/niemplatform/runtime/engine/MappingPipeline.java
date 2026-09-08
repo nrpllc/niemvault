@@ -15,7 +15,9 @@ import gov.niemplatform.identity.api.ResolutionResult;
 import gov.niemplatform.observability.ContractViolation;
 import gov.niemplatform.observability.Direction;
 import gov.niemplatform.observability.ObservabilityEmitter;
+import gov.niemplatform.observability.CompletenessBreach;
 import gov.niemplatform.observability.PipelineContext;
+import gov.niemplatform.observability.RecordAccount;
 import gov.niemplatform.observability.ValueShape;
 import gov.niemplatform.runtime.transforms.DelimitedRecordDecoder;
 import gov.niemplatform.runtime.transforms.Transform;
@@ -69,6 +71,7 @@ public final class MappingPipeline {
     private final Map<String, ResolutionProvider> providers;
     private final Map<String, CanonicalTypeDescriptor> canonicalTypes;
     private final QuarantineSink quarantine;
+    private final RecordAccount account;
     private final ObservabilityEmitter emitter;
 
     /**
@@ -90,6 +93,9 @@ public final class MappingPipeline {
         this.quarantine = Objects.requireNonNull(quarantine, "quarantine");
         this.emitter = Objects.requireNonNull(emitter, "emitter");
         this.decoder = definition.decoder().build();
+        // The pipeline keeps its own books because it is the only thing that knows both halves of
+        // the invariant: how many hops each record owes, and what became of each one.
+        this.account = new RecordAccount("bronze-to-silver", definition.hops().size());
 
         Map<String, List<Transform>> steps = new LinkedHashMap<>();
         Map<String, ContractGate> inbound = new LinkedHashMap<>();
@@ -188,7 +194,38 @@ public final class MappingPipeline {
             produced.add(validatedOutput.get());
         }
 
+        account.landed();
+        account.accountFor(produced.size(), quarantined.size(), skipped.size());
+
         return new Outcome(envelope.envelopeId(), produced, quarantined, skipped);
+    }
+
+    /**
+     * The books for everything this pipeline has processed.
+     *
+     * <p>Kept here rather than by the caller because a caller that reads only
+     * {@code canonicalRecords()} has already thrown away the evidence -- and that is the natural
+     * thing to write, which is why the drop it hides is worth guarding against structurally.
+     */
+    public RecordAccount account() {
+        return account;
+    }
+
+    /**
+     * Emits a completeness breach if the books do not balance, and reports whether they did.
+     *
+     * <p>Called at the end of a run. On an engine whose driver cannot see inside its operators, this
+     * is the only way the finding gets out at all: the operator calls it as it closes, and the
+     * event reaches the sink even though no count ever reaches the driver.
+     *
+     * <p>Emits nothing when the run balances. An ERROR saying nothing is wrong is how an event
+     * stream stops being read.
+     */
+    public boolean reportCompleteness(String runId) {
+        Optional<CompletenessBreach> breach =
+                account.breach(PipelineContext.of(definition.sourceId(), runId));
+        breach.ifPresent(emitter::emit);
+        return breach.isEmpty();
     }
 
     /** Runs one hop's steps, assigns identity, and builds its canonical record. */

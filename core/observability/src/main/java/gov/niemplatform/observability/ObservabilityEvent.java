@@ -20,7 +20,8 @@ import java.util.Map;
  * tests, and safe to construct inside a Flink operator without reaching for a clock.
  */
 public sealed interface ObservabilityEvent extends Serializable
-        permits ContractViolation, SourceDrift, PipelineLag, ResolutionAnomaly, ProjectionDivergence {
+        permits ContractViolation, SourceDrift, PipelineLag, ResolutionAnomaly, ProjectionDivergence,
+        CompletenessBreach {
 
     /** Which kind of event this is. */
     EventType type();

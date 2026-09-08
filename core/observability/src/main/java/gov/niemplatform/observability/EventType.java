@@ -16,5 +16,13 @@ public enum EventType {
     /** The confidence distribution of identity resolution shifted. */
     RESOLUTION_ANOMALY,
     /** A projection's counts diverged from what silver implies they should be. */
-    PROJECTION_DIVERGENCE
+    PROJECTION_DIVERGENCE,
+    /**
+     * Records landed and were not accounted for anywhere.
+     *
+     * <p>Distinct from a contract violation, which reports a record the platform knowingly
+     * rejected. This one reports arithmetic that does not balance -- the platform cannot say what
+     * became of data an agency gave it.
+     */
+    COMPLETENESS_BREACH
 }
