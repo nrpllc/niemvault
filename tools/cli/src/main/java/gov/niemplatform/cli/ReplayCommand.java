@@ -181,7 +181,9 @@ final class ReplayCommand implements Callable<Integer> {
             System.out.println();
             System.out.println("Silver tables this replay will drop and rewrite:");
             for (CanonicalTypeDescriptor descriptor : produced) {
-                System.out.printf("  %-28s %d record(s) now%n", descriptor.name(), existing(silver, descriptor));
+                // %s, not %d: existing() reports "0 (no table yet)" for a first replay, so a
+                // numeric format throws before anything is written -- which it did, on every run.
+                System.out.printf("  %-28s %s record(s) now%n", descriptor.name(), existing(silver, descriptor));
             }
 
             if (dryRun) {

@@ -445,6 +445,24 @@ class NiemCliTest {
         }
 
         @Test
+        @DisplayName("--dry-run names the tables it would overwrite, and writes nothing")
+        void dryRunReportsWhatItWouldOverwrite() throws IOException {
+            // The first test to reach the summary at all. Every other replay test asserts a
+            // refusal, so the happy path's own output was never executed -- and it carried a
+            // printf that formatted a String with %d, which threw on every real run before
+            // anything was written. A command whose successful path no test walks is a command
+            // that is only tested at failing.
+            int exit = run(baseArgs(moduleDirectory(), "--dry-run"));
+
+            assertThat(exit).isZero();
+            assertThat(stdout())
+                    .contains("Silver tables this replay will drop and rewrite:")
+                    .contains("Incident")
+                    .contains("Person")
+                    .contains("--dry-run: nothing was written.");
+        }
+
+        @Test
         @DisplayName("refuses incoherent content before touching the store it would overwrite")
         void refusesIncoherentContent() throws IOException {
             Path module = moduleDirectory();
