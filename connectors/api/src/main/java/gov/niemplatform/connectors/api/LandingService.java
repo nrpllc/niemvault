@@ -76,6 +76,10 @@ public final class LandingService {
      *
      * <p>Batching bounds memory and bounds the blast radius of a crash: work already committed
      * stays committed, and the batch in flight is simply never made visible.
+     *
+     * <p>The residual batch is committed inside the handle rather than after it, because a
+     * transport that holds a source position has to still be able to advance it. Draining the
+     * stream is not the same as having kept what it yielded.
      */
     public LandingResult land(SourceConnector connector, ConnectorConfig config, String runId) {
         Objects.requireNonNull(connector, "connector");
@@ -111,12 +115,18 @@ public final class LandingService {
                 }
                 if (pending.size() >= batchSize) {
                     receipts.add(commit(config, pending));
+                    // After the commit, never before. A source position advanced ahead of bronze
+                    // turns a crash into lost records; advanced behind it, into duplicates bronze
+                    // can already detect. See SourceHandle.acknowledge().
+                    handle.acknowledge();
                     pending.clear();
                 }
             }
-        }
-        if (!pending.isEmpty()) {
-            receipts.add(commit(config, pending));
+            if (!pending.isEmpty()) {
+                receipts.add(commit(config, pending));
+                handle.acknowledge();
+                pending.clear();
+            }
         }
 
         reportFreshness(config, runId, latestAssertion);
