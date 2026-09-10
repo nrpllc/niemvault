@@ -199,28 +199,22 @@ class FileDropConnectorTest {
                     .isInstanceOf(ConnectorConfigurationException.class);
         }
 
-        @Test
-        @DisplayName("a directory that does not exist is rejected")
-        void nonExistentDirectoryRejected() {
-            ConnectorConfig bad = config(Map.of("directory", drop.resolve("nope").toString()));
-
-            assertThatThrownBy(() -> configured(bad))
-                    .isInstanceOf(ConnectorConfigurationException.class)
-                    .hasMessageContaining("not an existing directory");
-        }
+        // A directory that does not exist used to be refused here. It is now a health question --
+        // configuring asks whether the settings are well-formed, and only health asks whether the
+        // source can be reached. See ConfiguringIsNotReachingTest, which asserts both halves.
 
         @Test
         @DisplayName("every configuration problem is reported at once")
         void allProblemsAtOnce() {
             ConnectorConfig bad = config(Map.of(
-                    "directory", drop.resolve("nope").toString(),
+                    "directory", drop.toString(),
                     "recordMode", "sideways",
                     "charset", "NOT-A-CHARSET"));
 
             assertThatThrownBy(() -> configured(bad))
                     .isInstanceOf(ConnectorConfigurationException.class)
                     .satisfies(thrown -> assertThat(
-                            ((ConnectorConfigurationException) thrown).problems()).hasSize(3));
+                            ((ConnectorConfigurationException) thrown).problems()).hasSize(2));
         }
 
         @Test

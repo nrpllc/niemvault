@@ -152,6 +152,36 @@ public record SourceDefinition(
         return new SourceDefinition(sourceId, instanceId, connectorType, settings, sla);
     }
 
+    /**
+     * Every source definition a module ships, from its {@code sources/} directory.
+     *
+     * <p>Sorted by file name so a catalogue lists a source's arrivals in the same order every time.
+     * A module with no {@code sources/} directory has none, which is not an error: transport
+     * configuration may equally live outside the module, in a deployment's own repository.
+     *
+     * @throws SourceDefinitionException if any definition present cannot be read
+     */
+    public static List<SourceDefinition> loadDirectory(Path directory) {
+        if (!java.nio.file.Files.isDirectory(directory)) {
+            return List.of();
+        }
+        List<Path> files;
+        try (var stream = java.nio.file.Files.list(directory)) {
+            files = stream.filter(java.nio.file.Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+                    .sorted()
+                    .toList();
+        } catch (java.io.IOException e) {
+            throw new SourceDefinitionException(directory, List.of("cannot be listed: " + e.getMessage()));
+        }
+        return files.stream().map(SourceDefinition::load).toList();
+    }
+
+    /** Those of them that describe a given source. A source may arrive by more than one transport. */
+    public static List<SourceDefinition> forSource(List<SourceDefinition> definitions, String sourceId) {
+        return definitions.stream().filter(definition -> definition.sourceId().equals(sourceId)).toList();
+    }
+
     private static String requiredText(Map<String, Object> root, String key, List<String> problems) {
         Object value = root.get(key);
         if (value == null || String.valueOf(value).isBlank()) {

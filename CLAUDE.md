@@ -291,6 +291,20 @@ citable types, and would bury the domains in the coverage browser.
   slice ends mid-rebalance and reports an empty topic. `KafkaSourceHandle` waits for a non-empty
   `assignment()` first, and throws if one never arrives -- a broken subscription is not an empty
   topic, and must never be reported as landing nothing.
+- **Configuring a connector asks whether the settings are well-formed; `health()` asks whether the
+  source can be reached.** `FileDropConnector.configure()` used to refuse a drop directory that did
+  not exist -- a check `health()` already makes, and one that made a source impossible to *describe*
+  without standing in its environment. A records manager reviewing a definition on their laptop has
+  no `/var/spool/cad`. Nothing is lost: `run` asks `health()` before it lands anything, so an
+  operator still finds out before a batch is half-committed. Do not put reachability back into
+  `configure()`.
+- **The catalogue says how a source arrives, and configuring is how it finds out.** `Catalogue.Arrival`
+  asks the connector for its interaction mode and retention rather than reading settings itself --
+  retention is configuration for Kafka and a constant for a file drop, and only the connector knows
+  which. One arrival per definition, never flattened to one transport per source: Riverton CAD
+  arrives both ways under one mapping, and that is the separation worth showing. A definition that
+  cannot be described is listed with its reason, because silently missing is indistinguishable from
+  never configured.
 - **`niem simulate` is a separate command from `run`, not a mode of it.** A simulator switchable on
   inside an ingest is one that gets switched on by accident against a real bronze store, and synthetic
   records mixed into landed agency data cannot be taken back out. `CadSimulator` lives in the domain
@@ -396,6 +410,9 @@ connector-agnostic operator surface (ADR 0029); the rest cost only their own mod
 - [x] `SourceDefinition` — a source is an artifact, `run --source` resolves it through the registry
       ([ADR 0029](docs/decisions/0029-a-source-is-an-artifact.md))
 - [x] `niem simulate` and `CadSimulator` — a synthetic CAD feed, so a live ingest can be exercised
+- [x] Transport in the catalogue — `niem catalogue`, `/api/catalogue`, and an ARRIVES section in the
+      authoring surface. Delivers ADR 0027's stated consequence that a non-retainable source "has to
+      be visible in the catalogue"
 - [ ] CDC connector — next. Log sequence number is an `acknowledge()`; the rest is per-vendor mess
 - [ ] FTP connector — the archive move is its `acknowledge()`
 - [ ] MQTT connector

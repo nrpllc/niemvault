@@ -58,6 +58,13 @@ final class CatalogueCommand implements Callable<Integer> {
             return 1;
         }
 
+        // Read once for every mapping. How a source arrives is transport configuration, and it sits
+        // beside the mappings rather than inside them (ADR 0029).
+        List<gov.niemplatform.connectors.api.SourceDefinition> definitions =
+                gov.niemplatform.connectors.api.SourceDefinition.loadDirectory(
+                        moduleDirectory.resolve("sources"));
+        var registry = gov.niemplatform.connectors.api.ConnectorRegistry.discover();
+
         ArrayNode all = mapper.createArrayNode();
         boolean anyGaps = false;
 
@@ -66,9 +73,12 @@ final class CatalogueCommand implements Callable<Integer> {
             Catalogue.Source source = Catalogue.of(
                     artifacts.mapping(),
                     artifacts.contractsByHop(),
-                    List.copyOf(artifacts.canonicalTypes().values()));
+                    List.copyOf(artifacts.canonicalTypes().values()),
+                    definitions,
+                    registry);
 
-            anyGaps |= !source.undocumented().isEmpty() || !source.unused().isEmpty();
+            anyGaps |= !source.undocumented().isEmpty() || !source.unused().isEmpty()
+                    || source.arrivalUndeclared();
 
             if (json) {
                 all.add(asJson(source));
@@ -96,6 +106,24 @@ final class CatalogueCommand implements Callable<Integer> {
         source.contracts().forEach(contract -> System.out.printf("  contract  %s%n", contract));
 
         System.out.println();
+        System.out.println("  Arrives");
+        if (source.arrivals().isEmpty()) {
+            System.out.println("    -- nothing says how this source reaches the platform --");
+        }
+        for (Catalogue.Arrival arrival : source.arrivals()) {
+            System.out.printf("    %-12s %s%n", arrival.connectorType(), arrival.connectorInstanceId());
+            if (!arrival.described()) {
+                System.out.printf("      cannot be described here: %s%n", arrival.problem().orElse(""));
+                continue;
+            }
+            System.out.printf("      %s, %s%s%n", arrival.interactionMode(), arrival.retention(),
+                    arrival.freshnessSla().map(sla -> ", stale after " + sla).orElse(""));
+            System.out.printf("      %s%n", arrival.replayable()
+                    ? "Records land in bronze, so a run can be replayed from what arrived."
+                    : "Records must not be kept, so there is nothing to replay from.");
+        }
+
+        System.out.println();
         System.out.println("  Vocabulary");
         for (Catalogue.Term term : source.vocabulary()) {
             System.out.printf("    %-12s %s%n", term.term(),
@@ -116,11 +144,18 @@ final class CatalogueCommand implements Callable<Integer> {
     }
 
     private void printGaps(Catalogue.Source source) {
-        if (source.undocumented().isEmpty() && source.unused().isEmpty()) {
-            System.out.printf("  %s: every term documented and read.%n", source.sourceId());
+        if (source.undocumented().isEmpty() && source.unused().isEmpty()
+                && !source.arrivalUndeclared()) {
+            System.out.printf("  %s: every term documented and read, arrival declared.%n",
+                    source.sourceId());
             return;
         }
         System.out.println();
+        if (source.arrivalUndeclared()) {
+            System.out.println("  Arrival undeclared");
+            System.out.println("    Nothing says how this source reaches the platform, or whether "
+                    + "its records may lawfully be kept.");
+        }
         if (!source.undocumented().isEmpty()) {
             System.out.printf("  Undocumented (%d): %s%n",
                     source.undocumented().size(), String.join(", ", source.undocumented()));
@@ -138,6 +173,17 @@ final class CatalogueCommand implements Callable<Integer> {
     private ObjectNode asJson(Catalogue.Source source) {
         ObjectNode node = mapper.createObjectNode();
         node.put("sourceId", source.sourceId());
+        ArrayNode arrivals = node.putArray("arrivals");
+        for (Catalogue.Arrival arrival : source.arrivals()) {
+            ObjectNode entry = arrivals.addObject();
+            entry.put("transport", arrival.connectorType());
+            entry.put("instance", arrival.connectorInstanceId());
+            entry.put("mode", arrival.interactionMode());
+            entry.put("retention", arrival.retention());
+            entry.put("replayable", arrival.replayable());
+            entry.put("freshnessSla", arrival.freshnessSla().orElse(null));
+            entry.put("problem", arrival.problem().orElse(null));
+        }
         node.put("mapping", source.mappingName() + "@" + source.mappingVersion());
         node.put("recordType", source.recordType());
 

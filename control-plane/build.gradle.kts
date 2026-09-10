@@ -14,6 +14,10 @@ dependencies {
     // The advisor reads redacted value shapes, never values (ADR 0023).
     api(project(":core:observability"))
     implementation(project(":runtime:transforms"))
+    // The catalogue reports how a source arrives, which is the connector's own declaration
+    // (ADR 0027). The SPI only -- which transports a deployment actually carries is discovered
+    // at runtime, so the surface never depends on a particular one.
+    api(project(":connectors:api"))
     // Value shapes are profiled from what has already landed in bronze (ADR 0023).
     implementation(project(":storage"))
 

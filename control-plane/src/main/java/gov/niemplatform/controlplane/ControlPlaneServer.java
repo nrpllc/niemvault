@@ -377,8 +377,23 @@ public final class ControlPlaneServer implements AutoCloseable {
             // worth showing without them.
         }
 
+        // How the source arrives is read from the module's own source definitions, and described by
+        // whichever connectors this deployment carries (ADR 0027, ADR 0029). Unreadable definitions
+        // are reported rather than thrown: a bad transport file must not take the glossary down
+        // with it, because they are edited by different people for different reasons.
+        java.util.List<gov.niemplatform.connectors.api.SourceDefinition> definitions;
+        java.util.List<String> definitionProblems = new java.util.ArrayList<>();
+        try {
+            definitions = gov.niemplatform.connectors.api.SourceDefinition.loadDirectory(
+                    workspace.moduleRoot().resolve("sources"));
+        } catch (gov.niemplatform.connectors.api.SourceDefinitionException unreadable) {
+            definitions = java.util.List.of();
+            definitionProblems.add(unreadable.getMessage());
+        }
+
         Catalogue.Source source = Catalogue.of(
-                report.definition(), byHop, gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL);
+                report.definition(), byHop, gov.niemplatform.canonical.core.CoreCanonicalTypes.ALL,
+                definitions, gov.niemplatform.connectors.api.ConnectorRegistry.discover());
 
         node.put("available", true);
         node.put("sourceId", source.sourceId());
@@ -387,6 +402,21 @@ public final class ControlPlaneServer implements AutoCloseable {
 
         ArrayNode contracts = node.putArray("contracts");
         source.contracts().forEach(contracts::add);
+
+        ArrayNode arrivals = node.putArray("arrivals");
+        for (Catalogue.Arrival arrival : source.arrivals()) {
+            ObjectNode entry = arrivals.addObject();
+            entry.put("transport", arrival.connectorType());
+            entry.put("instance", arrival.connectorInstanceId());
+            entry.put("mode", arrival.interactionMode());
+            entry.put("retention", arrival.retention());
+            entry.put("replayable", arrival.replayable());
+            entry.put("freshness", arrival.freshnessSla().orElse(""));
+            entry.put("described", arrival.described());
+            entry.put("problem", arrival.problem().orElse(""));
+        }
+        ArrayNode definitionErrors = node.putArray("arrivalProblems");
+        definitionProblems.forEach(definitionErrors::add);
 
         ArrayNode vocabulary = node.putArray("vocabulary");
         for (Catalogue.Term term : source.vocabulary()) {
@@ -414,6 +444,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         source.undocumented().forEach(undocumented::add);
         ArrayNode unused = gaps.putArray("unused");
         source.unused().forEach(unused::add);
+        gaps.put("arrivalUndeclared", source.arrivalUndeclared());
         return node;
     }
 

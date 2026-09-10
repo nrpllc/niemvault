@@ -182,8 +182,10 @@ async function editContract(request) {
 async function showCatalogue() {
   const vocabulary = el('catalogue-vocabulary');
   const produces = el('catalogue-produces');
+  const arrivals = el('catalogue-arrivals');
   vocabulary.replaceChildren();
   produces.replaceChildren();
+  arrivals.replaceChildren();
 
   let catalogue;
   try {
@@ -203,6 +205,7 @@ async function showCatalogue() {
     + (catalogue.contracts.length ? ` · ${catalogue.contracts.length} contract(s)` : '');
   renderGaps(catalogue.gaps);
 
+  renderArrivals(arrivals, catalogue);
   catalogue.vocabulary.forEach((term) => vocabulary.append(termRow(term)));
   catalogue.produces.forEach((produced) => produces.append(producedRow(produced)));
 
@@ -212,13 +215,91 @@ async function showCatalogue() {
   vocabulary.querySelectorAll('.term-meaning').forEach(fitToContent);
 }
 
+/*
+ * How the source arrives, and what that means for keeping it (ADR 0027).
+ *
+ * The connector declares its interaction mode and retention posture, and until now the only way to
+ * read either was to open the YAML. Retention is a legal question rather than an architectural one,
+ * so the person who most needs the answer is the one least likely to be reading source files.
+ *
+ * One card per definition, because a source may arrive by more than one transport under the same
+ * mapping -- that is the separation between transport and meaning, and collapsing it here would
+ * hide the very thing worth showing.
+ */
+function renderArrivals(container, catalogue) {
+  catalogue.arrivalProblems.forEach((problem) => {
+    container.append(gap('A source definition could not be read', problem));
+  });
+
+  if (!catalogue.arrivals.length) {
+    container.append(hint(
+      'No source definition says how this source arrives. The catalogue can say what it means and '
+      + 'not how it gets here, which leaves retention unanswered for anyone who did not build the '
+      + 'pipeline.'));
+    return;
+  }
+  catalogue.arrivals.forEach((arrival) => container.append(arrivalRow(arrival)));
+}
+
+function arrivalRow(arrival) {
+  const row = document.createElement('div');
+  row.className = 'arrival';
+  if (!arrival.described) {
+    row.classList.add('arrival--unknown');
+  } else if (!arrival.replayable) {
+    row.classList.add('arrival--transient');
+  }
+
+  const head = document.createElement('div');
+  head.className = 'arrival-head';
+
+  const transport = document.createElement('strong');
+  transport.textContent = arrival.transport;
+  const instance = document.createElement('span');
+  instance.className = 'arrival-instance';
+  instance.textContent = arrival.instance;
+  head.append(transport, instance);
+
+  if (arrival.described) {
+    head.append(badge(arrival.mode), badge(arrival.retention, !arrival.replayable));
+  }
+  if (arrival.freshness) {
+    head.append(badge('stale after ' + arrival.freshness));
+  }
+
+  const note = document.createElement('p');
+  note.className = 'arrival-note';
+  if (!arrival.described) {
+    note.textContent = 'This deployment cannot describe this source: ' + arrival.problem;
+  } else if (arrival.replayable) {
+    note.textContent = 'Records land in bronze and follow the normal path, so a run can be replayed '
+      + 'from what actually arrived.';
+  } else {
+    // Said in full rather than as a badge. A surface offering replay for a source that keeps
+    // nothing would be lying, and this is where somebody finds that out in time.
+    note.textContent = 'Records must not be kept. They are used for the request at hand and never '
+      + 'landed, so there is nothing to replay from — the only durable trace is the disclosure '
+      + 'record: that it was asked for, and how much came back, never the content.';
+  }
+
+  row.append(head, note);
+  return row;
+}
+
+function badge(text, isWarning) {
+  const tag = document.createElement('span');
+  tag.className = isWarning ? 'arrival-badge arrival-badge--warn' : 'arrival-badge';
+  tag.textContent = text;
+  return tag;
+}
+
 function renderGaps(gaps) {
   const container = el('catalogue-gaps');
   container.replaceChildren();
 
   // Reported, never hidden. A catalogue that listed only its documented terms would tell an agency
   // their source is fully understood.
-  if (!gaps.undocumented.length && !gaps.unused.length) {
+  if (!gaps.undocumented.length && !gaps.unused.length && !gaps.arrivalUndeclared) {
     const ok = document.createElement('div');
     ok.className = 'gap gap--ok';
     ok.textContent = 'Every term documented and read.';
@@ -232,6 +313,10 @@ function renderGaps(gaps) {
   if (gaps.unused.length) {
     container.append(gap(`${gaps.unused.length} sent but never read`,
       'The source sends these and no step consumes them: ' + gaps.unused.join(', ')));
+  }
+  if (gaps.arrivalUndeclared) {
+    container.append(gap('arrival undeclared',
+      'Nothing says how this source reaches the platform, or whether its records may be kept.'));
   }
 }
 

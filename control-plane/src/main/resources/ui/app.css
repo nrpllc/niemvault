@@ -461,6 +461,61 @@ button.view:not(.is-current):hover { color: var(--ink); }
 
 .gap--ok { background: var(--flow-soft); color: var(--flow); border-left-color: var(--flow); }
 
+/* --- how a source arrives -------------------------------------------------- */
+
+/* Same card language as a term, with the left rule carrying retention: teal where records are
+   kept, amber where they must not be. Amber is this stylesheet's divergence colour, and a source
+   that cannot be landed diverges from the normal path in exactly that sense. */
+.arrival {
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--flow);
+  background: var(--card);
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.arrival--transient, .arrival--unknown { border-left-color: var(--divert); }
+
+.arrival-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+}
+
+.arrival-head strong {
+  font-family: var(--display);
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.arrival-instance { font-family: var(--display); font-size: 0.7rem; color: var(--slate); }
+
+.arrival-badge {
+  font-family: var(--display);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  background: var(--flow-soft);
+  color: var(--flow);
+}
+
+.arrival-badge--warn { background: var(--divert-soft); color: var(--divert); }
+
+.arrival-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--slate);
+  max-width: 62ch;
+}
+
+.arrival--transient .arrival-note, .arrival--unknown .arrival-note { color: var(--divert); }
+
 /* --- a term --------------------------------------------------------------- */
 
 .term, .produced {

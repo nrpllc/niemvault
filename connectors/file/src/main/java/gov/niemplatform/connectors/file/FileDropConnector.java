@@ -120,11 +120,16 @@ public final class FileDropConnector implements SourceConnector {
 
         List<ConnectorConfigurationException.Problem> problems = new ArrayList<>();
 
+        // Whether the directory exists is deliberately not checked here. Configuring is asking
+        // "is this configuration well-formed"; whether the source can be reached is a different
+        // question, and health() already answers it -- an absent drop directory is UNAVAILABLE,
+        // not misconfigured.
+        //
+        // The distinction earns its keep the moment anything wants to describe a source without
+        // standing in its environment. A records manager reviewing a source definition on their
+        // own machine has no /var/spool/cad, and a catalogue that refused to describe the source
+        // for that reason would be unusable exactly where it is most useful.
         Path configuredDirectory = connectorConfig.pathSetting(SETTING_DIRECTORY);
-        if (!Files.isDirectory(configuredDirectory)) {
-            problems.add(new ConnectorConfigurationException.Problem(SETTING_DIRECTORY,
-                    "is not an existing directory"));
-        }
 
         String mode = connectorConfig.settingOr(SETTING_RECORD_MODE, "line").toLowerCase(java.util.Locale.ROOT);
         RecordMode configuredMode = switch (mode) {

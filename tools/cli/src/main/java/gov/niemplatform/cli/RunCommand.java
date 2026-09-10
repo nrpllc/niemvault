@@ -206,6 +206,17 @@ final class RunCommand implements Callable<Integer> {
                 definition.sourceId(), definition.type(),
                 connector.interactionMode(), connector.retention());
 
+        // Asked before anything lands, and asked of the connector rather than inferred. Configuring
+        // says the settings are well-formed; only this says the source is actually reachable. A run
+        // that discovers an absent drop directory or an unreachable broker while draining has
+        // already committed part of a batch, and an operator then has to work out how much.
+        var health = connector.health();
+        if (!health.isHealthy()) {
+            System.err.printf("Source '%s' is %s: %s%n",
+                    definition.sourceId(), health.state(), health.detail());
+            return 1;
+        }
+
         long canonicalCount;
         RecordAccount account = null;
         Map<String, Long> silverWritten = Map.of();

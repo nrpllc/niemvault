@@ -2,6 +2,9 @@ package gov.niemplatform.controlplane;
 
 import gov.niemplatform.canonical.meta.CanonicalFieldDescriptor;
 import gov.niemplatform.canonical.meta.CanonicalTypeDescriptor;
+import gov.niemplatform.connectors.api.ConnectorRegistry;
+import gov.niemplatform.connectors.api.SourceConnector;
+import gov.niemplatform.connectors.api.SourceDefinition;
 import gov.niemplatform.contracts.HopContract;
 import gov.niemplatform.contracts.SchemaHopContract;
 import gov.niemplatform.runtime.engine.HopDefinition;
@@ -47,6 +50,42 @@ public final class Catalogue {
      */
     public record Term(String term, Optional<String> meaning, List<String> becomes, boolean governed) {}
 
+    /**
+     * How a source reaches the platform, and what follows from that.
+     *
+     * <p>ADR 0027 requires a connector to <em>declare</em> its interaction mode and retention
+     * posture rather than have them inferred from watching it behave. Declaring them is only half
+     * useful if the only way to read them is to open the YAML: this is the other half, and the ADR
+     * says so in as many words -- a non-retainable source "has to be visible in the catalogue".
+     *
+     * <p>Reported per definition, not per source, because a source may arrive by more than one
+     * transport. Riverton CAD arrives as a nightly file drop and as a live topic, under one mapping;
+     * that is the separation spec 4.3 draws, and flattening the two into a single "transport" field
+     * would hide it.
+     *
+     * @param connectorType the transport, as the definition names it
+     * @param connectorInstanceId which instance, so two of a kind stay distinguishable
+     * @param interactionMode push, poll, or query -- how records arrive
+     * @param retention whether records from this source may be kept
+     * @param replayable whether bronze will hold what arrived, and so whether replay is available
+     * @param freshnessSla how stale this source may get before it is a PipelineLag, if it says
+     * @param problem why this definition could not be described, when it could not
+     */
+    public record Arrival(
+            String connectorType,
+            String connectorInstanceId,
+            String interactionMode,
+            String retention,
+            boolean replayable,
+            Optional<String> freshnessSla,
+            Optional<String> problem) {
+
+        /** Whether this arrival could be described at all. */
+        public boolean described() {
+            return problem.isEmpty();
+        }
+    }
+
     /** A canonical type the module produces, and where its shape comes from. */
     public record Produced(
             String name,
@@ -64,7 +103,8 @@ public final class Catalogue {
             String recordType,
             List<Term> vocabulary,
             List<Produced> produces,
-            List<String> contracts) {
+            List<String> contracts,
+            List<Arrival> arrivals) {
 
         /** Terms nobody has explained. The number that says how much of this is really catalogued. */
         public List<String> undocumented() {
@@ -72,6 +112,17 @@ public final class Catalogue {
                     .filter(term -> term.meaning().isEmpty())
                     .map(Term::term)
                     .toList();
+        }
+
+        /**
+         * Whether anything says how this source actually arrives.
+         *
+         * <p>A gap of the same kind as an undocumented term: the catalogue can describe what the
+         * source means and not how it gets here, which leaves retention -- a legal question, not an
+         * architectural one -- unanswered for anybody who did not write the pipeline.
+         */
+        public boolean arrivalUndeclared() {
+            return arrivals.isEmpty();
         }
 
         /** Terms the mapping never reads. Often a source sending more than anyone asked for. */
@@ -93,6 +144,19 @@ public final class Catalogue {
     public static Source of(MappingDefinition mapping, Map<String, HopContract> contractsByHop,
             List<CanonicalTypeDescriptor> canonicalTypes) {
 
+        return of(mapping, contractsByHop, canonicalTypes, List.of(), ConnectorRegistry.of());
+    }
+
+    /**
+     * Builds the catalogue entry, including how the source arrives.
+     *
+     * @param definitions every source definition in scope; those naming this source are described
+     * @param registry the transports this deployment can actually read
+     */
+    public static Source of(MappingDefinition mapping, Map<String, HopContract> contractsByHop,
+            List<CanonicalTypeDescriptor> canonicalTypes, List<SourceDefinition> definitions,
+            ConnectorRegistry registry) {
+
         return new Source(
                 mapping.sourceId(),
                 mapping.name(),
@@ -103,7 +167,61 @@ public final class Catalogue {
                 contractsByHop.values().stream()
                         .map(contract -> contract.id().toString())
                         .sorted()
-                        .toList());
+                        .toList(),
+                arrivals(SourceDefinition.forSource(definitions, mapping.sourceId()), registry));
+    }
+
+    /**
+     * Describes each way the source arrives, asking the connector rather than guessing.
+     *
+     * <p>Interaction mode and retention are the connector's answers, not the definition's: retention
+     * in particular is configuration for one transport and a constant for another, and only the
+     * connector knows which. That is why the definition is configured here -- which is safe, because
+     * configuring validates settings and never touches the source. Reaching it is health(), and a
+     * catalogue has no business doing that.
+     *
+     * <p>A definition this deployment cannot describe is listed with its reason rather than dropped.
+     * A source silently missing from the catalogue is indistinguishable from a source nobody
+     * configured, and those need different fixes.
+     */
+    private static List<Arrival> arrivals(
+            List<SourceDefinition> definitions, ConnectorRegistry registry) {
+
+        List<Arrival> arrivals = new ArrayList<>();
+        for (SourceDefinition definition : definitions) {
+            Optional<SourceConnector> connector = registry.forType(definition.type());
+            if (connector.isEmpty()) {
+                arrivals.add(undescribed(definition,
+                        "no connector for transport " + definition.type() + " on the classpath"));
+                continue;
+            }
+            try {
+                SourceConnector configured = connector.get();
+                configured.configure(definition.toConnectorConfig());
+                arrivals.add(new Arrival(
+                        definition.type().id(),
+                        definition.connectorInstanceId(),
+                        configured.interactionMode().name(),
+                        configured.retention().name(),
+                        configured.retention().landsInBronze(),
+                        definition.declaredFreshnessSla().map(Object::toString),
+                        Optional.empty()));
+            } catch (RuntimeException notConfigurable) {
+                arrivals.add(undescribed(definition, notConfigurable.getMessage()));
+            }
+        }
+        return List.copyOf(arrivals);
+    }
+
+    private static Arrival undescribed(SourceDefinition definition, String problem) {
+        return new Arrival(
+                definition.type().id(),
+                definition.connectorInstanceId(),
+                "unknown",
+                "undeclared",
+                false,
+                definition.declaredFreshnessSla().map(Object::toString),
+                Optional.of(problem));
     }
 
     /**
