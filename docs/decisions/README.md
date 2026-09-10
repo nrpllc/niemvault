@@ -37,3 +37,4 @@ deciding stated) · **Superseded**.
 | [0025](0025-tenancy-and-federation.md) | A tenant is an agency, not a deployment, and tenants federate | Accepted |
 | [0026](0026-isolation-by-construction.md) | One tenant per deployment, enforced rather than promised | Accepted |
 | [0027](0027-foreign-feeds-and-federation.md) | Two kinds of boundary, one path into canonical | Accepted |
+| [0028](0028-streaming-sources-land-in-bounded-slices.md) | A streaming source lands in bounded slices, and acknowledgement follows the commit | Accepted |

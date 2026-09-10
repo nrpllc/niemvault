@@ -6,6 +6,7 @@ flink             = "1.20.1"
 jackson           = "2.18.2"
 snakeyaml         = "2.3"
 neo4jDriver       = "5.28.5"
+kafkaClients      = "3.9.0"
 parquet           = "1.15.0"
 avro              = "1.12.0"
 hadoop            = "3.4.1"
@@ -63,6 +64,11 @@ aws-url-connection-client  = { module = "software.amazon.awssdk:url-connection-c
 aws-sts                    = { module = "software.amazon.awssdk:sts", version.ref = "awsSdk" }
 h2                         = { module = "com.h2database:h2",                  version.ref = "h2" }
 
+# --- Connectors ---
+# The plain client, not a Flink Kafka connector: landing goes through LandingService like every
+# other transport (spec §4.3), so the engine never sees a topic.
+kafka-clients              = { module = "org.apache.kafka:kafka-clients", version.ref = "kafkaClients" }
+
 # --- Projections ---
 neo4j-driver               = { module = "org.neo4j.driver:neo4j-java-driver", version.ref = "neo4jDriver" }
 
@@ -83,6 +89,7 @@ testcontainers-bom         = { module = "org.testcontainers:testcontainers-bom",
 testcontainers-junit       = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-neo4j       = { module = "org.testcontainers:neo4j" }
 testcontainers-minio       = { module = "org.testcontainers:minio" }
+testcontainers-kafka       = { module = "org.testcontainers:kafka" }
 
 [bundles]
 jackson = ["jackson-databind", "jackson-datatype-jsr310", "jackson-dataformat-yaml"]

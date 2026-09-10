@@ -29,6 +29,7 @@ include(
     "runtime:replay",
     "connectors:api",
     "connectors:file",
+    "connectors:kafka",
     "identity:api",
     "identity:internal",
     "projections:api",

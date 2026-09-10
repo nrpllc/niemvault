@@ -1,0 +1,3 @@
+# SPI registration (spec §4.3). Discovered by ConnectorRegistry via ServiceLoader, so adding a
+# transport is shipping a jar rather than editing a registration list or rebuilding the platform.
+gov.niemplatform.connectors.kafka.KafkaConnector
