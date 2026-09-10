@@ -31,6 +31,7 @@ import picocli.CommandLine.Command;
             CatalogueCommand.class,
             CoverageCommand.class,
             IncidentCommand.class,
+            SimulateCommand.class,
         })
 public final class NiemCli implements java.util.concurrent.Callable<Integer> {
 

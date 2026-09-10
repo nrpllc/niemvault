@@ -53,6 +53,7 @@ Docker is available (needed for testcontainers integration tests, e.g. Neo4j).
 | `core/observability/` | The §4.7 event taxonomy and its emitters. Depended on by `contracts`. |
 | `core/contracts/` | Hop contracts, the schema validator, quarantine, and the on-disk contract loader. |
 | `core/disclosure/` | The append-only record of what crossed an agency boundary (§4.8, ADR 0026). |
+| `connectors/kafka/` | Phase 2. Bounded slices of a topic, landed through the same `LandingService`. |
 | `control-plane/` | The mapping authoring surface. Calls the runtime's loaders; owns no validator. |
 | `docs/decisions/` | One ADR per pinned decision and per decision taken during implementation. |
 
@@ -241,6 +242,60 @@ citable types, and would bury the domains in the coverage browser.
 - **`scrollIntoView({behavior: "smooth"})` is silently ignored** where reduced motion is in effect,
   including some automation contexts. A jump that sometimes does not happen is worse than one that
   never animates -- the authoring UI uses instant scrolling deliberately.
+- **A source position advances only after the bronze commit, never before** —
+  [ADR 0028](docs/decisions/0028-streaming-sources-land-in-bounded-slices.md). `LandingService` calls
+  `SourceHandle.acknowledge()` after each batch commits. Acknowledging first turns a crash into *lost*
+  records -- the source will not resend them and bronze does not have them, and nothing detects it.
+  Acknowledging after turns the same crash into duplicates, which envelope identity already detects.
+  Do not "simplify" the acknowledgement into `close()`: closing is not a landing event, and a commit
+  there would acknowledge a batch that failed on its way to bronze.
+- **A Kafka handle commits what it *yielded*, not the consumer's position.** A poll returns up to 500
+  records and the consumer's position jumps to the end of them immediately; the caller may have taken
+  a hundred. A bare `commitSync()` acknowledges four hundred records nobody saw. `KafkaSourceHandle`
+  tracks the furthest yielded offset per partition for exactly this. The everyday tests catch it
+  (`MockConsumer`, no broker needed); an end-to-end test that happens to consume everything it polls
+  never would.
+- **The Kafka slice ceiling is checked *before* the buffer, not after.** One poll fills the buffer with
+  a whole batch, so a ceiling only consulted when the buffer runs dry overshoots `maxRecords` by most
+  of a poll. Caught by a test; it read as a harmless reordering.
+- **`KafkaConnector.retention()` throws before `configure()`, and `retention` is a required setting.**
+  Unlike a file drop, a topic's retention posture is not a property of the transport: the same broker
+  carries an agency's own feed and a state system's non-retainable responses (ADR 0027). The only
+  assumption that would let a run proceed is `RETAINED`, which is an unlawful retention reached by
+  omission. Do not give it a default.
+- **A topic is read in bounded slices, and that is deliberate.** `LandingService` drains a handle to
+  completion, so the slice ends at a record ceiling or an idle window and the consumer group resumes
+  next time. An unbounded landing loop would need its own commit cadence, back-pressure and shutdown
+  -- three second answers to questions `LandingService` already answers for every transport.
+- **`MockConsumer` refuses every call once closed**, so "closing commits nothing" is untestable
+  against it directly. `KafkaSourceHandleTest` subclasses it to survive `close()`. Testcontainers'
+  modern Kafka container is `org.testcontainers.kafka.KafkaContainer` with an `apache/kafka` image,
+  not the deprecated Confluent one in `org.testcontainers.containers`.
+- **`run` takes `--source <artifact>` for any transport; `--drop` is a file-drop shorthand** —
+  [ADR 0029](docs/decisions/0029-a-source-is-an-artifact.md). Both build the same `SourceDefinition`
+  and meet before anything lands, so there is one landing path rather than two that drift. The
+  connector comes from `ConnectorRegistry.discover()`, never from a `new` in the command -- that is
+  what made adding a second transport a change to `RunCommand`. A definition whose `sourceId` differs
+  from the mapping's is refused: it would map cleanly and produce well-formed records about the wrong
+  feed, which no contract catches.
+- **A Kafka record timestamp serves two masters, and the broker is one of them.** The platform reads
+  `CREATE_TIME` as what the source asserts (§4.7 freshness); Kafka reads the same value for
+  *retention*. A simulated feed dated six months back is expired by the broker as fast as it is
+  written -- the log start offset jumps to the end, and a consumer on `earliest` correctly finds
+  nothing. The first end-to-end run published 250 records, landed 0, and exited 0 with every log line
+  healthy. `simulate` therefore defaults `--feed-start` to now; pin it only when reproducing a feed.
+  A fixed date is fine in a fixture file and wrong on a broker.
+- **A Kafka slice must not start its idle window before the group assigns partitions.** `subscribe()`
+  is not joining: the first polls return empty while the coordinator forms the group, and a broker's
+  `group.initial.rebalance.delay.ms` alone is three seconds by default. With a short `idleMillis` the
+  slice ends mid-rebalance and reports an empty topic. `KafkaSourceHandle` waits for a non-empty
+  `assignment()` first, and throws if one never arrives -- a broken subscription is not an empty
+  topic, and must never be reported as landing nothing.
+- **`niem simulate` is a separate command from `run`, not a mode of it.** A simulator switchable on
+  inside an ingest is one that gets switched on by accident against a real bronze store, and synthetic
+  records mixed into landed agency data cannot be taken back out. `CadSimulator` lives in the domain
+  module (it produces CAD rows) and the CLI owns the transport. Deterministic from a seed, and every
+  person in it invented (ADR 0013).
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will
@@ -324,3 +379,29 @@ so onboarding can require a source to be explained before it is accepted.
 **Acceptance criterion 7** — the identical mapping definition running unchanged in batch and
 streaming, producing identical canonical output — is the one that validates the core
 architectural bet. Phase 1 is not done without it.
+
+---
+
+## Phase 2 progress
+
+Opened by Jeff on 2026-09-09. Spec §8 scopes it as: Kafka, MQTT, CDC connectors; search projection;
+catalogue, lineage, stewardship, approval workflow; AI-assisted mapping authoring; control plane
+language decision resolved (done — ADR 0021).
+
+**Agreed connector order: Kafka, then CDC, then FTP.** The first one had to pay for the
+connector-agnostic operator surface (ADR 0029); the rest cost only their own module.
+
+- [x] Kafka connector (§4.3) — bounded slices, acknowledge-after-commit, retention per source
+      ([ADR 0028](docs/decisions/0028-streaming-sources-land-in-bounded-slices.md))
+- [x] `SourceDefinition` — a source is an artifact, `run --source` resolves it through the registry
+      ([ADR 0029](docs/decisions/0029-a-source-is-an-artifact.md))
+- [x] `niem simulate` and `CadSimulator` — a synthetic CAD feed, so a live ingest can be exercised
+- [ ] CDC connector — next. Log sequence number is an `acknowledge()`; the rest is per-vendor mess
+- [ ] FTP connector — the archive move is its `acknowledge()`
+- [ ] MQTT connector
+- [ ] Search projection (Elasticsearch, [ADR 0007](docs/decisions/0007-elasticsearch-search-projection.md),
+      still marked Deferred — it needs its status changed and a document-shape ADR when it starts)
+- [ ] Lineage, stewardship, approval workflow
+- [ ] `niem validate` covering source definitions — currently only checked when `run` loads one
+
+**Not carried over from Phase 1's rules:** nothing. Rule 1 still holds, with Phase 2 as the line.

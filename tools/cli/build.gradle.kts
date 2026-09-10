@@ -19,13 +19,14 @@ dependencies {
     implementation(project(":core:content"))
     implementation(project(":control-plane"))
 
+    // `simulate` produces a feed, so the CLI carries a Kafka producer as well as the consumer
+    // the connector uses. The domain module supplies the records; this supplies the transport.
+    implementation(project(":modules:law-enforcement"))
+    implementation(libs.kafka.clients)
+
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)
     runtimeOnly(libs.logback.classic)
-
-    // The CLI's tests drive it against the artifacts the law enforcement module ships, so a
-    // broken contract or mapping fails here as well as in that module's own tests.
-    testImplementation(project(":modules:law-enforcement"))
 
     // An ingest reaching silver needs a real object store. Tagged "docker" and excluded from the
     // everyday loop; run with -Pdocker.
