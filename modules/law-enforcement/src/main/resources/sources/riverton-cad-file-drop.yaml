@@ -1,0 +1,21 @@
+# Riverton PD CAD as a nightly file drop.
+#
+# The same source as riverton-cad-kafka.yaml and the same mapping; only the transport differs. That
+# it is two files and not two mappings is the point spec §4.3 is making when it splits source
+# onboarding into transport configuration, which is boilerplate, and schema mapping, which is not.
+
+sourceId: riverton-pd-cad
+connectorInstanceId: cad-file-drop-1
+type: file-drop
+
+# A nightly export, so a day is not late.
+freshnessSla: PT26H
+
+settings:
+  directory: ./drop
+  filePattern: "*.csv"
+
+  # The export ships a header row. Declared here, and still not trusted for column order: the
+  # mapping declares its own columns, because a source that reorders them would otherwise silently
+  # remap every field with no error anywhere.
+  skipHeaderLines: "1"

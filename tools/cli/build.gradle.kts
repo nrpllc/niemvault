@@ -8,6 +8,9 @@ description = "Operator CLI (spec §8): validate, describe, author, run, replay,
 dependencies {
     implementation(project(":runtime:engine"))
     implementation(project(":connectors:file"))
+    // Every connector the platform ships is on the CLI's classpath so ConnectorRegistry can
+    // discover it. A source names its transport in a file; the registry resolves it (§4.3).
+    implementation(project(":connectors:kafka"))
     implementation(project(":identity:internal"))
     implementation(project(":storage"))
     // `replay` rebuilds silver and, when asked, the graph -- so the CLI carries both.

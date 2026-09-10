@@ -1,0 +1,39 @@
+# Riverton PD CAD over Kafka.
+#
+# Transport only (spec §4.3). There is no mapping here and no canonical type: the same
+# cad-to-canonical mapping serves this source and the nightly file drop below, which is the whole
+# reason transport configuration and schema mapping are separate artifacts.
+
+sourceId: riverton-pd-cad
+connectorInstanceId: cad-kafka-1
+type: kafka
+
+# How stale this feed may get before it is reported as a PipelineLag (§4.7). Measured against what
+# the source asserts, not against ingest time -- a connector happily landing hour-old records is on
+# time by ingest time and an hour stale by the only measure an investigator cares about.
+freshnessSla: PT15M
+
+settings:
+  bootstrapServers: localhost:9092
+  topic: cad.incidents
+
+  # The consumer group is the read position. Two deployments sharing a group id split the topic
+  # between them and each lands half the records; two that need the whole feed need two groups.
+  groupId: niem-ingest-riverton
+
+  # Required, and deliberately without a default (ADR 0027). This is Riverton PD's own CAD feed
+  # landing in Riverton PD's own bronze, so it is retained. A topic carrying a state system's
+  # criminal history responses would say `transient` here, and LandingService would refuse to land
+  # it at all rather than filter it afterwards -- bronze is append-only, and a record written by
+  # mistake cannot be taken back out.
+  retention: retained
+
+  # A slice ends at whichever comes first. Together they turn an endless topic into something a
+  # scheduled ingest can drain: the ceiling stops a first read of a large backlog from running
+  # forever, and the idle window stops a caught-up feed from blocking on a quiet topic.
+  maxRecords: 50000
+  idleMillis: 5000
+
+  # earliest, so a first run reads the backlog rather than silently starting from now and leaving
+  # everything already on the topic unlanded.
+  autoOffsetReset: earliest

@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import gov.niemplatform.canonical.data.Record;
 import gov.niemplatform.connectors.api.ConnectorConfig;
+import gov.niemplatform.connectors.api.ConnectorRegistry;
 import gov.niemplatform.connectors.api.LandingService;
+import gov.niemplatform.connectors.api.SourceConnector;
+import gov.niemplatform.connectors.api.SourceDefinition;
+import gov.niemplatform.connectors.api.SourceDefinitionException;
 import gov.niemplatform.connectors.file.FileDropConnector;
 import gov.niemplatform.contracts.FileQuarantineSink;
 import gov.niemplatform.contracts.QuarantineSink;
@@ -56,7 +60,7 @@ import picocli.CommandLine.Option;
 @Command(
         name = "run",
         mixinStandardHelpOptions = true,
-        description = "Land a file drop into bronze and map it to canonical.")
+        description = "Land a source into bronze and map it to canonical.")
 final class RunCommand implements Callable<Integer> {
 
     @Option(names = {"-m", "--module"}, required = true,
@@ -73,8 +77,28 @@ final class RunCommand implements Callable<Integer> {
     @Option(names = "--mapping", required = true, description = "Mapping artifact to run.")
     Path mappingFile;
 
-    @Option(names = "--drop", required = true, description = "Directory the source drops files into.")
-    Path dropDirectory;
+    /**
+     * How the source is described.
+     *
+     * <p>Two ways in, because a file drop is worth a shorthand and nothing else is. {@code --drop}
+     * builds a file-drop configuration from flags; {@code --source} reads any transport's
+     * configuration from an artifact on disk. A Kafka source needs a broker, a topic, a group and a
+     * retention posture, and a CDC source will need a log position -- none of which belongs on a
+     * command line shared with all the others.
+     */
+    @picocli.CommandLine.ArgGroup(multiplicity = "1")
+    SourceOptions source;
+
+    static final class SourceOptions {
+
+        @Option(names = "--drop",
+                description = "Directory the source drops files into. Shorthand for a file-drop source.")
+        Path dropDirectory;
+
+        @Option(names = "--source",
+                description = "Source definition artifact (YAML) naming the transport and its settings.")
+        Path definitionFile;
+    }
 
     @Option(names = "--bronze", required = true, description = "Bronze storage root.")
     Path bronzeRoot;
@@ -151,14 +175,14 @@ final class RunCommand implements Callable<Integer> {
             return 1;
         }
 
-        ConnectorConfig config = ConnectorConfig.of(
-                artifacts.mapping().sourceId(),
-                "file-drop-cli",
-                FileDropConnector.TYPE,
-                Map.of(
-                        "directory", dropDirectory.toString(),
-                        "filePattern", filePattern,
-                        "skipHeaderLines", Integer.toString(skipHeaderLines)));
+        SourceDefinition definition;
+        try {
+            definition = sourceDefinition(artifacts.mapping().sourceId());
+        } catch (SourceDefinitionException e) {
+            System.err.println(e.getMessage());
+            return 1;
+        }
+        ConnectorConfig config = definition.toConnectorConfig();
 
         RecordingObservabilityEmitter recorder = new RecordingObservabilityEmitter();
         // Both sinks: the log for whatever collects container output, the recorder for the
@@ -168,8 +192,19 @@ final class RunCommand implements Callable<Integer> {
         QuarantineSink.InMemory quarantine = new QuarantineSink.InMemory();
         InMemoryClusterIndex clusterIndex = new InMemoryClusterIndex(gov.niemplatform.canonical.meta.TenantId.of(tenant));
 
-        FileDropConnector connector = new FileDropConnector();
-        connector.configure(config);
+        SourceConnector connector;
+        try {
+            // Resolved through the registry rather than constructed here. The CLI knowing how to
+            // build one connector is what made adding a second one a change to this command
+            // (spec §4.3: connectors are discovered, not listed).
+            connector = definition.connectorFrom(ConnectorRegistry.discover());
+        } catch (SourceDefinitionException | gov.niemplatform.connectors.api.ConnectorConfigurationException e) {
+            System.err.println(e.getMessage());
+            return 1;
+        }
+        System.out.printf("Source '%s' over %s (%s, %s).%n",
+                definition.sourceId(), definition.type(),
+                connector.interactionMode(), connector.retention());
 
         long canonicalCount;
         RecordAccount account = null;
@@ -246,6 +281,41 @@ final class RunCommand implements Callable<Integer> {
             return 4;
         }
         return quarantine.size() == 0 ? 0 : 2;
+    }
+
+    /**
+     * The source this run reads, however it was described.
+     *
+     * <p>The file-drop shorthand builds a definition rather than a connector, so both routes reach
+     * the same place. One code path from here down means a Kafka source and a file drop are landed
+     * by identical code -- which is spec §4.3's rule that transport differences must not leak past
+     * the landing boundary, applied to the operator surface as well as to the runtime.
+     *
+     * @param sourceId the mapping's source, used when the shorthand supplies no definition
+     */
+    private SourceDefinition sourceDefinition(String sourceId) {
+        if (source.definitionFile != null) {
+            SourceDefinition definition = SourceDefinition.load(source.definitionFile);
+            if (!definition.sourceId().equals(sourceId)) {
+                // A mapping is written against a named source. Landing a different one would map
+                // cleanly and produce canonical records about the wrong feed, which no contract
+                // catches because the records are perfectly well-formed.
+                throw new SourceDefinitionException(source.definitionFile, List.of(
+                        "declares source '" + definition.sourceId() + "', but the mapping "
+                                + mappingFile.getFileName() + " is written against source '"
+                                + sourceId + "'"));
+            }
+            return definition;
+        }
+        return new SourceDefinition(
+                sourceId,
+                "file-drop-cli",
+                FileDropConnector.TYPE,
+                Map.of(
+                        "directory", source.dropDirectory.toString(),
+                        "filePattern", filePattern,
+                        "skipHeaderLines", Integer.toString(skipHeaderLines)),
+                null);
     }
 
     /**

@@ -38,3 +38,4 @@ deciding stated) · **Superseded**.
 | [0026](0026-isolation-by-construction.md) | One tenant per deployment, enforced rather than promised | Accepted |
 | [0027](0027-foreign-feeds-and-federation.md) | Two kinds of boundary, one path into canonical | Accepted |
 | [0028](0028-streaming-sources-land-in-bounded-slices.md) | A streaming source lands in bounded slices, and acknowledgement follows the commit | Accepted |
+| [0029](0029-a-source-is-an-artifact.md) | A source is a versioned artifact, not a set of command-line flags | Accepted |
