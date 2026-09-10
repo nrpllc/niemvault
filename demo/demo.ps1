@@ -90,7 +90,7 @@ Get-Content "$Work\day1\incidents.csv" -TotalCount 4 |
 Write-Host "    ..." -ForegroundColor DarkGray
 Write-Host ""
 Show (& $niem run --module $module --mapping $mapping --drop "$Work\day1" `
-        --bronze "$Work\bronze" --out "$Work\canonical.jsonl")
+        --bronze "$Work\bronze" --tenant co.riverton.pd --out "$Work\canonical.jsonl")
 Write-Host ""
 Note "Ten rows became thirty canonical records: a Person, an Incident, and the"
 Note "association between them, per row. Six humans, because three rows are the same"
@@ -108,7 +108,7 @@ Note "is ISO. There is a new column. Every value is still a perfectly valid stri
 Note "and a pipeline without contracts would happily produce wrong canonical data."
 Write-Host ""
 $dayTwo = & $niem run --module $module --mapping $mapping --drop "$Work\day2" `
-    --bronze "$Work\bronze" --quarantine-out "$Work\quarantine.jsonl"
+    --bronze "$Work\bronze" --tenant co.riverton.pd --quarantine-out "$Work\quarantine.jsonl"
 $dayTwoExit = $LASTEXITCODE
 Show ($dayTwo | Where-Object { $_ -notmatch '^\{"eventId"' })
 Write-Host ""
@@ -129,9 +129,10 @@ if ($event) {
     Write-Host "  event    : " -NoNewline -ForegroundColor DarkGray
     Write-Host ($event | ConvertFrom-Json).summary -ForegroundColor Yellow
 }
-$held = Get-Content "$Work\quarantine.jsonl" | Select-Object -First 1 | ConvertFrom-Json
+$quarantineFile = Get-ChildItem "$Work" -Filter "quarantine-*.jsonl" | Select-Object -First 1
+$held = Get-Content $quarantineFile.FullName | Select-Object -First 1 | ConvertFrom-Json
 Write-Host "  retained : " -NoNewline -ForegroundColor DarkGray
-Write-Host ("DOB = " + $held.record.values.DOB + "   (in quarantine, never in the event)") -ForegroundColor Yellow
+Write-Host ("DOB = " + $held.values.DOB + "   (in quarantine, never in the event)") -ForegroundColor Yellow
 
 # --- 5 ----------------------------------------------------------------------
 
