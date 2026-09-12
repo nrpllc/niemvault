@@ -1,0 +1,60 @@
+# Riverton PD CAD pulled from the county's SFTP server.
+#
+# The third transport for the same source, beside riverton-cad-kafka.yaml and
+# riverton-cad-file-drop.yaml, and still the same cad-to-canonical mapping. Transport only
+# (spec §4.3): there is no mapping here and no canonical type, which is what lets a source move
+# between a topic, a dropped file and a pulled directory without the mapping changing.
+
+sourceId: riverton-pd-cad
+connectorInstanceId: cad-sftp-1
+type: sftp
+
+# A nightly export, so a day is not late. Measured against the file's own modification time, not
+# against when the pull ran -- a pull that happily lands day-old files is on time by ingest time and
+# a day stale by the only measure an investigator cares about (§4.7).
+freshnessSla: PT26H
+
+settings:
+  host: sftp.county.example
+  port: "22"
+  username: riverton-niem
+
+  # A key rather than a password wherever the far side allows it. Mounted from a secret, never
+  # written here: a source definition is a versioned artifact and belongs in a repository, which is
+  # the one place a credential must not be.
+  privateKeyPath: /etc/niem/secrets/county-sftp/id_ed25519
+
+  # The server's identity, and there is no default. Without this the connector hands a credential to
+  # whatever answers on that address and then lands whatever it is given. Take the fingerprint from
+  # the county's own documentation, not from a first connection -- trusting what answered the first
+  # time is trusting the thing you are trying to rule out.
+  hostKeyFingerprint: "SHA256:3nIT7kFR8s4hVdCqR2p9wGcLqXbE1sYzMoPvKtNfAhU"
+
+  directory: /exports/cad
+  filePattern: "*.csv"
+
+  # Who remembers what was landed, and it has no default (ADR 0031).
+  #
+  # 'archive' because this platform has write access to the county's export directory and the
+  # remote server is then the position: a file still sitting in /exports/cad has not been landed,
+  # and no store in this deployment can disagree with that. 'watermark' would work read-only but
+  # would silently skip a file the county re-uploaded with an older timestamp, and skipping is the
+  # failure nothing reports.
+  afterDownload: archive
+  archiveDirectory: /exports/cad/landed
+
+  # Required, no default (ADR 0027). This is Riverton PD's own CAD extract, which the county holds
+  # on their behalf, landing in Riverton PD's own bronze -- so it is retained. A directory holding a
+  # state system's response set would say 'transient' here, and LandingService would refuse to land
+  # it at all rather than filter it afterwards: bronze is append-only, and a record written by
+  # mistake cannot be taken back out.
+  retention: retained
+
+  # The export ships a header row. Declared here, and still not trusted for column order: the
+  # mapping declares its own columns, because a source that reorders them would otherwise silently
+  # remap every field with no error anywhere.
+  skipHeaderLines: "1"
+
+  # A ceiling on one pull, so a first run against a directory holding a year of exports drains over
+  # successive runs in read order rather than in one job that has to be watched.
+  maxFiles: "500"

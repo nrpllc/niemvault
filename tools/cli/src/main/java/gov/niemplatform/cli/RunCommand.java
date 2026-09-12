@@ -5,6 +5,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import gov.niemplatform.canonical.data.Record;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorRegistry;
+import gov.niemplatform.connectors.api.FileSourceCheckpointStore;
+import gov.niemplatform.connectors.api.SourceCheckpointStore;
 import gov.niemplatform.connectors.api.LandingService;
 import gov.niemplatform.connectors.api.SourceConnector;
 import gov.niemplatform.connectors.api.SourceDefinition;
@@ -103,6 +105,20 @@ final class RunCommand implements Callable<Integer> {
     @Option(names = "--bronze", required = true, description = "Bronze storage root.")
     Path bronzeRoot;
 
+    /**
+     * Where a transport that remembers its own read position keeps it (ADR 0030).
+     *
+     * <p>Optional, because most transports do not need one and demanding it everywhere would be
+     * noise on every file-drop run. A transport that does need one and is not given it is refused
+     * at configuration time rather than quietly re-reading its source from the beginning, which is
+     * what {@code SourceCheckpointStore.unavailable()} is for.
+     */
+    @Option(names = "--checkpoints",
+            description = "Directory holding connector read positions, for transports that keep "
+                    + "one (SFTP watermarks, change-feed log positions). Kafka keeps its position "
+                    + "in the consumer group and a file drop keeps none, so neither needs this.")
+    Path checkpointDirectory;
+
     @Option(names = "--pattern", defaultValue = "*.csv",
             description = "Glob of files to pick up. Default: ${DEFAULT-VALUE}")
     String filePattern;
@@ -197,7 +213,7 @@ final class RunCommand implements Callable<Integer> {
             // Resolved through the registry rather than constructed here. The CLI knowing how to
             // build one connector is what made adding a second one a change to this command
             // (spec §4.3: connectors are discovered, not listed).
-            connector = definition.connectorFrom(ConnectorRegistry.discover());
+            connector = definition.connectorFrom(ConnectorRegistry.discover(), checkpointStore());
         } catch (SourceDefinitionException | gov.niemplatform.connectors.api.ConnectorConfigurationException e) {
             System.err.println(e.getMessage());
             return 1;
@@ -304,6 +320,19 @@ final class RunCommand implements Callable<Integer> {
      *
      * @param sourceId the mapping's source, used when the shorthand supplies no definition
      */
+    /**
+     * Somewhere for a connector to keep its read position, or something that says there is nowhere.
+     *
+     * <p>Handing back a working in-memory store when no directory was given would be the worst of
+     * the three options: the connector would accept it, run, and lose its position at exit, and
+     * every run would report success while re-landing the whole source.
+     */
+    private SourceCheckpointStore checkpointStore() {
+        return checkpointDirectory == null
+                ? SourceCheckpointStore.unavailable()
+                : FileSourceCheckpointStore.under(checkpointDirectory);
+    }
+
     private SourceDefinition sourceDefinition(String sourceId) {
         if (source.definitionFile != null) {
             SourceDefinition definition = SourceDefinition.load(source.definitionFile);

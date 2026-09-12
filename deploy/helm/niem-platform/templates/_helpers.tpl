@@ -73,6 +73,11 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 - name: drop
   persistentVolumeClaim:
     claimName: {{ .Values.drop.existingClaim | default (printf "%s-drop" (include "niem.fullname" .)) }}
+{{- if .Values.storage.checkpoints.enabled }}
+- name: checkpoints
+  persistentVolumeClaim:
+    claimName: {{ .Values.storage.checkpoints.existingClaim | default (printf "%s-checkpoints" (include "niem.fullname" .)) }}
+{{- end }}
 {{- if eq .Values.module.source "configMap" }}
 - name: module
   configMap:
@@ -99,6 +104,10 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
   mountPath: /var/lib/niem/bronze
 - name: drop
   mountPath: /srv/drop
+{{- if .Values.storage.checkpoints.enabled }}
+- name: checkpoints
+  mountPath: /var/lib/niem/checkpoints
+{{- end }}
 {{- if ne .Values.module.source "none" }}
 - name: module
   mountPath: {{ .Values.module.mountPath }}
@@ -126,5 +135,25 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end }}
 - --s3-region={{ .s3.region }}
 {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+  How the source is named on the command line: a definition artifact, or the drop shorthand.
+
+  One helper rather than the two branches written out at each call site, for the reason ADR 0029
+  gives for both CLI routes meeting before anything is landed -- two spellings of the same thing
+  drift, and the drift shows up as a job that lands from somewhere nobody chose.
+*/}}
+{{- define "niem.sourceArgs" -}}
+{{- if .Values.ingest.source }}
+- --source={{ .Values.ingest.source }}
+{{- else }}
+- --drop=/srv/drop
+- --pattern={{ .Values.ingest.filePattern }}
+- --skip-header-lines={{ .Values.ingest.skipHeaderLines }}
+{{- end }}
+{{- if .Values.storage.checkpoints.enabled }}
+- --checkpoints=/var/lib/niem/checkpoints
 {{- end }}
 {{- end -}}

@@ -7,6 +7,9 @@ jackson           = "2.18.2"
 snakeyaml         = "2.3"
 neo4jDriver       = "5.28.5"
 kafkaClients      = "3.9.0"
+sshd              = "2.18.0"
+commonsNet        = "3.13.0"
+ftpserver         = "1.2.1"
 parquet           = "1.15.0"
 avro              = "1.12.0"
 hadoop            = "3.4.1"
@@ -68,6 +71,22 @@ h2                         = { module = "com.h2database:h2",                  ve
 # The plain client, not a Flink Kafka connector: landing goes through LandingService like every
 # other transport (spec §4.3), so the engine never sees a topic.
 kafka-clients              = { module = "org.apache.kafka:kafka-clients", version.ref = "kafkaClients" }
+
+# SFTP. Apache MINA sshd rather than JSch: Apache-licensed, actively released, and it ships an
+# embeddable server, so the connector's tests speak real SFTP over a loopback socket instead of
+# mocking the protocol they exist to exercise. sshd-sftp pulls sshd-core transitively; both are
+# declared so the compile classpath states what it uses.
+sshd-core                  = { module = "org.apache.sshd:sshd-core", version.ref = "sshd" }
+sshd-sftp                  = { module = "org.apache.sshd:sshd-sftp", version.ref = "sshd" }
+
+# FTPS. Apache commons-net is the only maintained Java FTP client worth shipping, and FTPS is FTP
+# with TLS rather than a separate protocol, so the same client speaks both. Plain FTP comes with it
+# and is why the connector makes using it an explicit, written-down choice (ADR 0033).
+commons-net                = { module = "commons-net:commons-net", version.ref = "commonsNet" }
+# Test-only: a real FTP server, so the FTPS connector's tests speak the protocol rather than a
+# mock of it. The failures worth catching -- a transfer the server reports failed after the data
+# connection closed cleanly, a listing timestamp with no year -- exist only in a real server.
+ftpserver-core             = { module = "org.apache.ftpserver:ftpserver-core", version.ref = "ftpserver" }
 
 # --- Projections ---
 neo4j-driver               = { module = "org.neo4j.driver:neo4j-java-driver", version.ref = "neo4jDriver" }

@@ -47,6 +47,24 @@ public interface SourceConnector extends AutoCloseable {
     RetentionPosture retention();
 
     /**
+     * Offers the connector somewhere durable to keep its read position (ADR 0030).
+     *
+     * <p>Called before {@link #configure}, always, and with
+     * {@link SourceCheckpointStore#unavailable()} where a deployment has configured none. A
+     * connector that needs a position therefore learns at configuration time that it has nowhere to
+     * put one, via {@link SourceCheckpointStore#requireUsable}, rather than discovering it after a
+     * landing run by re-reading its whole source.
+     *
+     * <p>A no-op by default, because for most transports it genuinely is one. A Kafka consumer
+     * group is a position held on the broker and a file drop deliberately has none; only a
+     * transport the platform must remember on behalf of -- an SFTP pull, a change feed -- overrides
+     * this.
+     */
+    default void useCheckpointStore(SourceCheckpointStore store) {
+        // This transport's source remembers for itself, or has nothing to remember.
+    }
+
+    /**
      * Applies transport configuration.
      *
      * @throws ConnectorConfigurationException if the settings are unusable, naming every problem

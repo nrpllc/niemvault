@@ -40,12 +40,10 @@ spec:
                 - run
                 - --module={{ .Values.module.mountPath }}
                 - --mapping={{ .Values.module.mountPath }}/{{ .Values.module.mapping }}
-                - --drop=/srv/drop
                 - --bronze=/var/lib/niem/bronze
                 - --engine={{ .Values.ingest.engine }}
                 - --mode={{ .Values.ingest.mode }}
-                - --pattern={{ .Values.ingest.filePattern }}
-                - --skip-header-lines={{ .Values.ingest.skipHeaderLines }}
+                {{- include "niem.sourceArgs" . | nindent 16 }}
                 # Carried on every observability event, so a run can be traced back to the job that
                 # produced it (spec section 4.7).
                 - --run-id=$(JOB_NAME)

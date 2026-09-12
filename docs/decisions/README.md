@@ -39,3 +39,7 @@ deciding stated) · **Superseded**.
 | [0027](0027-foreign-feeds-and-federation.md) | Two kinds of boundary, one path into canonical | Accepted |
 | [0028](0028-streaming-sources-land-in-bounded-slices.md) | A streaming source lands in bounded slices, and acknowledgement follows the commit | Accepted |
 | [0029](0029-a-source-is-an-artifact.md) | A source is a versioned artifact, not a set of command-line flags | Accepted |
+| [0030](0030-a-read-position-is-a-platform-artifact.md) | A read position the source does not hold is kept by the platform | Accepted |
+| [0031](0031-a-pull-states-who-remembers.md) | A pull transport states who remembers what it landed | Accepted |
+| [0032](0032-cdc-arrives-as-a-change-feed.md) | Change data capture arrives as a change feed, not as a CDC connector | Accepted |
+| [0033](0033-ftps-is-its-own-connector.md) | FTPS is its own connector, and what a pull means is shared | Accepted |

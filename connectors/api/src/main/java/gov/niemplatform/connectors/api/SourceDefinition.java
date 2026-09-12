@@ -199,10 +199,30 @@ public record SourceDefinition(
      *     missing a jar or have misspelled a transport
      */
     public SourceConnector connectorFrom(ConnectorRegistry registry) {
+        return connectorFrom(registry, SourceCheckpointStore.unavailable());
+    }
+
+    /**
+     * Resolves this definition's connector, gives it somewhere to keep its read position, and
+     * configures it (ADR 0030).
+     *
+     * <p>The store is offered before configuration and unconditionally, including to connectors
+     * that will ignore it. Offering it only to transports believed to need one would put the
+     * platform in the business of knowing which those are, and the next connector shipped as a jar
+     * -- the case §4.3 exists for -- is exactly the one it would not know about.
+     *
+     * @throws SourceDefinitionException if this deployment has no connector for the transport,
+     *     listing what it does have -- an air-gapped operator needs to know whether they are
+     *     missing a jar or have misspelled a transport
+     * @throws ConnectorConfigurationException if the connector needs a position and the store
+     *     cannot keep one
+     */
+    public SourceConnector connectorFrom(ConnectorRegistry registry, SourceCheckpointStore checkpoints) {
         SourceConnector connector = registry.forType(type).orElseThrow(() ->
                 new SourceDefinitionException(null, List.of(
                         "no connector for transport '" + type + "' is on the classpath. This "
                                 + "deployment can read: " + registry.availableTypes())));
+        connector.useCheckpointStore(Objects.requireNonNull(checkpoints, "checkpoints"));
         connector.configure(toConnectorConfig());
         return connector;
     }

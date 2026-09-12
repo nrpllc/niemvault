@@ -219,7 +219,7 @@ Kubernetes Secrets and never from `values.yaml`.
 ```
 core/          canonical model, hop contracts, lineage
 runtime/       Flink job graph construction, transformation primitives, replay
-connectors/    SourceConnector SPI; file drop connector (Phase 1)
+connectors/    SourceConnector SPI; file drop, Kafka, SFTP and FTPS transports
 identity/      ResolutionProvider SPI and the bundled default resolver
 projections/   ProjectionWriter SPI; Neo4j graph writer (Phase 1)
 modules/       domain modules, law enforcement first

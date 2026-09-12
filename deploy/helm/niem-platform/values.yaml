@@ -31,9 +31,10 @@ module:
 # --- ingest -----------------------------------------------------------------
 ingest:
   enabled: true
-  # A CronJob, not a Deployment. Phase 1's connector is a file drop: it is a job that lands what has
-  # arrived and exits, and modelling it as a long-lived service would mean a process whose health is
-  # unrelated to whether any data moved.
+  # A CronJob, not a Deployment. Every transport this platform reads lands in bounded slices and
+  # exits -- a file drop by nature, a topic by decision (ADR 0028), a pull by the same reasoning
+  # (ADR 0031) -- so an ingest is a job that lands what has arrived and stops. Modelling it as a
+  # long-lived service would mean a process whose health is unrelated to whether any data moved.
   schedule: "*/15 * * * *"
   # Never two ingests at once. Both would land the same drop file, and bronze would carry it twice
   # under different batch ids -- appendable by design, so nothing would reject it.
@@ -45,6 +46,22 @@ ingest:
   backoffLimit: 0
   engine: FLINK           # FLINK | DIRECT
   mode: BATCH             # BATCH | STREAMING
+
+  # How the source is described, mirroring the CLI's two ways in (ADR 0029).
+  #
+  # Empty: the drop shorthand below, which configures the file-drop connector from flags. One
+  # transport is worth a convenience and keeps a first install a one-line install.
+  #
+  # Set: a source definition artifact naming any transport and its settings -- kafka, sftp, a
+  # Debezium change feed (ADR 0032) -- resolved through the connector registry. Adding a transport
+  # is then shipping a jar and writing a file, with no chart change, which is what makes this the
+  # configurable half rather than a second list of flags to grow.
+  #
+  # The path is inside the container: put the definition in the module mount, or mount it yourself
+  # through extraVolumes. A definition holds no credential -- those come from secrets it points at.
+  source: ""
+
+  # Used only by the drop shorthand above; inert once `source` is set.
   filePattern: "*.csv"
   skipHeaderLines: 1
   resources:
@@ -62,6 +79,22 @@ storage:
     # the platform's central claim.
     existingClaim: ""
     size: 20Gi
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+
+  # Where a transport that keeps its own read position writes it (ADR 0030).
+  #
+  # Off, because most transports need nothing here: Kafka's position is its consumer group, held on
+  # the broker, and a file drop deliberately has none. On for an SFTP watermark pull or anything
+  # else that remembers for itself -- for those the alternative is not an error but something worse,
+  # a run that re-lands the entire source every time and reports success each time.
+  #
+  # A connector that needs this and is not given it refuses to start, so leaving it off cannot
+  # silently lose a position.
+  checkpoints:
+    enabled: false
+    existingClaim: ""
+    size: 1Gi
     storageClass: ""
     accessModes: [ReadWriteOnce]
 

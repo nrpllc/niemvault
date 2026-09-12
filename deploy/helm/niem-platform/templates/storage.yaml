@@ -47,3 +47,35 @@ spec:
     requests:
       storage: {{ .Values.drop.size }}
 {{- end }}
+{{- if and .Values.storage.checkpoints.enabled (not .Values.storage.checkpoints.existingClaim) }}
+---
+{{/*
+  Connector read positions (ADR 0030).
+
+  Small, and durable for the same reason bronze is durable rather than for a similar one. Losing
+  bronze loses the ability to replay; losing this loses only a position -- but a lost position means
+  the next run re-reads its source from the beginning, which for a nightly pull is a second full
+  copy landed in bronze, silently, with the run reporting success.
+
+  Kept across an uninstall on the same reasoning as bronze: `helm uninstall` is a routine command,
+  and having it quietly arrange for the next install to re-land every source is not a routine
+  consequence.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "niem.fullname" . }}-checkpoints
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: checkpoints
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: {{- toYaml .Values.storage.checkpoints.accessModes | nindent 4 }}
+  {{- if .Values.storage.checkpoints.storageClass }}
+  storageClassName: {{ .Values.storage.checkpoints.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.checkpoints.size }}
+{{- end }}

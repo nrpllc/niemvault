@@ -1,0 +1,67 @@
+# Riverton PD RMS as a change feed.
+#
+# A CDC source, and deliberately not a CDC connector (ADR 0032). Debezium reads the database's
+# write-ahead log and publishes change events to a topic; this platform reads that topic with the
+# connector it already has. The transport is Kafka because, by the time the records reach this
+# platform, it genuinely is -- the log reading happened somewhere else.
+#
+# Transport only (spec §4.3). Turning a change event's before/after envelope into canonical records
+# is the mapping's job, exactly as parsing a CSV row is for the file drop.
+
+sourceId: riverton-pd-rms
+connectorInstanceId: rms-cdc-1
+type: kafka
+
+# A change feed is expected to be close to live, and this is the number that makes a stalled
+# Debezium connector visible. Measured against what the source asserts: Debezium stamps each event
+# with the transaction's commit time, which arrives here as the producer's create time and so is a
+# real assertion about when the change happened in the RMS -- not when this platform got to it.
+freshnessSla: PT5M
+
+settings:
+  bootstrapServers: kafka.niem.svc:9092
+
+  # Debezium's topic naming is <topic.prefix>.<schema>.<table>. One source definition per table,
+  # because a table is what a mapping is written against.
+  topic: riverton.rms.public.incident
+
+  # The consumer group is the read position, and it is this platform's, not Debezium's. Debezium
+  # keeps its own log position in its own offsets topic; the two are independent, which is the point
+  # of the split -- this platform re-reading the topic does not make the database re-emit anything.
+  groupId: niem-ingest-riverton-rms
+
+  # Required, no default (ADR 0027). Riverton PD's own records management system landing in Riverton
+  # PD's own bronze.
+  retention: retained
+
+  # earliest, so a first run reads the snapshot Debezium takes when it starts rather than silently
+  # beginning at 'now' and leaving every row that existed before today unlanded.
+  autoOffsetReset: earliest
+
+  # A snapshot of a large table arrives as a backlog, so the ceiling is higher than a steady feed
+  # needs and the idle window still ends a slice once it is caught up.
+  maxRecords: "100000"
+  idleMillis: "5000"
+
+# ---------------------------------------------------------------------------------------------
+# What the Debezium side must be configured with, and why it is not optional
+#
+# Two settings on the Debezium connector change what arrives here, and one of them is a trap.
+#
+#   tombstones.on.delete = false
+#
+# With it on, Debezium follows every delete with a tombstone: a record with a key and a null value.
+# This platform's Kafka connector lands a null value as an empty payload rather than skipping it,
+# because a skipped record would break the completeness accounting -- but it does not land the key,
+# on purpose, because a key is transport addressing the way a filename is (see KafkaConnector). So a
+# tombstone arrives here as an empty payload with nothing to say which row it was: a record that is
+# real, unattributable, and quarantined on every run.
+#
+# With it off, the delete arrives as a normal change event with op=d and a 'before' image carrying
+# the row that was deleted, which is both mappable and the thing an investigator actually needs.
+#
+#   snapshot.mode = initial
+#
+# So the topic begins with the table as it stands, rather than with whatever changes next. Without
+# it, bronze holds a change feed for rows it has never seen the first version of.
+# ---------------------------------------------------------------------------------------------
