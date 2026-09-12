@@ -1,0 +1,98 @@
+# Canonical type: BiometricSubmission
+#
+# Spec §4.1. The fingerprint submission that ties an arrest to a state-recognised identity.
+#
+# This type carries *no biometric content*, and that is the point of it. Images and minutiae are
+# not modelled here and should not be: they are large, they are governed by their own rules, and
+# the platform has no reason to hold them. What it needs is the identifiers the submission produced
+# -- the state identification number, the FBI number, the transaction it was submitted under --
+# because those are what make a later disposition attachable to the right person's history.
+#
+# It is the answer to a question identity resolution cannot answer on its own. The platform's own
+# clustering (§4.5) decides that two records are the same person on the evidence available to it;
+# a fingerprint submission is the state saying so, and that assertion outranks inference.
+#
+# NIEM-sourced from j:FingerprintActivityType -- the activity of submitting prints, not the prints.
+# Verified against the justice 6.0 release manifest.
+
+type: BiometricSubmission
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A fingerprint submission and the identity numbers it established or confirmed."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:FingerprintActivityType"
+
+fields:
+  - name: submissionId
+    type: string
+    required: true
+    doc: "The submitting agency's identifier for this submission."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:ActivityIdentification"
+
+  - name: fingerprintDate
+    type: dateTime
+    required: true
+    doc: "When the prints were taken, normalised to UTC."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:FingerprintDate"
+
+  - name: stateFingerprintId
+    type: string
+    doc: >
+      The state identification number -- the SID -- assigned by the state repository. The identity
+      a state criminal history is actually keyed on. Absent on a first submission, because the
+      state assigns it in response; present on everything afterwards.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:PersonStateFingerprintIdentification"
+
+  - name: fbiId
+    type: string
+    doc: >
+      The FBI number, where the subject has one. What makes a history visible outside the state,
+      and the reason a subject arrested in two states resolves to one person nationally.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:PersonFBIIdentification"
+
+  - name: afisId
+    type: string
+    doc: "The automated fingerprint identification system's own identifier for the subject."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:PersonAFISIdentification"
+
+  - name: transactionControlId
+    type: string
+    doc: >
+      The transaction control number the submission was sent under -- the TCN.
+    extension:
+      justification: >
+        NIEM 6.0 declares no element for a submission's transaction control number. It is not an
+        interchange concept in NIEM's sense but an ANSI/NIST-ITL transaction identifier, assigned by
+        the submitting system and echoed on every response about that submission.
+
+        Modelled explicitly because it is the only handle on an in-flight submission. A repository
+        answers asynchronously, sometimes days later, and the response carries the TCN and nothing
+        else that identifies what it is answering. Without it a rejection cannot be matched to the
+        arrest it rejects, and the operator is left reading a rejection reason with no subject.
+
+  - name: submissionStatusCode
+    type: code
+    codeList: ["PENDING", "ACCEPTED", "REJECTED", "IDENT", "NON_IDENT", "ERROR"]
+    doc: >
+      Where the submission stands with the repository. IDENT and NON_IDENT are distinct from
+      ACCEPTED on purpose: a submission can be accepted and still not match an existing identity,
+      and that is a different fact about the subject rather than a different fact about the message.
+    extension:
+      justification: >
+        The state of a submission is a property of the exchange rather than of the fingerprint
+        activity, and NIEM's justice domain models the activity. The values follow ANSI/NIST-ITL
+        response semantics rather than any agency's vocabulary, so normalising them here does not
+        bake in one repository's wording.

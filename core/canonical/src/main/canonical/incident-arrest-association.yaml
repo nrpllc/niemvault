@@ -1,0 +1,32 @@
+# Canonical association: IncidentArrestAssociation
+#
+# Spec §4.1, §4.6. Connects a criminal history to the CAD and RMS records the platform already
+# holds -- the join that makes this more than a submission pipeline. An arrest reached through the
+# incident it came from is an investigator's actual question, and neither system answers it alone.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: IncidentArrestAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "Links an incident to an arrest arising from it."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:IncidentArrestAssociationType"
+
+roles:
+  - name: incident
+    target: Incident
+    doc: "The incident the arrest arose from."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:Incident"
+
+  - name: arrest
+    target: Arrest
+    doc: "The arrest."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Arrest"

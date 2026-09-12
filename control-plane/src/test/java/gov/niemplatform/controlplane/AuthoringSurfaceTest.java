@@ -281,8 +281,15 @@ class AuthoringSurfaceTest {
 
             assertThat(names).contains("niem-core", "justice", "maritime", "biometrics");
             // Used first: a reader opens this to see what the model stands on, and seventeen
-            // untouched domains above the two that matter buries the answer.
-            assertThat(names.getFirst()).isEqualTo("niem-core");
+            // untouched domains above the ones that matter buries the answer.
+            //
+            // Asserted as "the cited ones lead" rather than by naming the leader. Which namespace
+            // is cited most is a property of whatever the model currently declares -- it was
+            // niem-core when the model was the CAD slice and became justice when the criminal
+            // history cycle landed -- and pinning it here would turn every honest model change
+            // into a failing test about ordering.
+            assertThat(names.indexOf("niem-core")).isLessThan(names.indexOf("maritime"));
+            assertThat(names.indexOf("justice")).isLessThan(names.indexOf("maritime"));
         }
 
         @Test

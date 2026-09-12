@@ -1,0 +1,34 @@
+# Canonical association: ArrestChargeAssociation
+#
+# Spec §4.1, §4.6. What a person was arrested for. Kept as an association rather than as counts
+# nested inside the arrest because a charge outlives the arrest: it is amended, refiled by the
+# prosecutor, disposed of by a court, and each of those is reported by a different organisation.
+# Nesting would make every one of them a rewrite of the arresting agency's record.
+#
+# NIEM-sourced from j:ActivityChargeAssociationType -- an arrest is an activity in NIEM, since
+# j:ArrestType extends nc:ActivityType. Verified against the justice 6.0 release manifest.
+
+type: ArrestChargeAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "Links an arrest to a charge brought on it."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:ActivityChargeAssociationType"
+
+roles:
+  - name: arrest
+    target: Arrest
+    doc: "The arrest, as the activity endpoint of the association."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:Activity"
+
+  - name: charge
+    target: Charge
+    doc: "The charge brought."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Charge"

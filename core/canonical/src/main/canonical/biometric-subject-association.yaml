@@ -1,0 +1,39 @@
+# Canonical association: BiometricSubjectAssociation
+#
+# Spec §4.1, §4.5, §4.6. Whose prints these were -- and therefore the one edge in this model that
+# does not rest on inference.
+#
+# Everywhere else the platform decides two records describe one person by clustering on the
+# evidence available to it (§4.5), which is a judgement and can be wrong. A fingerprint submission
+# is a state repository asserting identity on biometric evidence. Where the two disagree, this one
+# is the answer, and keeping it as its own edge is what lets a resolver see that it exists rather
+# than quietly averaging it in with name and date-of-birth matches.
+#
+# NIEM-sourced from j:ActivitySubjectAssociationType -- a fingerprint submission is an activity,
+# since j:FingerprintActivityType extends nc:ActivityType. Verified against the justice 6.0
+# release manifest.
+
+type: BiometricSubjectAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "Links a fingerprint submission to the person it identifies."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:ActivitySubjectAssociationType"
+
+roles:
+  - name: submission
+    target: BiometricSubmission
+    doc: "The fingerprint submission, as the activity endpoint of the association."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:Activity"
+
+  - name: person
+    target: Person
+    doc: "The person the submission identifies."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Subject"

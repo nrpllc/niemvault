@@ -64,7 +64,12 @@ class CoverageCommandTest {
             assertThat(run("coverage")).isZero();
 
             assertThat(stdout()).contains("niem-core", "justice", "maritime", "biometrics");
-            assertThat(stdout()).containsSubsequence("niem-core", "justice", "agriculture");
+            // The cited domains lead and the untouched ones follow. Which of the cited ones leads
+            // depends on what the model currently declares -- niem-core when it was the CAD slice,
+            // justice once the criminal history cycle landed -- so the order between them is not
+            // asserted here; doing so would make every honest model change a failing ordering test.
+            assertThat(stdout()).containsSubsequence("justice", "agriculture");
+            assertThat(stdout()).containsSubsequence("niem-core", "agriculture");
         }
 
         @Test

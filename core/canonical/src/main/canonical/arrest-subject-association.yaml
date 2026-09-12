@@ -1,0 +1,42 @@
+# Canonical association: ArrestSubjectAssociation
+#
+# Spec §4.1, §4.6. Who was arrested. The edge a criminal history is built on: an arrest with no
+# subject is not a history entry, it is an event nobody is answerable for.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: ArrestSubjectAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "Links an arrest to the person arrested."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:ArrestSubjectAssociationType"
+
+roles:
+  - name: arrest
+    target: Arrest
+    doc: "The arrest."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Arrest"
+
+  - name: person
+    target: Person
+    doc: "The person arrested."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestSubject"
+
+fields:
+  - name: rightsReadIndicator
+    type: boolean
+    doc: >
+      Whether the subject was advised of their rights. On the association rather than on the
+      arrest, because it is a fact about this person's treatment in it -- a multi-subject arrest
+      can have a different answer per person.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestSubjectRightsReadIndicator"

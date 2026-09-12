@@ -1,0 +1,33 @@
+# Canonical association: ChargeSentenceAssociation
+#
+# Spec §4.1, §4.6. What was imposed on a count after conviction. An extension for the same reason
+# as ChargeDispositionAssociation, with one addition: a sentence is modified far more often than a
+# charge is, and an edge lets a modification land without touching the conviction it followed.
+
+type: ChargeSentenceAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/extension/1.0"
+version: "1.0.0"
+doc: "Links a charge to the sentence imposed on it."
+
+extension:
+  justification: >
+    NIEM 6.0 nests sentence within j:ChargeType as j:ChargeSentence. Held as an association here so
+    that a sentence modification -- suspension, revocation, recomputation on credit, all routine and
+    all reported separately -- replaces an edge rather than rewriting the charge, which would make
+    every sentencing change indistinguishable from a change to the conviction itself.
+
+roles:
+  - name: charge
+    target: Charge
+    doc: "The charge convicted on."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Charge"
+
+  - name: sentence
+    target: Sentence
+    doc: "The sentence imposed."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Sentence"

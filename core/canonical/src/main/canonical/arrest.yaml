@@ -1,0 +1,95 @@
+# Canonical type: Arrest
+#
+# Spec §4.1. The event that opens a criminal history record. A CCH entry begins with an arrest
+# submitted by the arresting agency; everything after it -- charges, disposition, sentence -- hangs
+# off this event and is reconciled back to it by the state repository.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: Arrest
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A custodial arrest of a person by a law enforcement agency."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:ArrestType"
+
+fields:
+  - name: arrestAgencyRecordId
+    type: string
+    required: true
+    doc: >
+      The arresting agency's own record number for this arrest. Required: a state repository
+      reconciles a later disposition back to the arrest by this number, and an arrest submitted
+      without one cannot be updated afterwards.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestAgencyRecordIdentification"
+
+  - name: arrestDateTime
+    type: dateTime
+    required: true
+    doc: >
+      When the arrest occurred, normalised to UTC. Required, and the arrest date rather than the
+      submission date: a repository orders a subject's history by when things happened, and a
+      backlogged submission that carried only its own send time would file itself in the wrong place.
+    # An arrest is an activity in NIEM: j:ArrestType extends nc:ActivityType.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:ActivityDate"
+
+  - name: arrestAgencyName
+    type: string
+    required: true
+    doc: >
+      The agency that made the arrest. Required because it is the agency of record for the
+      submission, and a repository rejects an arrest whose originating agency it cannot resolve.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestAgency"
+
+  - name: arrestLocationAddressText
+    type: string
+    doc: "Free-text location of the arrest as asserted by the source. Not geocoded."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:AddressFullText"
+
+  - name: arrestCategoryCode
+    type: code
+    codeList: ["ON_VIEW", "WARRANT", "SUMMONS", "CITATION", "OTHER"]
+    doc: >
+      How the arrest was effected. Distinguishes a warrant service from an on-view arrest, which
+      the repository treats differently: a summons or citation release may not create a custodial
+      record at all.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestCategoryCode"
+
+  - name: arrestSequenceId
+    type: string
+    doc: >
+      Distinguishes multiple arrests of the same subject on the same day by the same agency, which
+      a record number alone does not always do.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestSequenceID"
+
+  - name: arrestingOfficialName
+    type: string
+    doc: "The arresting officer as named by the source."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestOfficial"
+
+  - name: probableCauseText
+    type: string
+    doc: >
+      The narrative basis for the arrest. Carried because a repository submission is frequently
+      rejected for an absent or inadequate probable cause statement, and the rejection is easier to
+      answer when the platform holds what was sent.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ArrestProbableCauseText"

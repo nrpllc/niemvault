@@ -1,0 +1,100 @@
+# Canonical type: Disposition
+#
+# Spec §4.1. How a charge ended. Its own type and not a field on Charge, for a reason that is
+# operational rather than modelling taste: a disposition arrives from a different organisation,
+# months later, on its own feed. The clerk of court reports it, not the arresting agency. Folding
+# it into Charge would mean a disposition could only be represented by rewriting a record that
+# another agency owns.
+#
+# An arrest with no disposition is the normal state of a criminal history for most of its life, and
+# the gap between them is the number a state repository is measured on.
+#
+# NIEM-sourced from core rather than justice: nc:DispositionType is the general "how a thing
+# concluded" type, and the justice domain's ChargeDisposition elements attach one to a charge.
+# Verified against the niem-core 6.0 release manifest.
+
+type: Disposition
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "The outcome that closed a charge, as reported by the disposing authority."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+  niemType: "nc:DispositionType"
+
+fields:
+  - name: dispositionId
+    type: string
+    required: true
+    doc: >
+      The reporting authority's identifier for this disposition. Required so that a correction --
+      which is common, because dispositions are amended -- replaces the right record instead of
+      landing beside it as a second outcome for one charge.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:IdentificationID"
+
+  - name: dispositionDate
+    type: date
+    required: true
+    doc: >
+      When the charge was disposed of. A date and not a timestamp: courts dispose on a day, and a
+      manufactured time of day would be precision the source never asserted.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionDate"
+
+  - name: dispositionCategoryCode
+    type: code
+    required: true
+    codeList:
+      - CONVICTED
+      - ACQUITTED
+      - DISMISSED
+      - NOLLE_PROSEQUI
+      - NO_INFORMATION_FILED
+      - DEFERRED
+      - TRANSFERRED
+      - OTHER
+    doc: >
+      What the outcome was. Required and normalised, because this is the field that decides whether
+      a criminal history shows a conviction -- and the one a background check reads. The list is
+      deliberately coarse: a deeper vocabulary would be per-jurisdiction, and the distinctions that
+      matter beyond this are carried in dispositionText rather than invented here.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionCategoryText"
+
+  - name: dispositionText
+    type: string
+    doc: "The outcome as the authority worded it, preserved alongside the normalised category."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionText"
+
+  - name: dispositionDescriptionText
+    type: string
+    doc: "Further detail on the outcome where the source supplies it."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionDescriptionText"
+
+  - name: dispositionReasonText
+    type: string
+    doc: >
+      Why it ended this way. Carries the distinction a coarse category deliberately drops -- a
+      dismissal for want of prosecution and one on a suppression ruling are both DISMISSED.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionReasonText"
+
+  - name: reportingAuthorityText
+    type: string
+    required: true
+    doc: >
+      The authority that disposed of the charge. Required: a disposition is only as good as who
+      reported it, and a repository will not post one from an authority it cannot identify.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:DispositionReportedAuthorityText"

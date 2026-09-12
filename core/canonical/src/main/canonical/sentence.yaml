@@ -1,0 +1,97 @@
+# Canonical type: Sentence
+#
+# Spec §4.1. What the court imposed after a conviction. Separate from Disposition because a
+# disposition says a charge ended in conviction and a sentence says what followed, and the second
+# is amended far more often than the first -- modified, suspended, revoked, recomputed on credit.
+# A model that folded them together would make every sentence modification look like a change to
+# the conviction itself.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: Sentence
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A penalty imposed by a court following conviction on a charge."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:SentenceType"
+
+fields:
+  - name: sentenceId
+    type: string
+    required: true
+    doc: >
+      The court's identifier for this sentence, so a later modification replaces it rather than
+      appearing as a second sentence on one charge.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:IdentificationID"
+
+  - name: sentenceDate
+    type: date
+    required: true
+    doc: "When sentence was imposed."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceDate"
+
+  - name: sentenceTermText
+    type: string
+    doc: >
+      The term imposed, as the court expressed it. Free text and deliberately not decomposed into a
+      duration: sentences are routinely expressed in forms a duration cannot hold -- concurrent,
+      consecutive, time served, life, a range with a minimum and a maximum. Parsing it into a
+      number would lose the ones that matter most and silently misstate the rest.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceTerm"
+
+  - name: severityLevelText
+    type: string
+    doc: "Sentence severity level, where the jurisdiction assigns one."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceSeverityLevel"
+
+  - name: suspendedIndicator
+    type: boolean
+    doc: >
+      Whether the sentence was suspended. Its own field rather than a term to be read out of free
+      text, because a suspended sentence and a served one are the same words with opposite meaning
+      to anyone reading the history.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceSuspendedIndicator"
+
+  - name: deferredIndicator
+    type: boolean
+    doc: "Whether adjudication was deferred, which in several states means no conviction is posted."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceDeferredIndicator"
+
+  - name: confinementCreditDayQuantity
+    type: integer
+    doc: "Days of pre-sentence confinement credited against the term."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceConfinementCreditDayQuantity"
+
+  - name: registerSexOffenderIndicator
+    type: boolean
+    doc: >
+      Whether the sentence carries a sex offender registration requirement. Carried explicitly
+      because it drives a separate statutory obligation with its own deadlines, and finding it by
+      reading sentence text would mean missing it.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceRegisterSexOffenderIndicator"
+
+  - name: courtFeeAmount
+    type: decimal
+    doc: "Monetary fees imposed as part of the sentence."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:SentenceCourtFeeAmount"

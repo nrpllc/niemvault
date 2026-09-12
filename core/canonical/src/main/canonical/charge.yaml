@@ -1,0 +1,101 @@
+# Canonical type: Charge
+#
+# Spec §4.1. The unit a criminal history is actually kept in. An arrest is one event, but a
+# repository tracks each count separately from filing through disposition, and it is normal for
+# counts on one arrest to end differently -- one dismissed, one reduced, one convicted. Modelling
+# the charge as its own type rather than a field on the arrest is what makes that representable.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: Charge
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "A single count alleged against a person, tracked from filing to disposition."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:ChargeType"
+
+fields:
+  - name: chargeTrackingId
+    type: string
+    required: true
+    doc: >
+      The identifier the charge is followed by across agencies. Required, and the single most
+      important field here: a disposition arriving months later from a different organisation --
+      the clerk of court, not the arresting agency -- is matched back to its charge by this value.
+      Without it a disposition has nothing to close.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeTrackingIdentification"
+
+  - name: statuteCodeId
+    type: string
+    required: true
+    doc: >
+      The statute cited, as the source cites it. Required: a count with no statute cannot be filed
+      and cannot be scored. Deliberately the source's own citation rather than a normalised one --
+      statute numbering is per-jurisdiction and changes on legislative schedules, so normalising
+      here would bake one state's revision into the canonical model.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeStatute"
+
+  - name: chargeDescriptionText
+    type: string
+    doc: "The offence in words, as the source states it."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeDescriptionText"
+
+  - name: severityCode
+    type: code
+    codeList: ["FELONY", "MISDEMEANOR", "INFRACTION", "ORDINANCE", "UNKNOWN"]
+    doc: >
+      Offence severity. Normalised to a small list because this is the axis nearly every downstream
+      consumer filters on, and agency vocabularies for it are shallow and largely agree.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeSeverityText"
+
+  - name: degreeText
+    type: string
+    doc: >
+      Degree within the severity, e.g. first or third degree felony. Free text rather than a code:
+      degree schemes are per-state and a code list would be a Florida code list wearing a canonical
+      name.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeDegreeText"
+
+  - name: countQuantity
+    type: integer
+    doc: "How many counts of this charge. Absent means one was not stated, not that there was one."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeCountQuantity"
+
+  - name: chargeSequenceId
+    type: string
+    doc: "Orders the counts within one arrest, so count two stays count two across systems."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeSequenceID"
+
+  - name: ucrCode
+    type: string
+    doc: >
+      Uniform Crime Reporting classification, where the source assigns one. Not derived here: UCR
+      and NIBRS classification is a reporting decision with its own rules, and a platform that
+      guessed it would be fabricating a statistic.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeUCRCode"
+
+  - name: chargeStatusText
+    type: string
+    doc: "Where the count currently stands, as asserted by the source."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:ChargeStatus"

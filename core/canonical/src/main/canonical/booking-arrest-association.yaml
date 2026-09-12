@@ -1,0 +1,39 @@
+# Canonical association: BookingArrestAssociation
+#
+# Spec §4.1, §4.6. Which arrest a booking was made on.
+#
+# The edge that matters most for a criminal history submission, because in most states the
+# fingerprint submission that creates the repository entry happens at booking while the offence
+# detail lives on the arrest. Neither record alone can be submitted.
+#
+# A platform extension: NIEM relates a booking to a subject and to charges, but offers no booking
+# to arrest association type.
+
+type: BookingArrestAssociation
+kind: association
+namespace: "https://niemplatform.gov/canonical/extension/1.0"
+version: "1.0.0"
+doc: "Links a booking to the arrest it was made on."
+
+extension:
+  justification: >
+    NIEM 6.0 declares no association type between j:BookingType and j:ArrestType. The relationship
+    is nonetheless required and is not incidental: the booking and the arrest are recorded by
+    different organisations -- a jail and an arresting agency, frequently not the same one -- and a
+    repository submission needs both halves joined. Modelled explicitly rather than by assuming the
+    two share a record number, which they do not.
+
+roles:
+  - name: booking
+    target: Booking
+    doc: "The booking."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Booking"
+
+  - name: arrest
+    target: Arrest
+    doc: "The arrest the booking was made on."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:Arrest"

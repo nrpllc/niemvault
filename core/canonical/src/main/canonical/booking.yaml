@@ -1,0 +1,96 @@
+# Canonical type: Booking
+#
+# Spec §4.1. Intake into a detention facility. Distinct from the arrest, and the distinction is not
+# pedantic: an arrest may not lead to a booking (cite and release), a booking may follow an arrest
+# made by a different agency, and the facility rather than the arresting agency owns this record.
+#
+# It also matters for the repository. In most states the fingerprint submission that actually
+# creates the criminal history entry happens at booking, not at arrest -- so the booking is what
+# ties the arrest to an identity the state can recognise.
+#
+# NIEM-sourced and verified against the justice 6.0 release manifest.
+
+type: Booking
+kind: entity
+namespace: "https://niemplatform.gov/canonical/core/1.0"
+version: "1.0.0"
+doc: "Intake of a person into a detention facility following an arrest."
+
+provenance:
+  niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+  niemType: "j:BookingType"
+
+fields:
+  - name: bookingAgencyRecordId
+    type: string
+    required: true
+    doc: >
+      The facility's own booking number. Required, and not the same as the arrest record number:
+      the two are assigned by different organisations, and conflating them is how a booking gets
+      attached to the wrong arrest when one agency arrests into another's jail.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingAgencyRecordIdentification"
+
+  - name: bookingDateTime
+    type: dateTime
+    required: true
+    doc: "When the subject was booked in, normalised to UTC."
+    # A booking is an activity in NIEM: j:BookingType extends nc:ActivityType.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/niem-core/6.0/"
+      niemElement: "nc:ActivityDate"
+
+  - name: bookingAgencyName
+    type: string
+    required: true
+    doc: "The agency operating the booking process."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingAgency"
+
+  - name: detentionFacilityName
+    type: string
+    doc: >
+      The facility the subject was booked into. Separate from the booking agency, which is not
+      always the same organisation.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingDetentionFacility"
+
+  - name: bookingCategoryCode
+    type: code
+    codeList: ["NEW_ARREST", "WARRANT", "HOLD", "TRANSFER", "REBOOKING", "OTHER"]
+    doc: >
+      Why the subject was booked. A hold or a transfer does not create a new criminal history
+      entry, and treating it as a new arrest would post a second offence that never happened.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingCategoryCode"
+
+  - name: arraignmentDate
+    type: date
+    doc: "Scheduled or actual arraignment date, where the facility records one."
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingArraignmentDate"
+
+  - name: courtCaseId
+    type: string
+    doc: >
+      The court case the booking is associated with, where one exists at intake. The earliest point
+      at which a court identifier and an arrest identifier appear on the same record, which is what
+      later lets a disposition reach back to an arrest.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingCourtCaseIdentification"
+
+  - name: sealedIndicator
+    type: boolean
+    doc: >
+      Whether the booking record is sealed. Carried rather than acted on: what sealing means is a
+      disclosure question governed by law and answered in the disclosure layer (ADR 0026), not a
+      reason for the record to be absent from bronze.
+    provenance:
+      niemNamespace: "https://docs.oasis-open.org/niemopen/ns/model/domains/justice/6.0/"
+      niemElement: "j:BookingSealedIndicator"

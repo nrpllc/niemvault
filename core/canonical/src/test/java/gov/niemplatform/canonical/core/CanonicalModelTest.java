@@ -21,18 +21,38 @@ import java.util.stream.Stream;
 /**
  * Assertions over the generated Phase 1 canonical model.
  *
- * <p>Spec §4.1 limits Phase 1 to {@code Person}, {@code Incident}, and their association.
- * That boundary is asserted here rather than trusted, because "just one more type" is how a
- * vertical slice stops being a vertical slice.
+ * <p>The declared type set is asserted here rather than trusted, because "just one more type" is
+ * how a vertical slice stops being a vertical slice. The list is not a ceiling on the model; it is
+ * a requirement that growing it be a decision someone made on purpose and wrote down, rather than
+ * something that happened while a mapping was being authored.
+ *
+ * <p>It has grown once, deliberately: from the Phase 1 CAD slice to that plus the criminal history
+ * cycle needed to exchange with a state repository.
  */
 class CanonicalModelTest {
 
     @Test
-    @DisplayName("Phase 1 declares exactly Person, Incident, and their association")
-    void phaseOneScope() {
+    @DisplayName("the model declares exactly the CAD slice and the criminal history cycle")
+    void declaredScope() {
         assertThat(CoreCanonicalTypes.ALL)
                 .extracting(CanonicalTypeDescriptor::name)
-                .containsExactlyInAnyOrder("Person", "Incident", "PersonIncidentAssociation");
+                .containsExactlyInAnyOrder(
+                        // The Phase 1 CAD slice.
+                        "Person", "Incident", "PersonIncidentAssociation",
+                        // The criminal history cycle: arrest, the counts on it, how each ended,
+                        // and what was imposed. Booking is separate from arrest because a
+                        // different organisation records it, and BiometricSubmission carries the
+                        // identity numbers a state repository keys a history on -- never
+                        // biometric content.
+                        "Arrest", "Charge", "Disposition", "Booking", "Sentence",
+                        "BiometricSubmission",
+                        // The edges. Disposition and sentence hang off a charge as associations
+                        // rather than nested components because each is reported by a different
+                        // organisation at a different time; see those files for the reasoning.
+                        "ArrestSubjectAssociation", "ArrestChargeAssociation",
+                        "IncidentArrestAssociation", "BiometricSubjectAssociation",
+                        "ChargeDispositionAssociation", "ChargeSentenceAssociation",
+                        "BookingArrestAssociation");
     }
 
     @TestFactory
