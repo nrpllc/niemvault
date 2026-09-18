@@ -1,6 +1,7 @@
 package gov.niemplatform.connectors.api;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,9 +63,18 @@ public final class ConnectorRegistry {
         return Optional.ofNullable(byType.get(type));
     }
 
-    /** Every transport this deployment can read, in discovery order. */
+    /**
+     * Every transport this deployment can read, by type id.
+     *
+     * <p>Sorted rather than left in discovery order, because discovery order is classpath order:
+     * not something an operator chose, not stable across two installations of the same release, and
+     * so useless in the two places this list is read -- {@code niem connectors}, and the message
+     * telling an operator what they could have written instead of the transport they misspelled.
+     */
     public List<ConnectorType> availableTypes() {
-        return List.copyOf(byType.keySet());
+        return byType.keySet().stream()
+                .sorted(Comparator.comparing(ConnectorType::id))
+                .toList();
     }
 
     public boolean isEmpty() {

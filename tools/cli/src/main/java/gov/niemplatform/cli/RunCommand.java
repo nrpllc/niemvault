@@ -39,6 +39,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import gov.niemplatform.projections.api.ProjectionWriter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,6 +141,19 @@ final class RunCommand implements Callable<Integer> {
     @picocli.CommandLine.Mixin
     SilverOptions silver = new SilverOptions();
 
+    /**
+     * Where this run's canonical records are submitted, if anywhere (ADR 0034).
+     *
+     * <p>An artifact rather than a URL, for the reason {@code --source} is one (ADR 0029). A flag
+     * per repository grows the command line by one exchange per exchange and leaves the settings
+     * behind each of them in an operator's shell history; a file names the wire format, the
+     * endpoint, and -- the part that used to be Java -- what is actually assembled and sent.
+     */
+    @Option(names = "--exchange",
+            description = "Exchange definition artifact (YAML): what to assemble and where to "
+                    + "submit it. Omitted: nothing is submitted.")
+    Path exchangeFile;
+
     @Option(names = "--run-id", defaultValue = "cli",
             description = "Run identifier carried on every event. Default: ${DEFAULT-VALUE}")
     String runId;
@@ -236,11 +251,34 @@ final class RunCommand implements Callable<Integer> {
         long canonicalCount;
         RecordAccount account = null;
         Map<String, Long> silverWritten = Map.of();
+        Map<String, Long> projected = Map.of();
+        boolean submitted = true;
+        ProjectionFanout projections = null;
         var silverStore = silver.open();
         try (ParquetBronzeStore bronze = new ParquetBronzeStore(bronzeRoot, gov.niemplatform.canonical.meta.TenantId.of(tenant))) {
             SilverWriter silverWriter = silverStore
                     .map(store -> new SilverWriter(store, artifacts.canonicalTypes()))
                     .orElse(null);
+            if (exchangeFile != null) {
+                exchange = ExchangeSubmission.open(exchangeFile);
+                if (!exchange.sourceId().equals(artifacts.mapping().sourceId())) {
+                    // The same check ADR 0029 makes between a source definition and a mapping, for
+                    // the same reason: submitting one agency's records under another's exchange
+                    // maps cleanly and produces well-formed documents about the wrong source.
+                    System.err.printf(
+                            "Exchange '%s' sends source '%s' but this mapping reads '%s'.%n",
+                            exchange.describe(), exchange.sourceId(),
+                            artifacts.mapping().sourceId());
+                    return 1;
+                }
+                if (!exchange.isHealthy(System.err)) {
+                    return 1;
+                }
+            }
+            projections = new ProjectionFanout(
+                    openProjections(artifacts.mapping().sourceId(),
+                            artifacts.mapping().name(), artifacts.mapping().version()),
+                    artifacts.canonicalTypes(), runId);
             var landing = new LandingService(bronze, emitter).land(connector, config, runId);
             System.out.printf("Landed %d record(s) in %d batch(es) for source '%s'.%n",
                     landing.recordsLanded(), landing.receipts().size(), config.sourceId());
@@ -268,16 +306,31 @@ final class RunCommand implements Callable<Integer> {
 
             account = pipeline.account();
             canonicalCount = engine == Engine.DIRECT
-                    ? mapLanded(bronze, config.sourceId(), landed, pipeline, silverWriter)
+                    ? mapLanded(bronze, config.sourceId(), landed, pipeline, silverWriter, projections)
                     : mapThroughFlink(bronze, config.sourceId(), landed, artifacts, quarantineFile(),
-                            silverWriter);
+                            silverWriter, projections);
 
             if (silverWriter != null) {
                 silverWriter.flush();
                 silverWritten = silverWriter.written();
             }
+            // After silver, deliberately. Silver is the source of truth and gold is a projection
+            // of it; a run that populated a repository and then failed to write silver would have
+            // produced records nothing can replay or correct.
+            projections.flush();
+            projected = projections.applied();
+            if (exchange != null) {
+                submitted = exchange.submit(System.out, System.err);
+            }
         } finally {
             silverStore.ifPresent(store -> store.close());
+            if (projections != null) {
+                projections.close();
+            }
+            openProjections.forEach(ProjectionWriter::close);
+            if (exchange != null) {
+                exchange.close();
+            }
         }
 
         boolean balanced = true;
@@ -289,6 +342,7 @@ final class RunCommand implements Callable<Integer> {
             summariseDistributed(canonicalCount);
         }
         reportSilver(silverWritten);
+        reportProjections(projected);
 
         // A run that quarantined records is not a failed run -- spec §4.2 is explicit that bad
         // data must not halt the pipeline -- but it is not a clean one either, and a scheduled
@@ -407,13 +461,41 @@ final class RunCommand implements Callable<Integer> {
      * and would need a shared index above it. Recorded rather than hidden: the engine pins
      * parallelism to one today.
      */
+    /** Projection writers this run opened, closed in the same finally block that opened them. */
+    private final List<ProjectionWriter> openProjections = new ArrayList<>();
+
+    /** Where canonical records are submitted, when --exchange named somewhere (ADR 0034). */
+    private ExchangeSubmission exchange;
+
+    /**
+     * The gold projections this run writes, from what was asked for on the command line.
+     *
+     * <p>The source id travels with the writer rather than with each change set: a change set
+     * carries a run, and which agency filed these reports is a property of the source the mapping
+     * declares, not of the run that happened to land them.
+     */
+    private List<ProjectionWriter> openProjections(
+            String sourceId, String mappingName, String mappingVersion) {
+        return openProjections;
+    }
+
+    private static void reportProjections(Map<String, Long> projected) {
+        if (projected.isEmpty()) {
+            return;
+        }
+        System.out.println();
+        System.out.println("Projected into gold:");
+        projected.forEach((type, count) -> System.out.printf("  %-28s %,d record(s)%n", type, count));
+    }
+
     private long mapThroughFlink(
             ParquetBronzeStore bronze,
             String sourceId,
             BronzeRange range,
             ArtifactSet artifacts,
             Path quarantineDirectory,
-            SilverWriter silverWriter) throws Exception {
+            SilverWriter silverWriter,
+            ProjectionFanout projections) throws Exception {
 
         List<RawEnvelope> envelopes;
         try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
@@ -456,6 +538,10 @@ final class RunCommand implements Callable<Integer> {
         if (silverWriter != null) {
             silverWriter.acceptAll(canonical);
         }
+        projections.acceptAll(canonical);
+        if (exchange != null) {
+            exchange.acceptAll(canonical);
+        }
 
         if (canonicalOut != null) {
             try (BufferedWriter out = Files.newBufferedWriter(canonicalOut, StandardCharsets.UTF_8)) {
@@ -471,13 +557,20 @@ final class RunCommand implements Callable<Integer> {
 
     private long mapLanded(
             ParquetBronzeStore bronze, String sourceId, BronzeRange range, MappingPipeline pipeline,
-            SilverWriter silverWriter) throws IOException {
+            SilverWriter silverWriter, ProjectionFanout projections) throws IOException {
         if (canonicalOut == null) {
             try (Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
                 return landed.mapToLong(envelope -> {
                     List<Record> produced = pipeline.process(envelope, runId).canonicalRecords();
                     if (silverWriter != null) {
                         silverWriter.acceptAll(produced);
+                    }
+                    projections.acceptAll(produced);
+                if (exchange != null) {
+                    exchange.acceptAll(produced);
+                }
+                    if (exchange != null) {
+                        exchange.acceptAll(produced);
                     }
                     return produced.size();
                 }).sum();
@@ -487,7 +580,15 @@ final class RunCommand implements Callable<Integer> {
         try (BufferedWriter out = Files.newBufferedWriter(canonicalOut, StandardCharsets.UTF_8);
                 Stream<RawEnvelope> landed = bronze.read(sourceId, range)) {
             for (RawEnvelope envelope : (Iterable<RawEnvelope>) landed::iterator) {
-                for (Record record : pipeline.process(envelope, runId).canonicalRecords()) {
+                List<Record> produced = pipeline.process(envelope, runId).canonicalRecords();
+                // Silver and gold are written on this branch too. They were not, before: asking
+                // for --out quietly turned a run that had been told to populate a store into one
+                // that only wrote a file, and the store stayed empty with nothing reporting it.
+                if (silverWriter != null) {
+                    silverWriter.acceptAll(produced);
+                }
+                projections.acceptAll(produced);
+                for (Record record : produced) {
                     out.write(json.writeValueAsString(asJson(record)));
                     out.newLine();
                     written++;

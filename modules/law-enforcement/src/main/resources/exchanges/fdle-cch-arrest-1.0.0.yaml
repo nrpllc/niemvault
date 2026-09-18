@@ -1,0 +1,89 @@
+# Leon County SO arrests to a state criminal history repository, version 1.0.0
+#
+# ADR 0034: what this platform submits is an artifact, not a class. Everything below was Java in the
+# writer this replaces -- which canonical types were carried, which fields went across, and the
+# shape they arrived in -- so adding a charge to a submission meant a code change and a platform
+# release. Spec §0.5 says every mapping, schema and transformation is a versioned artifact. A
+# submission is all three at once, and was the one that was not.
+#
+# Content version, not platform version (§7). An agency on an older platform release can take a
+# newer version of this file.
+
+exchange: fdle-cch-arrest
+version: "1.0.0"
+
+# The wire format, resolved through the exchange registry (ServiceLoader). A repository that spoke
+# NIEM XML over a queue would be another type in another jar, with this same assembly serving both.
+type: cch-http
+
+# Checked against the mapping before anything is submitted. Sending one agency's records under
+# another agency's exchange maps cleanly and produces well-formed documents about the wrong source,
+# which no schema catches, because every document is valid.
+sourceId: leon-so-cad
+
+# ---------------------------------------------------------------------------------------------
+# What a submission contains.
+#
+# The walk follows associations the canonical model already declares, rather than restating the
+# relationships here as a join tree. Two descriptions of one structure are two things that can
+# disagree, and the disagreement would surface as a charge attached to the wrong arrest.
+#
+# It also means this file cannot invent a relationship the model does not have. If a submission ever
+# needs an edge that is not in the canonical model, that is a modelling gap to be fixed in the model
+# -- where it is versioned and NIEM-attributed -- rather than papered over here.
+# ---------------------------------------------------------------------------------------------
+assemble:
+  # A criminal history entry begins with an arrest. Everything else hangs off it.
+  root: Arrest
+
+  follow:
+    # Who was arrested. Without this the document is an event nobody is answerable for, and a
+    # repository has nothing to file it against.
+    #
+    # The association carries its own fields across too -- whether the subject was read their
+    # rights is a fact about this arrest and this person, and it exists nowhere but on the edge
+    # joining them.
+    - association: ArrestSubjectAssociation
+      role: person
+      as: subject
+
+    # In most states the fingerprint submission that actually creates the repository entry happens
+    # at booking, while the offence detail lives on the arrest. Neither half is submittable alone.
+    - association: BookingArrestAssociation
+      role: booking
+      as: booking
+
+    # The counts. A repository tracks each one separately from filing through disposition, and it
+    # is ordinary for counts on one arrest to end differently -- one dismissed, one reduced, one
+    # convicted.
+    - association: ArrestChargeAssociation
+      role: charge
+      as: charges
+
+      follow:
+        # How the count ended, reported by the clerk of court rather than the arresting agency,
+        # months later, on its own feed. A charge with no disposition here is the normal state of
+        # a pending count, not an error: the run reports the unresolved link rather than guessing.
+        - association: ChargeDispositionAssociation
+          role: disposition
+          as: disposition
+
+        # What followed a conviction. Separate from the disposition because a sentence is amended
+        # far more often than a conviction is.
+        - association: ChargeSentenceAssociation
+          role: sentence
+          as: sentence
+
+settings:
+  endpoint: https://cch.fdle.example/submit
+
+  # The variable's name, never the token. This file is a versioned artifact and belongs in a
+  # repository, which is the one place a credential must not be (ADR 0015). An endpoint that is
+  # reached with no token is reached unauthenticated, and the writer says so rather than refusing:
+  # the development endpoint genuinely runs without one.
+  tokenEnv: NIEM_CCH_TOKEN
+
+  # Documents per request. A repository accepts and rejects individually, so this bounds a request
+  # rather than bounding a failure: one refused arrest does not invalidate the others sent with it.
+  batchSize: "100"
+  timeoutSeconds: "30"

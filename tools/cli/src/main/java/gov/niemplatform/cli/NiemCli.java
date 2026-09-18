@@ -28,6 +28,7 @@ import picocli.CommandLine.Command;
             RunCommand.class,
             ReplayCommand.class,
             InspectCommand.class,
+            ConnectorsCommand.class,
             CatalogueCommand.class,
             CoverageCommand.class,
             IncidentCommand.class,

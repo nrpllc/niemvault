@@ -1,0 +1,3 @@
+# SPI registration (ADR 0034). Discovered by ExchangeRegistry via ServiceLoader, so a repository's
+# wire format is a jar and a YAML file rather than a platform release.
+gov.niemplatform.exchange.cch.CchExchangeWriter

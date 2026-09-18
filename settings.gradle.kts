@@ -35,6 +35,8 @@ include(
     "connectors:ftp",
     "identity:api",
     "identity:internal",
+    "exchange:api",
+    "exchange:cch",
     "projections:api",
     "projections:graph",
     "modules:law-enforcement",

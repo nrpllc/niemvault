@@ -120,6 +120,7 @@ final class ReplayCommand implements Callable<Integer> {
             description = "Graph user. The password is read from $" + NEO4J_PASSWORD + ".")
     String neo4jUser;
 
+
     @Option(names = "--run-id", defaultValue = "replay",
             description = "Run identifier carried on every event. Default: ${DEFAULT-VALUE}")
     String runId;
@@ -152,7 +153,7 @@ final class ReplayCommand implements Callable<Integer> {
             System.err.println("--neo4j-uri was given but $" + NEO4J_PASSWORD + " is not set.");
             return 1;
         }
-
+        // A warning rather than a refusal, unlike the graph password. The repository's endpoint
         var definition = artifacts.mapping();
         ReplayRequest request = new ReplayRequest(
                 definition.sourceId(), range(), definition.name(), definition.version(), runId);
@@ -163,6 +164,11 @@ final class ReplayCommand implements Callable<Integer> {
         System.out.println(neo4jUri == null
                 ? "  graph   not rebuilt -- no --neo4j-uri given, so silver only"
                 : "  graph   " + neo4jUri);
+        // Nothing is submitted to an external system of record on a replay, and that is the point
+        // of ADR 0034's split rather than a gap in it. Replay rebuilds what this platform owns;
+        // a repository is not ours to rebuild, and resubmitting every arrest an agency ever made
+        // because silver was rebuilt would be an incident rather than a recovery.
+        System.out.println("  cch     not submitted -- a repository is appended to, never rebuilt");
 
         IcebergCanonicalStoreConfig silverConfig = new IcebergCanonicalStoreConfig(
                 silverCatalogName, silverCatalogUri, silverWarehouse,

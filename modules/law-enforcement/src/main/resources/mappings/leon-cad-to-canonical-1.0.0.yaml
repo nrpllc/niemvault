@@ -1,0 +1,205 @@
+# Leon County SO CAD export to canonical, version 1.0.0
+#
+# The same export shape as cad-to-canonical-1.0.0.yaml, for a second agency. Three things differ,
+# and all three are agency facts rather than platform ones:
+#
+#   * the source it declares,
+#   * the time zone its CAD writes wall-clock time in -- America/New_York, not America/Denver.
+#     Inheriting the other agency's zone would shift every incident in this county by two hours,
+#     and nothing would report it,
+#   * the prefix on derived incident identities, so two agencies cannot collide on a case number.
+#
+# That this is a near-copy is the honest shape of the thing: a mapping belongs to one source (§5),
+# and factoring the shared 90% into an include would make the 10% that matters -- the zone -- the
+# hardest part of the file to see.
+
+mapping: leon-cad-to-canonical
+version: "1.0.0"
+source: leon-so-cad
+
+decode:
+  format: delimited
+  emits: "source:cad-csv/incident-person"
+  # Declared, never read from a header row. A header is a value in the data: trusting it means a
+  # source that reorders its columns silently remaps every field, with no error anywhere.
+  #
+  # Each column says what Riverton PD means by it, not what it looks like (§4.8, ADR 0019). The
+  # shape is in the contract and can be re-derived from the data; the meaning cannot be re-derived
+  # from anything once the person who knew it has moved on.
+  columns:
+    - name: INC_NUM
+      doc: >
+        Agency incident number. Assigned by CAD at call creation and never reused, which is why the
+        canonical Incident identity is derived from it rather than resolved.
+    - name: CALL_TYPE
+      doc: >
+        Initial call classification as the dispatcher entered it. It is what the caller reported,
+        not what was found: a call typed BURG may be cleared as unfounded and the code is not
+        revised. Not an offence code and must not be read as one.
+    - name: RPT_DTTM
+      doc: >
+        When the call was reported, in local wall-clock time with no offset. America/Denver in
+        practice, which the mapping states explicitly because the data does not.
+    - name: ADDR
+      doc: >
+        Street address as entered by the dispatcher. Free text, frequently abbreviated, and not
+        validated against any gazetteer.
+    - name: BEAT
+      doc: >
+        Patrol beat. The agency's own operational districting, not a postal, census or municipal
+        boundary, and it is redrawn periodically without notice.
+    - name: ROLE
+      doc: >
+        How this person was involved in this incident. One row per person per incident, which is why
+        the export repeats incident fields.
+    - name: NAME_FULL
+      doc: >
+        Person name packed into one field as "SURNAME, GIVEN MIDDLE". Middle is often a single
+        initial and is frequently absent.
+    - name: DOB
+      doc: >
+        Date of birth as recorded, MM/dd/yyyy. Self-reported at contact and not verified against any
+        document.
+    - name: SEX
+      doc: >
+        Sex as recorded by the officer. U is used both for "unknown" and for "not asked", and the
+        source does not distinguish them.
+    - name: DL_NUM
+      doc: >
+        Driver licence number as recorded. The literal UNK appears where none was provided, and must
+        not be treated as an identifier -- it would resolve every such person to one cluster.
+
+hops:
+  # ---------------------------------------------------------------------------
+  - id: map-incident
+    contract: cad-incident-to-canonical
+    version: "1.0.0"
+    steps:
+      - target: incidentNumber
+        type: copy
+        from: [INC_NUM]
+
+      # The zone is declared, never inferred. A CAD export writes local wall-clock time with no
+      # offset, and guessing it would shift every incident in the agency by hours. This agency is
+      # Eastern; the one next door is Mountain. Neither export says so.
+      - target: reportedDateTime
+        type: parseDateTime
+        from: [RPT_DTTM]
+        options:
+          pattern: "yyyy/MM/dd HH:mm"
+          zone: "America/New_York"
+
+      - target: locationAddressText
+        type: copy
+        from: [ADDR]
+
+      - target: callTypeCode
+        type: codeMap
+        from: [CALL_TYPE]
+        options:
+          map: "BURG=BURG,THEFT=THEFT,ASSLT=ASSLT,MVA=MVA,DIST=DIST,SUSP=SUSP,WELCK=WELCK"
+          default: "OTHER"
+
+      - target: beat
+        type: copy
+        from: [BEAT]
+
+    # An incident has an authoritative key in its source. Running it through entity resolution
+    # would add uncertainty where none exists.
+    identity:
+      mode: derive
+      entityType: Incident
+      deriveFrom: [incidentNumber]
+      prefix: "INC/LEON-SO/"
+
+  # ---------------------------------------------------------------------------
+  - id: map-person
+    contract: cad-person-to-canonical
+    version: "1.0.0"
+    # "VESPER L" on the way to givenName and middleName. Not part of canonical Person, so it is
+    # declared as scratch rather than reaching the output gate as an unexpected field.
+    scratch: [givenNames]
+    steps:
+      # "VEILSTONE, UMBREL L" -> surName VEILSTONE, givenName UMBREL, middleName L.
+      - target: surName
+        type: splitIndex
+        from: [NAME_FULL]
+        options: { delimiter: ",", index: "0" }
+      - target: surName
+        type: upper
+        from: [surName]
+
+      - target: givenNames
+        type: splitIndex
+        from: [NAME_FULL]
+        options: { delimiter: ",", index: "1" }
+      - target: givenName
+        type: splitIndex
+        from: [givenNames]
+        options: { delimiter: " ", index: "0" }
+      - target: givenName
+        type: upper
+        from: [givenName]
+      - target: middleName
+        type: splitIndex
+        from: [givenNames]
+        options: { delimiter: " ", index: "1" }
+
+      - target: birthDate
+        type: parseDate
+        from: [DOB]
+        options: { pattern: "MM/dd/yyyy" }
+
+      - target: sexCode
+        type: codeMap
+        from: [SEX]
+        options:
+          map: "M=M,F=F,X=X,U=U"
+          default: "U"
+
+      # UNK is this agency's sentinel for "not recorded". Carrying it into canonical would make
+      # every downstream consumer learn one agency's vocabulary.
+      - target: driverLicenseId
+        type: nullIf
+        from: [DL_NUM]
+        options: { values: "UNK,N/A,NONE" }
+      - target: driverLicenseId
+        type: regexReplace
+        from: [driverLicenseId]
+        options: { pattern: "[^A-Za-z0-9]", replacement: "" }
+
+    # A person is a real-world thing several sources describe differently, so identity comes from
+    # resolution rather than from any one source's key.
+    identity:
+      mode: resolve
+      entityType: Person
+      provider: bundled-deterministic
+      attributes:
+        surName: surName
+        givenName: givenName
+        birthDate: birthDate
+        driverLicenseId: driverLicenseId
+
+  # ---------------------------------------------------------------------------
+  - id: map-person-incident
+    contract: cad-association-to-canonical
+    version: "1.0.0"
+    dependsOn: [map-person, map-incident]
+    roles:
+      person: map-person
+      incident: map-incident
+    steps:
+      - target: involvementCode
+        type: codeMap
+        from: [ROLE]
+        options:
+          map: "VICT=VICTIM,SUSP=SUSPECT,WITN=WITNESS,RP=REPORTING_PARTY"
+          default: "OTHER"
+
+    # A function of the two entities it links, so the same pair always yields the same
+    # association and a replay does not double every edge in the graph.
+    identity:
+      mode: derive
+      entityType: PersonIncidentAssociation
+      deriveFrom: ["map-incident.canonicalId", "map-person.canonicalId"]
+      prefix: "PIA/"

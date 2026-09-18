@@ -304,7 +304,7 @@
     <p class="eyebrow">NIEM integration platform &middot; Phase 1 vertical slice</p>
     <h1>Landing Zone to Graph</h1>
     <p class="standfirst">
-      What happens to one line of a CAD export between the moment it is dropped on a filesystem and
+      What happens to one line of a CAD export between the moment a source hands it over and
       the moment an investigator can traverse it. Three zones, one transformation definition, and
       two side channels that exist because the failure worth preventing is silent corruption rather
       than a crash.
@@ -314,17 +314,28 @@
   <section>
     <h2>The whole path</h2>
     <p>
-      Solid edges carry records forward. The dotted edge running backwards is replay: given a
-      bronze range and a mapping version, silver and gold are rebuilt from source bytes that were
-      never modified.
+      Solid edges carry records forward. Every transport converges on one landing boundary, which
+      is the point of the fan-in on the left: a file drop, a topic, a pulled directory and a change
+      feed all become the same <code>RawEnvelope</code>, and nothing downstream can tell them apart
+      (&sect;4.3). The dotted edges run backwards for two different reasons. Replay rebuilds silver
+      and gold from bronze bytes that were never modified, given a range and a pinned mapping
+      version. Acknowledgement advances a source&rsquo;s read position &mdash; a consumer group
+      offset, an archived file, a watermark &mdash; and it happens only after the bronze commit,
+      because a position advanced first turns a crash into lost records while one advanced after
+      turns it into duplicates bronze can already detect.
     </p>
     <div class="diagram">
 <pre class="mermaid">
 flowchart LR
-  drop["CAD export<br/><small>incidents.csv</small>"]
+  subgraph SRC["SOURCES"]
+    drop["CAD export<br/><small>nightly file drop</small>"]
+    topic["CAD topic<br/><small>Kafka</small>"]
+    pull["county export<br/><small>SFTP / FTPS</small>"]
+    cdc["RMS change feed<br/><small>Debezium &rarr; Kafka</small>"]
+  end
 
   subgraph B["BRONZE"]
-    conn["file-drop connector"]
+    conn{{"SourceConnector<br/><small>landing boundary</small>"}}
     env["RawEnvelope<br/><small>bytes + sha256 + offset</small>"]
     pq[("Parquet + manifest<br/><small>append-only</small>")]
   end
@@ -344,8 +355,13 @@ flowchart LR
 
   q[["quarantine<br/><small>values kept</small>"]]
   ev[["event stream<br/><small>shapes only</small>"]]
+  pos[["read position<br/><small>where the source stopped</small>"]]
 
-  drop --> conn --> env --> pq
+  drop --> conn
+  topic --> conn
+  pull --> conn
+  cdc --> conn
+  conn --> env --> pq
   pq --> dec --> gin --> tx --> idr --> gout --> ice
   ice --> neo
 
@@ -354,6 +370,9 @@ flowchart LR
   gin -. ContractViolation .-> ev
   gout -. ContractViolation .-> ev
   idr -. ResolutionAnomaly .-> ev
+
+  pq -. acknowledge, only after the commit .-> pos
+  pos -. resume here .-> conn
 
   pq -. replay a range under a pinned mapping version .-> dec
 </pre>

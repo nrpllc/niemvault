@@ -7,7 +7,7 @@
   chatter goes to stderr, so piping stdout to a file yields a clean event stream rather than a
   Parquet reader's internal commentary.
 
-  Parquet, Hadoop, Avro and Flink are all extremely verbose at DEBUG, and Parquet logs a line per
+  Parquet, Hadoop, Avro, Kafka and Flink are all extremely verbose at DEBUG, and Parquet logs a line per
   column page. Left at default they bury the events an operator is actually reading. Spec §9
   reserves unstructured logs for developer diagnostics, which is exactly what these are.
 -->
@@ -54,6 +54,35 @@
     learns that stack traces here mean nothing, and then misses the one that matters.
   -->
   <logger name="org.apache.flink.streaming.api.operators.collect" level="ERROR"/>
+  <!--
+    Four warnings Flink emits on every single local run, none of which describes anything wrong
+    with this one:
+
+      HadoopUtils                  - no Hadoop configuration found. There is no Hadoop filesystem
+                                     here and there is not meant to be (ADR 0005).
+      DefaultDelegationTokenManager- no delegation tokens obtained. Kerberos is not in use.
+      WebMonitorUtils              - no 'log.file' set, so the dashboard cannot serve JobManager
+                                     logs. The dashboard is off unless the web-ui flag is passed.
+      JobMaster                    - checkpointing skipped for a dynamic graph. The job is a
+                                     bounded batch that either completes or is rerun from bronze.
+
+    Silenced for the reason the collect-sink line above is: an operator who sees four warnings on
+    every clean run learns that warnings here mean nothing, and then misses the one that matters.
+  -->
+  <logger name="org.apache.flink.runtime.util.HadoopUtils" level="ERROR"/>
+  <logger name="org.apache.flink.runtime.security.token.DefaultDelegationTokenManager" level="ERROR"/>
+  <logger name="org.apache.flink.runtime.webmonitor.WebMonitorUtils" level="ERROR"/>
+  <logger name="org.apache.flink.runtime.jobmaster.JobMaster" level="ERROR"/>
+  <!--
+    The Kafka client narrates every consumer at INFO: config dumps on construction, then a group
+    join, a partition assignment, a leave, and metrics teardown per run. On a short ingest cycle
+    that is thirty lines of coordinator bookkeeping around two lines of result, and it buries the
+    completeness report an operator is actually reading.
+
+    WARN keeps what matters. A broker that cannot be reached, a group that will not form and an
+    offset commit that failed are all WARN or above, and all still arrive.
+  -->
+  <logger name="org.apache.kafka" level="WARN"/>
   <logger name="org.apache.iceberg" level="WARN"/>
   <logger name="software.amazon.awssdk" level="WARN"/>
 

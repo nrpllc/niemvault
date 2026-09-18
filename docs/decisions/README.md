@@ -43,3 +43,4 @@ deciding stated) · **Superseded**.
 | [0031](0031-a-pull-states-who-remembers.md) | A pull transport states who remembers what it landed | Accepted |
 | [0032](0032-cdc-arrives-as-a-change-feed.md) | Change data capture arrives as a change feed, not as a CDC connector | Accepted |
 | [0033](0033-ftps-is-its-own-connector.md) | FTPS is its own connector, and what a pull means is shared | Accepted |
+| [0034](0034-an-exchange-is-configuration.md) | What this platform submits is configuration, not a class | Accepted |

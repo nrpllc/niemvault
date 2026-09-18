@@ -1143,6 +1143,23 @@ el('relayout').addEventListener('click', () => canvas.reset());
   renderPalette();
   await loadMappingList();
   const { mappings } = await api('/api/mappings');
-  const first = mappings.find((mapping) => mapping.loadable);
-  if (first) await openMapping(first.file);
+
+  // ?mapping= opens a named mapping instead of the first loadable one, so a link from
+  // elsewhere can land on the flow it is talking about. Matched on the mapping's own name
+  // rather than on its file path: a consumer knows which mapping produced its records and
+  // has no business knowing where on this filesystem the artifact happens to sit.
+  //
+  // An unknown name falls through to the default rather than erroring. The link is a
+  // convenience, and an author who followed a stale one is better served by the editor
+  // opening than by a message about a file.
+  const wanted = new URLSearchParams(location.search).get('mapping');
+  const requested = wanted
+    ? mappings.find((mapping) => mapping.loadable && mapping.name === wanted)
+    : null;
+
+  const target = requested ?? mappings.find((mapping) => mapping.loadable);
+  if (target) await openMapping(target.file);
+  if (wanted && !requested) {
+    setStatus('invalid', `No mapping named "${wanted}" in this module; opened the first instead.`);
+  }
 })();

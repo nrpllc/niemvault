@@ -1,0 +1,54 @@
+# Leon County SO CAD over Kafka.
+#
+# Transport only (spec §4.3). There is no mapping here and no canonical type: the same
+# leon-cad-to-canonical mapping serves this source and the nightly file drop, which is the whole
+# reason transport configuration and schema mapping are separate artifacts. Moving an agency from
+# a nightly export to a live feed changes this file and nothing else.
+
+sourceId: leon-so-cad
+connectorInstanceId: leon-cad-kafka-1
+type: kafka
+
+# A live feed, so 15 minutes stale is already a problem worth reporting as a PipelineLag (§4.7) --
+# where the nightly drop next door is allowed 26 hours. Measured against what the source asserts,
+# not against ingest time: a connector happily landing hour-old records is on time by ingest time
+# and an hour stale by the only measure an investigator cares about.
+freshnessSla: PT15M
+
+settings:
+  # The demo broker from demo/kafka/docker-compose.yml. An agency's own broker is the only thing
+  # that changes here when this stops being a demo.
+  bootstrapServers: localhost:19092
+  topic: cad.leon.incidents
+
+  # The consumer group is the read position. Two deployments sharing a group id split the topic
+  # between them and each lands half the records; two that need the whole feed need two groups.
+  groupId: niem-ingest-leon
+
+  # Required, and deliberately without a default (ADR 0027). This is Leon County SO's own CAD feed
+  # landing in Leon County SO's own bronze, so it is retained. A topic carrying a state system's
+  # criminal history responses would say `transient` here, and LandingService would refuse to land
+  # it at all rather than filter it afterwards -- bronze is append-only, and a record written by
+  # mistake cannot be taken back out.
+  retention: retained
+
+  # A slice ends at whichever comes first. Together they turn an endless topic into something a
+  # scheduled ingest can drain: the ceiling stops a first read of a large backlog from running
+  # forever, and the idle window stops a caught-up feed from blocking on a quiet topic.
+  #
+  # The ceiling is small, and that is the setting that actually matters on a live feed. A busy CAD
+  # topic is never quiet for idleMillis -- the next call arrives first -- so the idle window never
+  # trips and the ceiling is the only thing that ends a slice. Left at the file drop's 50,000, a
+  # cycle keeps consuming for as long as dispatch keeps talking, and the "job that drains what
+  # arrived and exits" never exits.
+  #
+  # 500 bounds a cycle to something that lands, maps and projects in a few seconds, so a scheduled
+  # ingest on a short period stays ahead of the feed and each cycle reports promptly. A backlog is
+  # drained across several cycles rather than one enormous one, which is also what keeps a first
+  # run after an outage from looking like a hang.
+  maxRecords: 500
+  idleMillis: 2000
+
+  # earliest, so a first run reads the backlog rather than silently starting from now and leaving
+  # everything already on the topic unlanded.
+  autoOffsetReset: earliest

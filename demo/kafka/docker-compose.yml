@@ -1,0 +1,37 @@
+# A single-node broker for the live demo.
+#
+# KRaft, so there is no ZooKeeper to start and nothing to keep in sync: one container, one
+# process, and it is ready in a few seconds. This is a demo broker and says so -- one replica,
+# no auth, no TLS, bound to localhost. A deployment's broker is the agency's, configured by
+# the agency, and `sources/leon-so-cad-kafka.yaml` is the only thing that has to change.
+
+services:
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: niem-demo-kafka
+    ports:
+      # 19092, not 9092. A developer machine frequently already has a broker on the
+      # default port, and a demo that cannot start next to one is a demo nobody runs.
+      - "19092:19092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:19092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # One node, so one replica of everything. Anything higher never leaves UNDER_REPLICATED
+      # and the consumer group never forms, which looks exactly like a broken connector.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: niem-demo-cluster-0001
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20

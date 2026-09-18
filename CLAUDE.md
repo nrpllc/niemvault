@@ -310,6 +310,22 @@ citable types, and would bury the domains in the coverage browser.
   records mixed into landed agency data cannot be taken back out. `CadSimulator` lives in the domain
   module (it produces CAD rows) and the CLI owns the transport. Deterministic from a seed, and every
   person in it invented (ADR 0013).
+- **A connector that will not state its retention before `configure()` is reported as refusing, never
+  as `RETAINED`.** `niem connectors` prints `per source` for Kafka, SFTP and FTPS because
+  `retention()` throws there by design (ADR 0027) -- the same broker carries an agency's own feed and
+  a state system's non-retainable responses. A listing that filled the column in would be answering a
+  legal question the connector deliberately declined to answer, which is the whole failure the
+  missing default exists to prevent. Do not "fix" the blank.
+- **`niem validate` configures a source definition; it never opens one.** Same boundary `configure`
+  draws against `health`: a records manager reviewing a definition on a laptop has no broker and no
+  `/exports/cad`, and a validate that demanded one would make a source impossible to review away from
+  its environment. It hands the connector `SourceCheckpointStore.inMemory()`, not `unavailable()` --
+  whether this deployment passed `--checkpoints` is a property of the *run*, and refusing an SFTP
+  definition over it would report a missing flag as a fault in a file that is fine.
+- **A source no mapping reads is a note, not a problem.** The definition is correct; the feed is
+  described and not yet mapped, which is the order onboarding happens in and the state
+  `riverton-rms-cdc.yaml` deliberately ships in (ADR 0032). Making it fatal would make a module
+  unable to describe a transport ahead of its mapping, and CI validates the shipped module.
 - **`Record.toString()` never prints values** — deliberately, see
   [ADR 0015](docs/decisions/0015-records-redact-values.md). Any new type carrying record values
   (envelopes, quarantine entries, lineage events) inherits this obligation. The compiler will
@@ -419,6 +435,7 @@ connector-agnostic operator surface (ADR 0029); the rest cost only their own mod
 - [ ] Search projection (Elasticsearch, [ADR 0007](docs/decisions/0007-elasticsearch-search-projection.md),
       still marked Deferred — it needs its status changed and a document-shape ADR when it starts)
 - [ ] Lineage, stewardship, approval workflow
-- [ ] `niem validate` covering source definitions — currently only checked when `run` loads one
+- [x] `niem connectors` and `niem validate` over source definitions — the SPI is visible and a
+      transport is checked at deploy time rather than when the nightly load does not run
 
 **Not carried over from Phase 1's rules:** nothing. Rule 1 still holds, with Phase 2 as the line.

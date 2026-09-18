@@ -140,6 +140,57 @@ may not be — the rules permit use for the purpose at hand and forbid a copy �
 is refused at the point of landing rather than filtered afterwards. Its only durable trace is the
 disclosure record, which is exactly what you are permitted to keep.
 
+## Projecting into a criminal history repository
+
+Gold is polymorphic (§4.6): the same canonical silver becomes a graph, a search index, a
+warehouse. A criminal history repository is another such shape, and `projections/cch` writes it.
+
+```bash
+export NIEM_CCH_TOKEN=...
+niem run    --module ... --mapping ... --drop ./drop --bronze ./bronze --cch-url https://cch.example.gov
+niem replay --module ... --mapping ...                                 --cch-url https://cch.example.gov
+```
+
+`run` applies an incremental change set as records arrive; `replay` rebuilds from a snapshot.
+Ingest projects as well as replay because the deployment runs ingest as a CronJob and ships replay
+**suspended** — a projection only a suspended job could fill is a projection that is never filled.
+
+To see the whole thing move, against a repository and a real file drop:
+
+```bash
+demo/cch-demo.sh --cch /path/to/fdlecch
+```
+
+Two days of a CAD export. The second is the point: the vendor changes its format overnight,
+nothing errors on their side, the contracts quarantine the rows that drifted, and the repository
+receives only what survived — including one incident that lands with nobody named on it, because
+the incident row was clean and the person row on it was not.
+
+It sends three canonical types — `Person`, `Incident`, and the `PersonIncidentAssociation`
+between them. That is the offence-adjacent record a repository does not hold: CCH records an
+arrest, which carries the date a subject was booked and the ORI that booked them, and neither is
+when or where the offence happened. Every other canonical type is skipped rather than sent. An
+`Arrest` belongs in a repository too, and it arrives through that system's own submission path
+with fingerprints attached — sending it here would be a second, ungated route into the same
+records.
+
+It is a projection and not a connector for the same reason: §4.3 allows exactly one path into
+canonical, and two ways in means one of them is not contract-gated.
+
+Two things it deliberately does not do:
+
+- **It does not send a coordinate.** The canonical model states that `locationAddressText` is not
+  geocoded, so the repository geocodes locally and labels what it produced with a quality tier. An
+  address it cannot resolve lands on the county centroid, which is not drawn as a point — county
+  totals stay complete and only the map is partial, which is the honest split.
+- **It does not send a resolution confidence.** §4.5 keeps the cluster identifier, the confidence
+  and the evidence; `MappingPipeline` keeps the first and drops the other two, because
+  `core:lineage` is declared in the build and not yet written. Nothing in silver carries them, so
+  the receiver marks every identity landed this way as unconfirmed. Sending `1.0` to make that
+  flag go away would invent the evidence — and a repository shows an over-merge as a recurring
+  association, which is the same shape as a real finding. **Closing this needs resolution
+  metadata persisted in silver, and until then the projection is honest rather than complete.**
+
 ## The disclosure record
 
 Every cross-agency release is recorded before it happens: who asked, under what authority, what they
@@ -154,6 +205,60 @@ are.
 
 `DisclosureLog.disclosing` writes the record and only then produces what is released, so the ordering
 cannot be got wrong. If the record cannot be written, nothing crosses the boundary.
+
+## Transports
+
+Connectors are discovered through the `ServiceLoader`, so a deployment can read transports nobody
+rebuilt it for -- and so the set is not written down anywhere in the source tree. The registry
+answers for itself:
+
+```bash
+niem connectors          # what this deployment can read
+niem connectors --json   # the same, for a governance tool
+```
+
+```
+  TYPE         MODE   RETENTION
+  file-drop    POLL   RETAINED
+  ftps         POLL   per source
+  kafka        PUSH   per source
+  sftp         POLL   per source
+```
+
+`per source` is not a gap. A file drop's retention posture is a property of the transport; a
+broker's is not, because the same broker carries an agency's own feed and a state system's
+non-retainable responses ([ADR 0027](docs/decisions/0027-foreign-feeds-and-federation.md)). A
+connector that refuses to answer before it has a source in front of it is reported as refusing,
+rather than as `RETAINED` -- printing a guess would be answering a legal question the connector
+deliberately declined to answer.
+
+Naming one of those transports in a source definition's `type:` field is all it takes to read it,
+and `niem validate` checks that the name resolves and that the connector accepts the settings:
+
+```bash
+niem validate --module modules/law-enforcement/src/main/resources
+```
+
+```
+Checking sources/riverton-cad-sftp.yaml
+  cad-sftp-1  source=riverton-pd-cad  transport=sftp (POLL, RETAINED), freshness PT26H
+```
+
+The check is the connector's own `configure`, never a second validator (ADR 0020/0021), so a
+definition this accepts is one the pipeline will load. It is **well-formedness only** -- the same
+boundary `configure` draws against `health`. Whether the broker answers is a question about an
+environment, and a records manager reviewing a definition on a laptop stands in none of them;
+`run` asks `health()` before it lands anything, so reachability is still found before a batch is
+half-committed.
+
+A definition naming a transport this deployment does not have is reported with the list of what it
+does have. An air-gapped operator has to be able to tell a missing jar from a misspelled transport,
+and nothing else distinguishes them.
+
+A source no mapping reads is *said*, not failed. The definition is correct -- it configures a
+transport, which is all it is allowed to describe -- and a feed described before it is mapped is the
+order onboarding actually happens in: the agency configures, the steward maps afterwards.
+`riverton-rms-cdc.yaml` ships in exactly that state ([ADR 0032](docs/decisions/0032-cdc-arrives-as-a-change-feed.md)).
 
 ## The catalogue
 
@@ -221,7 +326,7 @@ core/          canonical model, hop contracts, lineage
 runtime/       Flink job graph construction, transformation primitives, replay
 connectors/    SourceConnector SPI; file drop, Kafka, SFTP and FTPS transports
 identity/      ResolutionProvider SPI and the bundled default resolver
-projections/   ProjectionWriter SPI; Neo4j graph writer (Phase 1)
+projections/   ProjectionWriter SPI; Neo4j graph writer and CCH repository writer (Phase 1)
 modules/       domain modules, law enforcement first
 governance/    catalogue, policy (Phase 2)
 tools/cli/     operator CLI: validate, run, replay, inspect, author

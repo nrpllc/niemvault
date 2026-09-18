@@ -1,0 +1,22 @@
+# Leon County Sheriff's Office CAD as a nightly file drop.
+#
+# A second agency on the same export shape as riverton-pd-cad, and that is the point spec §4.3 is
+# making: onboarding an agency whose CAD ships the same schema is transport configuration and a
+# mapping, not platform work. What differs between the two is the agency's own key prefix and its
+# time zone -- see leon-cad-to-canonical-1.0.0.yaml -- and nothing else.
+
+sourceId: leon-so-cad
+connectorInstanceId: leon-cad-file-drop-1
+type: file-drop
+
+# A nightly export, so a day is not late.
+freshnessSla: PT26H
+
+settings:
+  directory: ./drop
+  filePattern: "*.csv"
+
+  # The export ships a header row. Declared here, and still not trusted for column order: the
+  # mapping declares its own columns, because a source that reorders them would otherwise silently
+  # remap every field with no error anywhere.
+  skipHeaderLines: "1"

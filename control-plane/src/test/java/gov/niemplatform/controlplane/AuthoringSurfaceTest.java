@@ -94,9 +94,13 @@ class AuthoringSurfaceTest {
         @Test
         @DisplayName("lists the mappings on disk")
         void listsMappings() {
+            // Both mappings the module ships. The second is a second agency on the same export
+            // shape, which is the case §4.3 is about: onboarding an agency whose CAD looks like
+            // one already onboarded is a mapping and transport configuration, not platform work.
             assertThat(workspace.mappings())
                     .extracting(MappingWorkspace.MappingFile::qualifiedName)
-                    .containsExactly("cad-to-canonical@1.0.0");
+                    .containsExactlyInAnyOrder(
+                            "cad-to-canonical@1.0.0", "leon-cad-to-canonical@1.0.0");
         }
 
         @Test
@@ -186,9 +190,12 @@ class AuthoringSurfaceTest {
             assertThat(workspace.source(SHIPPED))
                     .as("the mapping an auditor may already have signed off is not rewritten")
                     .isEqualTo(original);
+            // Newest version of the edited mapping first, the reviewed one still beside it, and
+            // the module's other mapping untouched by any of it.
             assertThat(workspace.mappings())
                     .extracting(MappingWorkspace.MappingFile::qualifiedName)
-                    .containsExactly("cad-to-canonical@1.0.1", "cad-to-canonical@1.0.0");
+                    .containsExactlyInAnyOrder("cad-to-canonical@1.0.1", "cad-to-canonical@1.0.0",
+                            "leon-cad-to-canonical@1.0.0");
         }
 
         @Test
@@ -513,7 +520,8 @@ class AuthoringSurfaceTest {
                     .put("yaml", shippedYaml().replace("type: copy", "type: sharpen")).toString());
 
             assertThat(result.get("saved").asBoolean()).isFalse();
-            assertThat(workspace.mappings()).hasSize(1);
+            // Nothing was written: the module still holds exactly what it shipped with.
+            assertThat(workspace.mappings()).hasSize(2);
         }
 
         @Test
