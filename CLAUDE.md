@@ -124,6 +124,13 @@ citable types, and would bury the domains in the coverage browser.
 
 ## Gotchas already hit
 
+- **A record from the pipeline carries its *qualified* type name; everything else uses the simple
+  one.** `Record.typeName()` is `https://niemplatform.gov/canonical/core/1.0#Incident`; the model,
+  assembly specs, `CanonicalRef` and every hand-built test fixture say `Incident`. A map keyed one way
+  and read the other finds nothing and raises nothing. It has bitten `ProjectionFanout`,
+  `DocumentAssembler` and `DocumentJson`. Build test records the way the pipeline does
+  (`withTypeName(namespace + "#" + name)`), not with `Record.builder("Incident")`.
+
 - **`LibrariesForLibs` is not on the classpath in precompiled script plugins.**
   `niem.java-conventions` resolves the catalogue via `VersionCatalogsExtension` instead. Do not
   "fix" this back to `libs.foo` — it will not compile.
@@ -432,8 +439,26 @@ connector-agnostic operator surface (ADR 0029); the rest cost only their own mod
 - [ ] CDC connector — next. Log sequence number is an `acknowledge()`; the rest is per-vendor mess
 - [ ] FTP connector — the archive move is its `acknowledge()`
 - [ ] MQTT connector
-- [ ] Search projection (Elasticsearch, [ADR 0007](docs/decisions/0007-elasticsearch-search-projection.md),
-      still marked Deferred — it needs its status changed and a document-shape ADR when it starts)
+- [x] Search projection (Elasticsearch) — `projections:search`, [ADR 0007](docs/decisions/0007-elasticsearch-search-projection.md)
+      now Accepted, document shape in [ADR 0036](docs/decisions/0036-search-document-shape.md). REST over the
+      JDK HttpClient, no client library. Alias per type, rebuild builds beside and swaps
+- [x] Operational data store (PostgreSQL) — `projections:ods`, [ADR 0035](docs/decisions/0035-postgresql-is-the-operational-data-store.md).
+      **Brought forward from Phase 3 by Jeff, 2026-09-29.** `canonical` schema is gold and rebuilt from
+      silver; operational state goes in other schemas and a rebuild refuses to truncate under a live FK
+- [x] A projection is a file — `run --projection` / `replay --projection`, `ProjectionRegistry` via
+      ServiceLoader. `run` had projected into nothing since ADR 0034 left `openProjections` empty.
+      Every projection store claims its tenant on open, the graph included (not via `--neo4j-uri`)
+- [x] `demo/stores/` — PostgreSQL, Elasticsearch and Neo4j on ports shifted by 10000, and `demo.sh`
+      landing one drop into all three and checking they agree
+- [x] The chart projects: `projections.{ods,search,graph}` in values, rendered to a ConfigMap and passed
+      to ingest and replay alike. `storage.graph` removed
+- [x] FDLE CCH is fed by exchange again (`exchanges/fdle-cch-incidents-*.yaml`, CCH's
+      `/api/niemvault/submissions`). `demo/cch-demo.sh` had been calling the removed `--cch-url`.
+      Fixing it found two bugs that made every exchange submit nothing, green in every test:
+      `DocumentAssembler` indexed records by their *qualified* type name, so a real run assembled
+      zero documents; and `DocumentJson` wrote the qualified name on the wire. Exchange tests now
+      build pipeline-shaped (qualified) records. `via` carries the association's `canonicalId`, and
+      `cch-http` states `synthetic` on every submission
 - [ ] Lineage, stewardship, approval workflow
 - [x] `niem connectors` and `niem validate` over source definitions — the SPI is visible and a
       transport is checked at deploy time rather than when the nightly load does not run

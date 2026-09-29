@@ -1,0 +1,39 @@
+# Leon County SO CAD incidents to FDLE CCH's incident view, version 1.0.0
+#
+# Not the criminal history submission (fdle-cch-arrest). This feeds the offence-adjacent record CCH
+# keeps beside it: where and when something was reported, and who was named on the report -- none
+# of which an arrest carries. CCH upserts every document on the platform's own identities, so
+# landing the same drop twice leaves the same records.
+#
+# One file per source because an exchange is checked against the mapping before anything is sent
+# (ADR 0034): submitting one agency's reports under another's exchange maps cleanly and files them
+# against the wrong ORI.
+
+exchange: fdle-cch-incidents-leon
+version: "1.0.0"
+type: cch-http
+sourceId: leon-so-cad
+
+assemble:
+  # A report begins with the incident. The people on it hang off it.
+  root: Incident
+
+  follow:
+    # Everyone named on the report, with the role they had on it. The role lives on the association
+    # and travels in each person's "via", with the association's own identity -- CCH keys the
+    # involvement on it.
+    - association: PersonIncidentAssociation
+      role: person
+      as: people
+
+settings:
+  # CCH's receiving door, off unless Cch:NiemVault:Enabled. The demo rewrites this to the port it
+  # starts CCH on; a deployment names its own repository here.
+  endpoint: https://cch.fdle.example/api/niemvault/submissions
+  tokenEnv: NIEM_CCH_TOKEN
+
+  # The CAD fixtures are synthetic under FDLE catalog §13.6, and CCH in POC mode refuses a batch that
+  # does not say so. A real agency feed says false, and a POC repository refuses it -- correctly.
+  synthetic: "true"
+
+  batchSize: "200"

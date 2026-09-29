@@ -170,7 +170,7 @@ public final class DocumentAssembler {
 
         Index(Collection<Record> records) {
             for (Record record : records) {
-                String typeName = record.typeName();
+                String typeName = simpleName(record.typeName());
                 entitiesByTypeAndId
                         .computeIfAbsent(typeName, key -> new LinkedHashMap<>())
                         .put(identityOf(record), record);
@@ -209,6 +209,20 @@ public final class DocumentAssembler {
             List<Record> ordered = new ArrayList<>(links);
             ordered.sort(Comparator.comparing(DocumentAssembler::identityOf));
             return ordered;
+        }
+
+        /**
+         * The model's name for a record's type.
+         *
+         * <p>A record from the pipeline carries its qualified name --
+         * {@code https://niemplatform.gov/canonical/core/1.0#Incident} -- while an assembly spec,
+         * the model and every {@link CanonicalRef} use the simple one. Indexed by the qualified name,
+         * every lookup misses, and an assembly over a full run reports zero documents from zero
+         * records with no error anywhere: which is what it did, until the first real submission.
+         */
+        private static String simpleName(String typeName) {
+            int hash = typeName.lastIndexOf('#');
+            return hash < 0 ? typeName : typeName.substring(hash + 1);
         }
 
         private String key(String associationType, String roleName, String id) {

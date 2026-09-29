@@ -1,6 +1,7 @@
 package gov.niemplatform.exchange.cch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -121,6 +122,10 @@ class TheWriterCarriesWhatItIsToldToTest {
         assertThat(subject.get("type").asText()).isEqualTo("Person");
         assertThat(subject.get("via").get("type").asText()).isEqualTo("ArrestSubjectAssociation");
         assertThat(subject.get("via").get("fields").get("rightsReadIndicator").asBoolean()).isTrue();
+        assertThat(subject.get("via").get("canonicalId").asText())
+                .as("a receiver that upserts the relationship needs its identity, not one it composes")
+                .isNotBlank()
+                .isNotEqualTo(subject.get("canonicalId").asText());
     }
 
     @Test
@@ -210,6 +215,29 @@ class TheWriterCarriesWhatItIsToldToTest {
     }
 
     @Test
+    @DisplayName("whether records are synthetic is stated on every submission, false unless declared")
+    void statesSynthetic() throws Exception {
+        writer().submit(assembleCch());
+        assertThat(JSON.readTree(received.get()).get("synthetic").asBoolean()).isFalse();
+
+        CchExchangeWriter declared =
+                new CchExchangeWriter(HttpClient.newHttpClient(), Clock.fixed(NOW, ZoneOffset.UTC));
+        declared.configure(definition(Map.of("synthetic", "true")));
+        declared.submit(assembleCch());
+        assertThat(JSON.readTree(received.get()).get("synthetic").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a synthetic setting that is neither true nor false is refused, not read as false")
+    void syntheticIsStrict() {
+        CchExchangeWriter writer =
+                new CchExchangeWriter(HttpClient.newHttpClient(), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> writer.configure(definition(Map.of("synthetic", "yes"))))
+                .hasMessageContaining("'synthetic' must be true or false");
+    }
+
+    @Test
     @DisplayName("a writer prints its endpoint and never its credential")
     void printsNoSecret() {
         assertThat(writer().toString())
@@ -227,11 +255,15 @@ class TheWriterCarriesWhatItIsToldToTest {
     }
 
     private ExchangeDefinition definition() {
+        return definition(Map.of());
+    }
+
+    private ExchangeDefinition definition(Map<String, String> extra) {
+        Map<String, String> settings = new java.util.HashMap<>(extra);
+        settings.put("endpoint", "http://127.0.0.1:" + server.getAddress().getPort() + "/submit");
         return new ExchangeDefinition(
                 "fdle-cch-arrest", "1.0.0", ExchangeType.of("cch-http"), "leon-so-cad",
-                CCH_ASSEMBLY,
-                Map.of("endpoint",
-                        "http://127.0.0.1:" + server.getAddress().getPort() + "/submit"));
+                CCH_ASSEMBLY, settings);
     }
 
     private static final AssemblySpec CCH_ASSEMBLY = new AssemblySpec("Arrest", List.of(
@@ -251,14 +283,26 @@ class TheWriterCarriesWhatItIsToldToTest {
                 link("ArrestChargeAssociation", "ACA1", "arrest", "Arrest", "A1", "charge", "Charge", "C1"),
                 link("ChargeDispositionAssociation", "CDA1", "charge", "Charge", "C1",
                         "disposition", "Disposition", "D1")));
+        // Named as the pipeline names them. Simple names here are how a writer that put the
+        // qualified name on the wire passed every test and failed its first real submission.
+        List<Record> qualified = silver.stream()
+                .map(record -> record.withTypeName(
+                        "https://niemplatform.gov/canonical/core/1.0#" + record.typeName()))
+                .toList();
         return new DocumentAssembler(CoreCanonicalTypes.ALL)
-                .assemble(CCH_ASSEMBLY, silver).documents();
+                .assemble(CCH_ASSEMBLY, qualified).documents();
     }
 
     private List<AssembledDocument> assembleTwoArrests() {
         List<Record> silver = List.of(arrest("A1", "LEON-2026-0114"), arrest("A2", "LEON-2026-0200"));
+        // Named as the pipeline names them. Simple names here are how a writer that put the
+        // qualified name on the wire passed every test and failed its first real submission.
+        List<Record> qualified = silver.stream()
+                .map(record -> record.withTypeName(
+                        "https://niemplatform.gov/canonical/core/1.0#" + record.typeName()))
+                .toList();
         return new DocumentAssembler(CoreCanonicalTypes.ALL)
-                .assemble(CCH_ASSEMBLY, silver).documents();
+                .assemble(CCH_ASSEMBLY, qualified).documents();
     }
 
     private static Record arrest(String id, String recordNumber) {

@@ -71,17 +71,23 @@ final class DocumentJson {
 
     private static ObjectNode of(AssembledDocument.Element element) {
         ObjectNode node = NODES.objectNode();
-        node.put("type", element.typeName());
+        node.put("type", modelName(element.typeName()));
         node.put("canonicalId", identityOf(element.record()));
         node.set("fields", fieldsOf(element.record()));
 
         // What the relationship itself says. An association is not only a pointer: whether a
         // subject was read their rights is a fact about this arrest and this person, and it exists
         // nowhere but on the association that joins them.
+        //
+        // Its identity travels too, always, even when it has no fields of its own. A receiver that
+        // upserts relationships needs a key for one, and a key it composed from the two ends and a
+        // role would be a second identity for the same association -- one that silently changes
+        // when a role code is corrected, leaving the old relationship behind beside the new one.
+        ObjectNode via = node.putObject("via");
+        via.put("type", modelName(element.link().typeName()));
+        via.put("canonicalId", identityOf(element.link()));
         ObjectNode linkFields = fieldsOf(element.link());
         if (!linkFields.isEmpty()) {
-            ObjectNode via = node.putObject("via");
-            via.put("type", element.link().typeName());
             via.set("fields", linkFields);
         }
         appendElements(node, element.elements());
@@ -105,6 +111,19 @@ final class DocumentJson {
             put(node, name, value);
         });
         return node;
+    }
+
+    /**
+     * A type as the canonical model names it -- {@code PersonIncidentAssociation}, not
+     * {@code https://niemplatform.gov/canonical/core/1.0#PersonIncidentAssociation}.
+     *
+     * <p>A record from the pipeline carries the qualified name. The wire carries the model's name,
+     * which is what an assembly spec says and what a receiver matches on; sending the qualified one
+     * made every document a type the repository had never heard of.
+     */
+    private static String modelName(String typeName) {
+        int hash = typeName.lastIndexOf('#');
+        return hash < 0 ? typeName : typeName.substring(hash + 1);
     }
 
     private static void put(ObjectNode node, String name, Object value) {

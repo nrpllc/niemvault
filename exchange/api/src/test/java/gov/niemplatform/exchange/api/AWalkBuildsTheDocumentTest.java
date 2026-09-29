@@ -90,6 +90,31 @@ class AWalkBuildsTheDocumentTest {
      *
      * <p>The same records, a narrower document. Under the previous writer this was a code change.
      */
+    /**
+     * Records from the pipeline carry their qualified type name. Every fixture above uses the
+     * simple one, which is how an assembly over a real run came to find nothing at all -- zero
+     * documents from zero records, and no error -- while every one of these tests passed.
+     */
+    @Test
+    @DisplayName("records named as the pipeline names them assemble the same as simple names")
+    void qualifiedTypeNames() {
+        List<Record> silver = List.of(
+                arrest("A1", "LEON-2026-0114"),
+                person("P1", "CHEN"),
+                link("ArrestSubjectAssociation", "ASA1", "arrest", "Arrest", "A1", "person", "Person", "P1"))
+                .stream()
+                .map(record -> record.withTypeName(
+                        "https://niemplatform.gov/canonical/core/1.0#" + record.typeName()))
+                .toList();
+
+        DocumentAssembler.Assembly assembly = new DocumentAssembler(MODEL).assemble(CCH, silver);
+
+        assertThat(assembly.documents()).singleElement().satisfies(document ->
+                assertThat(document.elements().get("subject")).singleElement()
+                        .satisfies(element -> assertThat(element.record().get("surName", String.class))
+                                .isEqualTo("CHEN")));
+    }
+
     @Test
     @DisplayName("a narrower assembly over the same records yields a narrower document")
     void configurationDecidesTheShape() {

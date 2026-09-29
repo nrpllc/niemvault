@@ -57,6 +57,8 @@ import java.util.List;
  *   <tr><td>{@code tokenEnv}</td><td>Environment variable holding the bearer token. Never the token itself.</td></tr>
  *   <tr><td>{@code timeoutSeconds}</td><td>Default {@code 30}.</td></tr>
  *   <tr><td>{@code batchSize}</td><td>Documents per request. Default {@code 100}.</td></tr>
+ *   <tr><td>{@code synthetic}</td><td>{@code true} or {@code false}, default {@code false}. Whether
+ *       the source's records are synthetic, stated on every submission.</td></tr>
  * </table>
  */
 public final class CchExchangeWriter implements ExchangeWriter {
@@ -69,6 +71,7 @@ public final class CchExchangeWriter implements ExchangeWriter {
     static final String SETTING_TOKEN_ENV = "tokenEnv";
     static final String SETTING_TIMEOUT_SECONDS = "timeoutSeconds";
     static final String SETTING_BATCH_SIZE = "batchSize";
+    static final String SETTING_SYNTHETIC = "synthetic";
 
     private final ObjectMapper json = new ObjectMapper();
     private final HttpClient http;
@@ -79,6 +82,7 @@ public final class CchExchangeWriter implements ExchangeWriter {
     private String token;
     private Duration timeout;
     private int batchSize;
+    private boolean synthetic;
 
     public CchExchangeWriter() {
         this(HttpClient.newHttpClient(), Clock.systemUTC());
@@ -119,6 +123,18 @@ public final class CchExchangeWriter implements ExchangeWriter {
         int configuredTimeout = intSetting(exchangeDefinition, SETTING_TIMEOUT_SECONDS, 30, problems);
         int configuredBatch = intSetting(exchangeDefinition, SETTING_BATCH_SIZE, 100, problems);
 
+        // Stated, never inferred. A repository in proof-of-concept mode refuses anything that does
+        // not assert synthetic data (FDLE CCH catalog §13.6), and the only party that knows whether a
+        // source's records are real is whoever onboarded the source -- so it is written in the
+        // exchange, beside the source it describes. Anything but true or false is refused rather
+        // than read as false: "yes" meaning "real records" would be the worst possible misreading.
+        String declaredSynthetic = exchangeDefinition.setting(SETTING_SYNTHETIC).orElse("false");
+        boolean configuredSynthetic = declaredSynthetic.equalsIgnoreCase("true");
+        if (!configuredSynthetic && !declaredSynthetic.equalsIgnoreCase("false")) {
+            problems.add("'" + SETTING_SYNTHETIC + "' must be true or false, found '"
+                    + declaredSynthetic + "'");
+        }
+
         if (!problems.isEmpty()) {
             throw new ExchangeDefinitionException(null, problems);
         }
@@ -128,6 +144,7 @@ public final class CchExchangeWriter implements ExchangeWriter {
         this.token = configuredToken;
         this.timeout = Duration.ofSeconds(configuredTimeout);
         this.batchSize = configuredBatch;
+        this.synthetic = configuredSynthetic;
     }
 
     private static int intSetting(
@@ -164,6 +181,7 @@ public final class CchExchangeWriter implements ExchangeWriter {
         body.put("exchange", definition.exchangeName());
         body.put("exchangeVersion", definition.version());
         body.put("sourceId", definition.sourceId());
+        body.put("synthetic", synthetic);
         ArrayNode array = body.putArray("documents");
         batch.forEach(document -> array.add(DocumentJson.of(document)));
 

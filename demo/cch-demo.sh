@@ -15,7 +15,8 @@
 #   demo/cch-demo.sh --cch /path/to/fdlecch [--work DIR] [--port 5199]
 #
 # Requires a JDK 21 and the .NET SDK the repository pins. Nothing else -- no Docker, no object
-# store: `run` maps bronze to canonical and projects it, and silver is a separate concern.
+# store: `run` maps bronze to canonical and submits it through an exchange, and silver is a separate
+# concern. demo/stores/demo.sh is the same drop projected into the three gold stores.
 
 set -euo pipefail
 
@@ -43,6 +44,7 @@ MODULE="$NV/modules/law-enforcement/src/main/resources"
 MAPPING="$MODULE/mappings/leon-cad-to-canonical-1.0.0.yaml"
 DRIFT_MAPPING="$MODULE/mappings/cad-to-canonical-1.0.0.yaml"
 NIEM="$NV/tools/cli/build/install/niem/bin/niem"
+EXCHANGES="$MODULE/exchanges"
 BASE="http://127.0.0.1:$PORT"
 
 step() { printf '\n\033[90m%s\033[0m\n \033[36m%s\033[0m\n\033[90m%s\033[0m\n\n' \
@@ -55,6 +57,14 @@ rm -rf "$WORK"
 mkdir -p "$WORK/day1" "$WORK/day2" "$WORK/bronze-leon" "$WORK/bronze-riverton" "$WORK/cch-data"
 cp "$MODULE/fixtures/leon-incidents.csv"    "$WORK/day1/"
 cp "$MODULE/fixtures/incidents-drifted.csv" "$WORK/day2/"
+
+# The module's exchanges name a deployment's repository. This one is on a loopback port, so the demo
+# submits through copies pointed at it -- the only line that differs between the demo and a
+# deployment is the endpoint, which is the point of an exchange being a file (ADR 0034).
+for name in leon riverton; do
+    sed "s#^  endpoint: .*#  endpoint: $BASE/api/niemvault/submissions#" \
+        "$EXCHANGES/fdle-cch-incidents-$name-1.0.0.yaml" > "$WORK/exchange-$name.yaml"
+done
 
 if [[ ! -x "$NIEM" ]]; then
     note "Building the operator CLI..."
@@ -126,7 +136,7 @@ echo
 
 "$NIEM" run --module "$MODULE" --mapping "$MAPPING" \
     --drop "$WORK/day1" --bronze "$WORK/bronze-leon" --tenant fl.leon.so \
-    --engine DIRECT --cch-url "$BASE"
+    --engine DIRECT --exchange "$WORK/exchange-leon.yaml"
 
 echo
 note "Every row became three canonical records -- a Person, an Incident and the"
@@ -146,7 +156,7 @@ echo
 
 "$NIEM" run --module "$MODULE" --mapping "$MAPPING" \
     --drop "$WORK/day1" --bronze "$WORK/bronze-leon" --tenant fl.leon.so \
-    --engine DIRECT --cch-url "$BASE" 2>&1 | tail -6
+    --engine DIRECT --exchange "$WORK/exchange-leon.yaml" 2>&1 | tail -6
 
 echo
 echo -n "    "; counts
@@ -173,7 +183,10 @@ echo
 
 "$NIEM" run --module "$MODULE" --mapping "$DRIFT_MAPPING" \
     --drop "$WORK/day2" --bronze "$WORK/bronze-riverton" --tenant co.riverton.pd \
-    --engine DIRECT --cch-url "$BASE" 2>&1 | grep -v '^{' | tail -14
+    --engine DIRECT --exchange "$WORK/exchange-riverton.yaml" 2>&1 | grep -v '^{' | tail -14 \
+    || [[ ${PIPESTATUS[0]} -eq 2 ]]
+# Exit 2 is this step's expected outcome -- records were quarantined, which is the point of it --
+# and under pipefail it would otherwise end the demo before it shows what the repository received.
 
 echo
 note "Only what survived reached the repository. One incident landed with nobody"
