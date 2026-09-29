@@ -55,7 +55,14 @@ class IcebergOnObjectStoreSpikeTest {
     private static final String SECRET_KEY = "niemplatform-secret";
 
     @Container
-    private static final MinIOContainer MINIO = new MinIOContainer("minio/minio:RELEASE.2024-11-07T00-52-20Z")
+    private static final MinIOContainer MINIO = new MinIOContainer(
+                    // minio/minio was withdrawn from Docker Hub in 2026 and the pinned release with
+                    // it, which failed every test here before it started. pgsty/minio is a community
+                    // rebuild of MinIO's own releases (RELEASE.2026-08-04T00-00-00Z), pinned by digest
+                    // so the bytes cannot change under a test. Test-only: nothing shipped depends on it.
+                    org.testcontainers.utility.DockerImageName.parse(
+                            "pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372")
+                            .asCompatibleSubstituteFor("minio/minio"))
             .withUserName(ACCESS_KEY)
             .withPassword(SECRET_KEY);
 
