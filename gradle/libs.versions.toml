@@ -6,6 +6,7 @@ flink             = "1.20.1"
 jackson           = "2.18.2"
 snakeyaml         = "2.3"
 neo4jDriver       = "5.28.5"
+postgresJdbc      = "42.7.13"
 kafkaClients      = "3.9.0"
 sshd              = "2.18.0"
 commonsNet        = "3.13.0"
@@ -90,6 +91,12 @@ ftpserver-core             = { module = "org.apache.ftpserver:ftpserver-core", v
 
 # --- Projections ---
 neo4j-driver               = { module = "org.neo4j.driver:neo4j-java-driver", version.ref = "neo4jDriver" }
+# The ODS (ADR 0035). Plain JDBC and no pool: a writer is one connection held for one run, and a
+# pool would be a second thing to size and a second place for a connection to leak.
+postgresql                 = { module = "org.postgresql:postgresql", version.ref = "postgresJdbc" }
+# No Elasticsearch client library: the search projection speaks the REST API through the JDK's own
+# HttpClient and the Jackson already on the classpath (ADR 0036). The official client pins a
+# server major and brings its own JSON stack, and an air-gapped mirror carries every jar it names.
 
 # --- CLI ---
 picocli                    = { module = "info.picocli:picocli",           version.ref = "picocli" }
@@ -109,6 +116,8 @@ testcontainers-junit       = { module = "org.testcontainers:junit-jupiter" }
 testcontainers-neo4j       = { module = "org.testcontainers:neo4j" }
 testcontainers-minio       = { module = "org.testcontainers:minio" }
 testcontainers-kafka       = { module = "org.testcontainers:kafka" }
+testcontainers-postgresql  = { module = "org.testcontainers:postgresql" }
+testcontainers-elasticsearch = { module = "org.testcontainers:elasticsearch" }
 
 [bundles]
 jackson = ["jackson-databind", "jackson-datatype-jsr310", "jackson-dataformat-yaml"]

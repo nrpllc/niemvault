@@ -39,6 +39,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import gov.niemplatform.projections.api.ProjectionDefinitionException;
+import gov.niemplatform.projections.api.ProjectionException;
 import gov.niemplatform.projections.api.ProjectionWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -149,6 +151,16 @@ final class RunCommand implements Callable<Integer> {
      * behind each of them in an operator's shell history; a file names the wire format, the
      * endpoint, and -- the part that used to be Java -- what is actually assembled and sent.
      */
+    /**
+     * Where gold is written (ADR 0035). Repeatable: one artifact per store, so a deployment that
+     * projects into a graph, a search index and an ODS names three files rather than three sets of
+     * flags, and adding a fourth store is a file rather than a change to this command.
+     */
+    @Option(names = "--projection",
+            description = "Projection definition artifact (YAML). Repeatable. Omitted: silver only, "
+                    + "nothing is projected.")
+    List<Path> projectionFiles = new ArrayList<>();
+
     @Option(names = "--exchange",
             description = "Exchange definition artifact (YAML): what to assemble and where to "
                     + "submit it. Omitted: nothing is submitted.")
@@ -275,10 +287,18 @@ final class RunCommand implements Callable<Integer> {
                     return 1;
                 }
             }
-            projections = new ProjectionFanout(
-                    openProjections(artifacts.mapping().sourceId(),
-                            artifacts.mapping().name(), artifacts.mapping().version()),
-                    artifacts.canonicalTypes(), runId);
+            List<ProjectionWriter> gold;
+            try {
+                gold = openProjections(artifacts.mapping().sourceId(),
+                        artifacts.mapping().name(), artifacts.mapping().version(),
+                        artifacts.canonicalTypes());
+            } catch (ProjectionDefinitionException | ProjectionException e) {
+                // Before anything lands, which is the point of opening them here: an unreachable
+                // store or another agency's database is a refusal, not a partial run.
+                System.err.println(e.getMessage());
+                return 1;
+            }
+            projections = new ProjectionFanout(gold, artifacts.canonicalTypes(), runId);
             var landing = new LandingService(bronze, emitter).land(connector, config, runId);
             System.out.printf("Landed %d record(s) in %d batch(es) for source '%s'.%n",
                     landing.recordsLanded(), landing.receipts().size(), config.sourceId());
@@ -475,7 +495,10 @@ final class RunCommand implements Callable<Integer> {
      * declares, not of the run that happened to land them.
      */
     private List<ProjectionWriter> openProjections(
-            String sourceId, String mappingName, String mappingVersion) {
+            String sourceId, String mappingName, String mappingVersion,
+            Map<String, gov.niemplatform.canonical.meta.CanonicalTypeDescriptor> canonicalTypes) {
+        openProjections.addAll(ProjectionTargets.open(projectionFiles, tenant, sourceId,
+                mappingName, mappingVersion, canonicalTypes, System.out));
         return openProjections;
     }
 
@@ -566,9 +589,6 @@ final class RunCommand implements Callable<Integer> {
                         silverWriter.acceptAll(produced);
                     }
                     projections.acceptAll(produced);
-                if (exchange != null) {
-                    exchange.acceptAll(produced);
-                }
                     if (exchange != null) {
                         exchange.acceptAll(produced);
                     }
@@ -588,6 +608,9 @@ final class RunCommand implements Callable<Integer> {
                     silverWriter.acceptAll(produced);
                 }
                 projections.acceptAll(produced);
+                if (exchange != null) {
+                    exchange.acceptAll(produced);
+                }
                 for (Record record : produced) {
                     out.write(json.writeValueAsString(asJson(record)));
                     out.newLine();

@@ -21,7 +21,12 @@ public class ProjectionException extends RuntimeException {
         COUNT,
         CONNECT,
         /** Reading a projection back. A projection is written from silver and read by an operator. */
-        READ
+        READ,
+        /**
+         * The store belongs to another tenant, or does not say whose it is (ADR 0026). Refused when
+         * opened, never filtered when read.
+         */
+        INTEGRITY
     }
 
     private final Operation operation;

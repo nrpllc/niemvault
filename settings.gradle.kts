@@ -39,6 +39,8 @@ include(
     "exchange:cch",
     "projections:api",
     "projections:graph",
+    "projections:ods",
+    "projections:search",
     "modules:law-enforcement",
     "control-plane",
     "tools:cli",

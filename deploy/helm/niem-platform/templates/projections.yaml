@@ -1,0 +1,65 @@
+{{/*
+  The projection definitions (ADR 0035), one file per enabled store.
+
+  Written from values rather than shipped in the module: a projection says where gold lives, which
+  is a fact about this deployment, while the module is content that every deployment shares. The
+  password is named by environment variable and only when a Secret supplies it -- the file itself
+  never holds one (ADR 0015).
+*/}}
+{{- if include "niem.projectionArgs" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "niem.fullname" . }}-projections
+  labels:
+    {{- include "niem.labels" . | nindent 4 }}
+    app.kubernetes.io/component: projections
+data:
+  {{- with .Values.projections.ods }}
+  {{- if .enabled }}
+  ods.yaml: |
+    projection: {{ include "niem.fullname" $ }}-ods
+    version: {{ $.Chart.Version | quote }}
+    type: ods
+    settings:
+      jdbcUrl: {{ required "projections.ods.jdbcUrl is required when the ODS is enabled" .jdbcUrl | quote }}
+      user: {{ .user | quote }}
+      schema: {{ .schema | quote }}
+      {{- if .existingSecret }}
+      passwordEnv: NIEM_ODS_PASSWORD
+      {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- with .Values.projections.search }}
+  {{- if .enabled }}
+  search.yaml: |
+    projection: {{ include "niem.fullname" $ }}-search
+    version: {{ $.Chart.Version | quote }}
+    type: search
+    settings:
+      url: {{ required "projections.search.url is required when search is enabled" .url | quote }}
+      indexPrefix: {{ .indexPrefix | quote }}
+      refresh: {{ .refresh | quote }}
+      {{- if .user }}
+      user: {{ .user | quote }}
+      {{- end }}
+      {{- if .existingSecret }}
+      passwordEnv: NIEM_SEARCH_PASSWORD
+      {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- with .Values.projections.graph }}
+  {{- if .enabled }}
+  graph.yaml: |
+    projection: {{ include "niem.fullname" $ }}-graph
+    version: {{ $.Chart.Version | quote }}
+    type: graph
+    settings:
+      uri: {{ required "projections.graph.uri is required when the graph is enabled" .uri | quote }}
+      user: {{ .user | quote }}
+      {{- if .existingSecret }}
+      passwordEnv: NIEM_NEO4J_PASSWORD
+      {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

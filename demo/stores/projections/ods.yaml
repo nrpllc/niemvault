@@ -1,0 +1,16 @@
+# The operational data store (ADR 0035), on the demo PostgreSQL.
+#
+# Canonical current state lands in the `canonical` schema, which this projection owns and a replay
+# rebuilds. Operational work on the data -- review queues, stewardship decisions, case notes --
+# belongs in schemas of its own beside it, which a rebuild never touches and refuses to run over.
+
+projection: demo-ods
+version: "1.0.0"
+type: ods
+
+settings:
+  jdbcUrl: jdbc:postgresql://localhost:15432/niem
+  user: niem
+  # The variable's name, never the password (ADR 0015). This file belongs in a repository.
+  passwordEnv: NIEM_ODS_PASSWORD
+  schema: canonical

@@ -1,0 +1,12 @@
+# The search projection (ADR 0007, ADR 0036), on the demo Elasticsearch.
+
+projection: demo-search
+version: "1.0.0"
+type: search
+
+settings:
+  url: http://localhost:19200
+  indexPrefix: niem
+  # wait_for: a record is searchable when `run` returns. A bulk load that did not care would pass
+  # `false` and let the index refresh on its own schedule.
+  refresh: wait_for

@@ -48,6 +48,7 @@ spec:
                 # produced it (spec section 4.7).
                 - --run-id=$(JOB_NAME)
                 {{- include "niem.silverArgs" . | nindent 16 }}
+                {{- include "niem.projectionArgs" . | nindent 16 }}
               env:
                 - name: JOB_NAME
                   valueFrom:

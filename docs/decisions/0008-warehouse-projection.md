@@ -1,6 +1,6 @@
 # 0008. Warehouse projection
 
-**Status:** Deferred · pinned by spec §2, scheduled for Phase 3
+**Status:** Deferred · pinned by spec §2, scheduled for Phase 3 · narrowed by [ADR 0035](0035-postgresql-is-the-operational-data-store.md): the operational data store is not the warehouse and is built in Phase 2
 
 ## Context
 

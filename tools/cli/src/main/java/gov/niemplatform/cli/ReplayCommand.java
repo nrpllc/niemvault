@@ -112,6 +112,15 @@ final class ReplayCommand implements Callable<Integer> {
             description = "Object store region. Default: ${DEFAULT-VALUE}")
     String s3Region;
 
+    /**
+     * Gold to rebuild, named the way {@code run} names it (ADR 0035). Replay {@code rebuild}s every
+     * one of them from what it reproduces, so the ODS and the search index are recoverable from
+     * bronze exactly as the graph is -- criterion 6 was only ever proved for the graph.
+     */
+    @Option(names = "--projection",
+            description = "Projection definition artifact (YAML) to rebuild. Repeatable.")
+    java.util.List<java.nio.file.Path> projectionFiles = new java.util.ArrayList<>();
+
     @Option(names = "--neo4j-uri",
             description = "Graph to rebuild. Omitted: silver only, and the command says so.")
     String neo4jUri;
@@ -162,8 +171,11 @@ final class ReplayCommand implements Callable<Integer> {
         System.out.printf("  bronze  %s  (%s)%n", bronzeRoot, describe(request.range()));
         System.out.printf("  silver  %s in %s%n", silverWarehouse, silverCatalogUri);
         System.out.println(neo4jUri == null
-                ? "  graph   not rebuilt -- no --neo4j-uri given, so silver only"
+                ? "  graph   not rebuilt by --neo4j-uri"
                 : "  graph   " + neo4jUri);
+        System.out.println(projectionFiles.isEmpty()
+                ? "  gold    no --projection given"
+                : "  gold    " + projectionFiles.size() + " projection(s) rebuilt: " + projectionFiles);
         // Nothing is submitted to an external system of record on a replay, and that is the point
         // of ADR 0034's split rather than a gap in it. Replay rebuilds what this platform owns;
         // a repository is not ours to rebuild, and resubmitting every arrest an agency ever made
@@ -198,6 +210,16 @@ final class ReplayCommand implements Callable<Integer> {
                 return 0;
             }
 
+            try {
+                projections.addAll(ProjectionTargets.open(projectionFiles, tenant,
+                        definition.sourceId(), definition.name(), definition.version(),
+                        artifacts.canonicalTypes(), System.out));
+            } catch (gov.niemplatform.projections.api.ProjectionDefinitionException
+                    | gov.niemplatform.projections.api.ProjectionException e) {
+                // Before silver is dropped, which is the next thing this command does.
+                System.err.println(e.getMessage());
+                return 1;
+            }
             if (neo4jUri != null) {
                 projections.add(new Neo4jProjectionWriter(
                         neo4jUri, neo4jUser, System.getenv(NEO4J_PASSWORD)));

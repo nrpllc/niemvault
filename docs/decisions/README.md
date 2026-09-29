@@ -16,8 +16,8 @@ deciding stated) · **Superseded**.
 | [0004](0004-bronze-parquet-and-envelope.md) | Bronze as append-only Parquet with a JSON envelope | Accepted |
 | [0005](0005-canonical-table-format.md) | Table format for canonical silver storage | Accepted |
 | [0006](0006-neo4j-graph-projection.md) | Neo4j for the Phase 1 graph projection | Accepted |
-| [0007](0007-elasticsearch-search-projection.md) | Elasticsearch for the search projection | Deferred |
-| [0008](0008-warehouse-projection.md) | Warehouse projection | Deferred |
+| [0007](0007-elasticsearch-search-projection.md) | Elasticsearch for the search projection | Accepted (shape: 0036) |
+| [0008](0008-warehouse-projection.md) | Warehouse projection | Deferred (narrowed by 0035) |
 | [0009](0009-containers-and-kubernetes.md) | Containers and Kubernetes for both delivery modes | Accepted |
 | [0010](0010-yaml-config-validated-on-load.md) | YAML config, schema-validated on load | Accepted |
 | [0011](0011-niem-reference-verification.md) | NIEM references are asserted, not yet verified | Proposed |
@@ -44,3 +44,5 @@ deciding stated) · **Superseded**.
 | [0032](0032-cdc-arrives-as-a-change-feed.md) | Change data capture arrives as a change feed, not as a CDC connector | Accepted |
 | [0033](0033-ftps-is-its-own-connector.md) | FTPS is its own connector, and what a pull means is shared | Accepted |
 | [0034](0034-an-exchange-is-configuration.md) | What this platform submits is configuration, not a class | Accepted |
+| [0035](0035-postgresql-is-the-operational-data-store.md) | PostgreSQL is the operational data store, and a projection is a file | Accepted |
+| [0036](0036-search-document-shape.md) | What a search document is | Accepted |

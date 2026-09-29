@@ -116,9 +116,16 @@ jobs:
             --set storage.silver.catalogUri=jdbc:postgresql://catalog/niem \
             --set storage.silver.warehouse=s3://silver/warehouse \
             --set storage.silver.s3.existingSecret=niem-s3 \
-            --set storage.graph.enabled=true \
-            --set storage.graph.uri=bolt://neo4j:7687 \
-            --set storage.graph.existingSecret=niem-neo4j \
+            --set projections.ods.enabled=true \
+            --set projections.ods.jdbcUrl=jdbc:postgresql://ods/niem \
+            --set projections.ods.existingSecret=niem-ods \
+            --set projections.search.enabled=true \
+            --set projections.search.url=https://search:9200 \
+            --set projections.search.user=niem \
+            --set projections.search.existingSecret=niem-search \
+            --set projections.graph.enabled=true \
+            --set projections.graph.uri=bolt://neo4j:7687 \
+            --set projections.graph.existingSecret=niem-neo4j \
             --set authoring.enabled=true > /tmp/rendered.yaml
 
       # ADR 0024: the authoring surface binds to loopback and must never be fronted by a Service,

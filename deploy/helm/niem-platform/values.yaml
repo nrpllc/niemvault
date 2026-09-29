@@ -116,8 +116,41 @@ storage:
       existingSecret: ""
       secretKey: NIEM_S3_SECRET_ACCESS_KEY
 
+# --- gold (ADR 0035) --------------------------------------------------------
+#
+# The stores canonical records are projected into. Each one that is enabled becomes a projection
+# definition file in a ConfigMap, passed to the ingest CronJob and the replay Job as --projection:
+# ingest applies to it, replay rebuilds it. Every one is claimed for this deployment's tenant the
+# first time it is opened (ADR 0026) -- one agency per store, whatever else shares the cluster.
+#
+# Passwords come from a Kubernetes Secret, never from values (see storage.silver.s3 for why).
+projections:
+  # The operational data store: canonical current state in PostgreSQL, in a schema this chart's
+  # jobs own and replay rebuilds. Operational features keep their own tables in other schemas of
+  # the same database, which a rebuild never touches.
+  ods:
+    enabled: false
+    jdbcUrl: ""            # e.g. jdbc:postgresql://ods:5432/niem
+    user: niem
+    schema: canonical
+    existingSecret: ""
+    secretKey: NIEM_ODS_PASSWORD
+
+  # Full-text search (ADR 0036). Elasticsearch 8.x or 9.x.
+  search:
+    enabled: false
+    url: ""                # e.g. https://search-es-http:9200
+    user: ""               # empty: no authentication, which only a demo cluster should accept
+    indexPrefix: niem
+    # "false" for a scheduled ingest: the index refreshes on its own schedule rather than making
+    # every run wait for it. The demo uses wait_for so a record is searchable when run returns.
+    refresh: "false"
+    existingSecret: ""
+    secretKey: NIEM_SEARCH_PASSWORD
+
+  # The graph (ADR 0006). Previously storage.graph and rebuilt by replay only; an ingest now
+  # projects into it as well.
   graph:
-    # Rebuilt by replay only. An ingest does not touch the graph in Phase 1.
     enabled: false
     uri: ""                # e.g. bolt://neo4j:7687
     user: neo4j

@@ -18,6 +18,10 @@ dependencies {
     // `replay` rebuilds silver and, when asked, the graph -- so the CLI carries both.
     implementation(project(":runtime:replay"))
     implementation(project(":projections:graph"))
+    // The ODS and search projections (ADR 0035, 0036), discovered like the graph through
+    // ProjectionRegistry. runtimeOnly: nothing in the CLI names either, and nothing should.
+    runtimeOnly(project(":projections:ods"))
+    runtimeOnly(project(":projections:search"))
     // Outbound exchange (ADR 0034). The api carries the assembly and the registry; cch-http is
     // one wire format among however many a deployment ships, discovered through the ServiceLoader.
     implementation(project(":exchange:api"))

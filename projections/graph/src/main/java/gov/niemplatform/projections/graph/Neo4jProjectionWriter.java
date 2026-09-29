@@ -57,6 +57,12 @@ public final class Neo4jProjectionWriter implements ProjectionWriter {
 
     private static final String IDENTITY_PROPERTY = "canonicalId";
 
+    /**
+     * The node recording whose graph this is. Not a canonical type, so no canonical label can
+     * collide with it and no rebuild -- which deletes by canonical label -- removes it.
+     */
+    static final String DEPLOYMENT_LABEL = "NiemDeployment";
+
     private final Driver driver;
     private final String database;
 
@@ -85,6 +91,54 @@ public final class Neo4jProjectionWriter implements ProjectionWriter {
         return database == null
                 ? driver.session()
                 : driver.session(org.neo4j.driver.SessionConfig.forDatabase(database));
+    }
+
+    // --- tenant ----------------------------------------------------------
+
+    /**
+     * Claims an empty graph for a tenant, or verifies an existing claim (ADR 0026).
+     *
+     * <p>The graph is where a missing check does the most damage: an association between two
+     * agencies' people is exactly the edge an investigator would follow, and nothing about the edge
+     * would say it should not exist. So the claim is made before anything is written, and a graph
+     * that holds nodes but names no tenant is refused rather than adopted -- stamping a name on data
+     * nobody recorded the origin of is worse than declining to touch it.
+     *
+     * <p>Package-private and called by {@link Neo4jProjectionFactory}. The two-argument constructors
+     * predate tenancy and are left unclaimed for the replay path that still uses them.
+     */
+    void claimFor(gov.niemplatform.canonical.meta.TenantId tenant) {
+        try (Session session = session()) {
+            session.executeWrite(tx -> {
+                var claimed = tx.run("MATCH (d:" + DEPLOYMENT_LABEL + ") RETURN d.tenant AS tenant")
+                        .list(r -> r.get("tenant").asString());
+                if (!claimed.isEmpty()) {
+                    if (!claimed.getFirst().equals(tenant.value())) {
+                        throw new ProjectionException(Operation.INTEGRITY, ProjectionType.GRAPH, null,
+                                "this graph belongs to '" + claimed.getFirst() + "' and cannot also hold "
+                                        + "data for '" + tenant.value() + "'. A deployment serves one "
+                                        + "agency (ADR 0026); give this tenant its own graph", null);
+                    }
+                    return null;
+                }
+                long nodes = tx.run("MATCH (n) RETURN count(n) AS total").single().get("total").asLong();
+                if (nodes > 0) {
+                    throw new ProjectionException(Operation.INTEGRITY, ProjectionType.GRAPH, null,
+                            "this graph already holds %d node(s) but does not say whose they are. "
+                                    .formatted(nodes)
+                                    + "Claiming it for '" + tenant.value() + "' would assert an origin "
+                                    + "nobody recorded", null);
+                }
+                tx.run("CREATE (:" + DEPLOYMENT_LABEL + " {tenant: $tenant, claimedAt: datetime()})",
+                        Values.parameters("tenant", tenant.value())).consume();
+                return null;
+            });
+        } catch (ProjectionException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new ProjectionException(Operation.CONNECT, ProjectionType.GRAPH, null,
+                    "could not claim the graph for '" + tenant.value() + "'", e);
+        }
     }
 
     // --- apply -----------------------------------------------------------

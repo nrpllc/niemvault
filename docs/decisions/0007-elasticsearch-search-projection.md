@@ -1,6 +1,6 @@
 # 0007. Elasticsearch for the search projection
 
-**Status:** Deferred · pinned by spec §2, scheduled for Phase 2
+**Status:** Accepted · pinned by spec §2, built in Phase 2 — document shape in [ADR 0036](0036-search-document-shape.md)
 
 ## Context
 

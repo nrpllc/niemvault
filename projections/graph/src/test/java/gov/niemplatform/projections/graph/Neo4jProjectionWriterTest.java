@@ -13,13 +13,19 @@ import gov.niemplatform.canonical.meta.CanonicalTypeDescriptor;
 import gov.niemplatform.canonical.meta.ExtensionJustification;
 import gov.niemplatform.canonical.meta.FieldType;
 import gov.niemplatform.canonical.meta.NiemProvenance;
+import gov.niemplatform.canonical.meta.TenantId;
 import gov.niemplatform.projections.api.CanonicalChangeSet;
 import gov.niemplatform.projections.api.CanonicalSnapshot;
+import gov.niemplatform.projections.api.ProjectionContext;
+import gov.niemplatform.projections.api.ProjectionDefinition;
 import gov.niemplatform.projections.api.ProjectionException;
+import gov.niemplatform.projections.api.ProjectionType;
+import gov.niemplatform.projections.api.ProjectionWriter;
 import gov.niemplatform.projections.api.TypedRecords;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -327,5 +333,60 @@ class Neo4jProjectionWriterTest {
         writer.apply(new CanonicalChangeSet("run-1", List.of()));
 
         assertThat(query("MATCH (n) RETURN count(n)")).isZero();
+    }
+
+    @Nested
+    @DisplayName("tenant claim (ADR 0026)")
+    class TenantClaim {
+
+        private ProjectionWriter open(String tenant) {
+            return new Neo4jProjectionFactory().open(
+                    new ProjectionDefinition("graph", "1.0.0", ProjectionType.GRAPH, Map.of(
+                            "uri", NEO4J.getBoltUrl(), "passwordEnv", "GRAPH_PASSWORD")),
+                    new ProjectionContext(TenantId.of(tenant), "src", "m", "1.0.0",
+                            List.of(personType(), incidentType(), associationType()),
+                            Map.of("GRAPH_PASSWORD", PASSWORD)::get));
+        }
+
+        @Test
+        @DisplayName("an empty graph is claimed, and reopening for the same tenant is fine")
+        void claimsEmptyGraph() {
+            open("us.fl.leon-so").close();
+            try (ProjectionWriter again = open("us.fl.leon-so")) {
+                again.apply(slice());
+                assertThat(again.count(personType())).isEqualTo(1);
+            }
+        }
+
+        @Test
+        @DisplayName("a graph claimed by one agency refuses another")
+        void refusesAnotherTenant() {
+            open("us.fl.leon-so").close();
+
+            assertThatThrownBy(() -> open("us.co.riverton-pd"))
+                    .isInstanceOf(ProjectionException.class)
+                    .hasMessageContaining("belongs to 'us.fl.leon-so'")
+                    .satisfies(e -> assertThat(((ProjectionException) e).operation())
+                            .isEqualTo(ProjectionException.Operation.INTEGRITY));
+        }
+
+        @Test
+        @DisplayName("a graph holding unclaimed data is refused, not adopted")
+        void refusesUnclaimedData() {
+            writer.apply(slice());
+
+            assertThatThrownBy(() -> open("us.fl.leon-so"))
+                    .isInstanceOf(ProjectionException.class)
+                    .hasMessageContaining("does not say whose");
+        }
+
+        @Test
+        @DisplayName("a rebuild deletes canonical labels only, so the claim survives it")
+        void claimSurvivesRebuild() {
+            try (ProjectionWriter claimed = open("us.fl.leon-so")) {
+                claimed.rebuild(new CanonicalSnapshot(slice().changes()));
+            }
+            assertThat(query("MATCH (d:NiemDeployment) RETURN count(d)")).isEqualTo(1);
+        }
     }
 }

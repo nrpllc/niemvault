@@ -58,10 +58,7 @@ spec:
             - --s3-access-key-id={{ .Values.storage.silver.s3.accessKeyId }}
             {{- end }}
             - --s3-region={{ .Values.storage.silver.s3.region }}
-            {{- if .Values.storage.graph.enabled }}
-            - --neo4j-uri={{ required "storage.graph.uri is required when the graph is enabled" .Values.storage.graph.uri }}
-            - --neo4j-user={{ .Values.storage.graph.user }}
-            {{- end }}
+            {{- include "niem.projectionArgs" . | nindent 12 }}
           env:
             {{- include "niem.credentialEnv" . | nindent 12 }}
           volumeMounts:

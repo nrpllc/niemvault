@@ -1,0 +1,10 @@
+# The graph projection (ADR 0006), on the demo Neo4j.
+
+projection: demo-graph
+version: "1.0.0"
+type: graph
+
+settings:
+  uri: bolt://localhost:17687
+  user: neo4j
+  passwordEnv: NIEM_NEO4J_PASSWORD

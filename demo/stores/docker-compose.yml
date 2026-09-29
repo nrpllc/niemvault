@@ -1,0 +1,76 @@
+# The three gold stores, for a laptop (ADR 0035, ADR 0036, ADR 0006).
+#
+# PostgreSQL is the operational data store, Elasticsearch the search projection, Neo4j the graph.
+# All three are demo stores and say so: one node each, fixed demo passwords, Elasticsearch with its
+# security switched off, everything bound to localhost. A deployment's stores are the agency's, and
+# the three files in projections/ are the only thing that has to change to point at them.
+#
+# Ports are shifted by 10000 from each store's default, as the Kafka demo's broker is. A developer
+# machine very often already runs a PostgreSQL on 5432 -- this one did -- and a demo that cannot
+# start next to it is a demo nobody runs.
+#
+#   docker compose -f demo/stores/docker-compose.yml up -d --wait
+
+name: niem-stores
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: niem-ods
+    ports:
+      - "127.0.0.1:15432:5432"
+    environment:
+      POSTGRES_DB: niem
+      POSTGRES_USER: niem
+      POSTGRES_PASSWORD: niem-demo
+    volumes:
+      - ods:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U niem -d niem"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.22
+    container_name: niem-search
+    ports:
+      - "127.0.0.1:19200:9200"
+    environment:
+      discovery.type: single-node
+      # Off for the demo only. The projection speaks basic auth (settings.user, passwordEnv) and a
+      # deployment's cluster has security on; a laptop demo with a certificate to trust is a demo
+      # that fails at step one for reasons unrelated to what it shows.
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      # Elasticsearch stops accepting writes when the disk passes its watermark, and a laptop's disk
+      # is often that full. Reads keep working, so the demo would appear to run and index nothing.
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    volumes:
+      - search:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40
+
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: niem-graph
+    ports:
+      - "127.0.0.1:17474:7474"
+      - "127.0.0.1:17687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/niem-demo-graph
+    volumes:
+      - graph:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p niem-demo-graph 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40
+
+volumes:
+  ods:
+  search:
+  graph:

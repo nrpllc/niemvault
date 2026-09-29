@@ -51,13 +51,15 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
       key: {{ .s3.secretKey }}
 {{- end }}
 {{- end }}
-{{- with .Values.storage.graph }}
+{{- range $name, $env := dict "ods" "NIEM_ODS_PASSWORD" "search" "NIEM_SEARCH_PASSWORD" "graph" "NIEM_NEO4J_PASSWORD" }}
+{{- with index $.Values.projections $name }}
 {{- if and .enabled .existingSecret }}
-- name: NIEM_NEO4J_PASSWORD
+- name: {{ $env }}
   valueFrom:
     secretKeyRef:
       name: {{ .existingSecret }}
       key: {{ .secretKey }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- with .Values.extraEnv }}
@@ -94,6 +96,11 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 */}}
 - name: tmp
   emptyDir: {}
+{{- if include "niem.projectionArgs" . }}
+- name: projections
+  configMap:
+    name: {{ include "niem.fullname" . }}-projections
+{{- end }}
 {{- with .Values.extraVolumes }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
@@ -115,6 +122,11 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end }}
 - name: tmp
   mountPath: /tmp
+{{- if include "niem.projectionArgs" . }}
+- name: projections
+  mountPath: /etc/niem/projections
+  readOnly: true
+{{- end }}
 {{- with .Values.extraVolumeMounts }}
 {{- toYaml . | nindent 0 }}
 {{- end }}
@@ -155,5 +167,18 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end }}
 {{- if .Values.storage.checkpoints.enabled }}
 - --checkpoints=/var/lib/niem/checkpoints
+{{- end }}
+{{- end -}}
+
+{{/*
+  One --projection per enabled store (ADR 0035), shared by ingest and replay so the two can never
+  disagree about which stores exist -- a replay that rebuilt a different set from the one ingest
+  fills would leave the difference stale with nothing reporting it.
+*/}}
+{{- define "niem.projectionArgs" -}}
+{{- range $name := list "ods" "search" "graph" }}
+{{- if (index $.Values.projections $name).enabled }}
+- --projection=/etc/niem/projections/{{ $name }}.yaml
+{{- end }}
 {{- end }}
 {{- end -}}
