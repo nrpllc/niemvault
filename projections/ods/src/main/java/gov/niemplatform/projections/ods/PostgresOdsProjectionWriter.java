@@ -19,6 +19,7 @@ import gov.niemplatform.projections.api.ProjectionException;
 import gov.niemplatform.projections.api.ProjectionException.Operation;
 import gov.niemplatform.projections.api.ProjectionType;
 import gov.niemplatform.projections.api.ProjectionWriter;
+import gov.niemplatform.projections.api.RunReport;
 import gov.niemplatform.projections.api.TypedRecords;
 import java.sql.Array;
 import java.sql.Connection;
@@ -255,6 +256,38 @@ public final class PostgresOdsProjectionWriter implements ProjectionWriter {
             statement.execute("COMMENT ON TABLE %s.projection_run IS %s".formatted(quote(META_SCHEMA),
                     literal("Append-only ledger of every apply and rebuild that reached the ODS. "
                             + "Lineage, not state: a replay appends rather than overwrites.")));
+
+            // What each run did as a whole (RunReport). Operational state, not gold: a rebuild never
+            // touches it, and nothing in it is a canonical record.
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS %s.run (
+                        id           bigserial PRIMARY KEY,
+                        run_id       text NOT NULL,
+                        source_id    text NOT NULL,
+                        mapping      text NOT NULL,
+                        started_at   timestamptz NOT NULL,
+                        finished_at  timestamptz NOT NULL,
+                        landed       bigint NOT NULL,
+                        produced     bigint NOT NULL,
+                        quarantined  bigint NOT NULL,
+                        skipped      bigint NOT NULL,
+                        balanced     boolean NOT NULL
+                    )""".formatted(quote(META_SCHEMA)));
+            statement.execute("COMMENT ON TABLE %s.run IS %s".formatted(quote(META_SCHEMA),
+                    literal("One row per finished run: landed x hops = produced + quarantined + "
+                            + "skipped, and whether it balanced.")));
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS %s.quarantine (
+                        id           bigserial PRIMARY KEY,
+                        run_ref      bigint NOT NULL REFERENCES %s.run (id),
+                        hop          text,
+                        direction    text,
+                        record_type  text,
+                        detail       text NOT NULL
+                    )""".formatted(quote(META_SCHEMA), quote(META_SCHEMA)));
+            statement.execute("COMMENT ON TABLE %s.quarantine IS %s".formatted(quote(META_SCHEMA),
+                    literal("Why records were held back, per run. Shapes only, never values "
+                            + "(ADR 0015): the rule, what was expected, and what kind of value was found.")));
         }
     }
 
@@ -647,6 +680,52 @@ public final class PostgresOdsProjectionWriter implements ProjectionWriter {
             insert.setString(6, context.sourceId());
             insert.setString(7, context.qualifiedMapping());
             insert.executeUpdate();
+        }
+    }
+
+    // --- run reports -----------------------------------------------------
+
+    @Override
+    public void recordRun(RunReport report) {
+        try {
+            long runRef;
+            try (PreparedStatement insert = connection.prepareStatement("""
+                    INSERT INTO %s.run (run_id, source_id, mapping, started_at, finished_at,
+                                        landed, produced, quarantined, skipped, balanced)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""".formatted(quote(META_SCHEMA)))) {
+                insert.setString(1, report.runId());
+                insert.setString(2, report.sourceId());
+                insert.setString(3, report.mapping());
+                insert.setObject(4, report.startedAt().atOffset(ZoneOffset.UTC));
+                insert.setObject(5, report.finishedAt().atOffset(ZoneOffset.UTC));
+                insert.setLong(6, report.landed());
+                insert.setLong(7, report.produced());
+                insert.setLong(8, report.quarantined());
+                insert.setLong(9, report.skipped());
+                insert.setBoolean(10, report.balanced());
+                try (ResultSet key = insert.executeQuery()) {
+                    key.next();
+                    runRef = key.getLong(1);
+                }
+            }
+            try (PreparedStatement insert = connection.prepareStatement("""
+                    INSERT INTO %s.quarantine (run_ref, hop, direction, record_type, detail)
+                    VALUES (?, ?, ?, ?, ?)""".formatted(quote(META_SCHEMA)))) {
+                for (RunReport.Violation violation : report.violations()) {
+                    insert.setLong(1, runRef);
+                    insert.setString(2, violation.hop());
+                    insert.setString(3, violation.direction());
+                    insert.setString(4, violation.recordType());
+                    insert.setString(5, violation.detail());
+                    insert.addBatch();
+                }
+                insert.executeBatch();
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            rollbackQuietly();
+            throw new ProjectionException(Operation.APPLY, ProjectionType.ODS, null,
+                    "could not record run '" + report.runId() + "': " + describe(e), e);
         }
     }
 

@@ -53,6 +53,20 @@ public interface ProjectionWriter extends AutoCloseable {
      */
     long count(CanonicalTypeDescriptor descriptor);
 
+    /**
+     * Records what a run did as a whole, once it has finished (ADR 0035).
+     *
+     * <p>A default that does nothing, because most projections are gold and nothing in a run report
+     * is canonical. The ODS keeps operational state beside its canonical tables, and it is where an
+     * operator -- or a repository showing what the platform sent it -- looks for the completeness of
+     * a run and the reasons records were held back.
+     *
+     * <p>Called after every change set has been applied, and never on a run that failed before it
+     * finished: a report of a run that did not happen is worse than none.
+     */
+    default void recordRun(RunReport report) {
+    }
+
     @Override
     void close();
 }

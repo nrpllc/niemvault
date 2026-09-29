@@ -27,7 +27,8 @@ PORT=5199
 RATE=1.5          # calls per second
 EVERY=10          # seconds between ingest cycles
 TOKEN="demo-token"
-BOOTSTRAP="localhost:19092"
+BOOTSTRAP="localhost:${NIEM_KAFKA_PORT:-19092}"
+KAFKA_CONTAINER="${NIEM_KAFKA_CONTAINER:-niem-demo-kafka}"
 TOPIC="cad.leon.incidents"
 # FLINK is how the platform actually runs (spec 5) and is the CLI's own default, so it is the
 # default here too -- a demo that quietly ran something else would be showing the wrong thing.
@@ -50,7 +51,7 @@ done
 
 MODULE="$NV/modules/law-enforcement/src/main/resources"
 MAPPING="$MODULE/mappings/leon-cad-to-canonical-1.0.0.yaml"
-SOURCE="$MODULE/sources/leon-so-cad-kafka.yaml"
+SOURCE="$WORK/leon-so-cad-kafka.yaml"
 NIEM="$NV/tools/cli/build/install/niem/bin/niem"
 BASE="http://127.0.0.1:$PORT"
 
@@ -71,17 +72,30 @@ trap cleanup EXIT INT TERM
 
 rm -rf "$WORK"; mkdir -p "$WORK/bronze-leon" "$WORK/cch-data"
 
+# The macOS /usr/bin/java is a stub that asks you to install Java. Homebrew's JDK 21 when nothing
+# else is named, so the CLI does not fail on its first line on a Mac with only that.
+if [[ -z "${JAVA_HOME:-}" ]] && command -v brew >/dev/null && [[ -d "$(brew --prefix openjdk@21 2>/dev/null)" ]]; then
+    export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+fi
+
+# The module names a deployment's broker and repository. Copies pointed at this demo's, as
+# cch-demo.sh does: the endpoint and the bootstrap address are the only lines that differ (ADR 0034).
+sed "s#^  bootstrapServers: .*#  bootstrapServers: $BOOTSTRAP#" \
+    "$MODULE/sources/leon-so-cad-kafka.yaml" > "$SOURCE"
+sed "s#^  endpoint: .*#  endpoint: $BASE/api/niemvault/submissions#" \
+    "$MODULE/exchanges/fdle-cch-incidents-leon-1.0.0.yaml" > "$WORK/exchange-leon.yaml"
+
 # --- the broker -------------------------------------------------------------
 
 say "Starting the broker"
 (cd "$HERE" && docker compose up -d) >/dev/null 2>&1
 
 for _ in $(seq 1 40); do
-    if docker exec niem-demo-kafka /opt/kafka/bin/kafka-topics.sh \
+    if docker exec "$KAFKA_CONTAINER" /opt/kafka/bin/kafka-topics.sh \
         --bootstrap-server "$BOOTSTRAP" --list >/dev/null 2>&1; then break; fi
     sleep 1
 done
-docker exec niem-demo-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP" \
+docker exec "$KAFKA_CONTAINER" /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP" \
     --create --if-not-exists --topic "$TOPIC" --partitions 1 --replication-factor 1 >/dev/null 2>&1
 note "Broker on $BOOTSTRAP, topic $TOPIC"
 
@@ -114,7 +128,7 @@ say "Dispatching calls"
 note "$RATE call(s) per second, into $TOPIC"
 (
     python3 "$HERE/cad-simulator.py" --rate "$RATE" \
-    | docker exec -i niem-demo-kafka /opt/kafka/bin/kafka-console-producer.sh \
+    | docker exec -i "$KAFKA_CONTAINER" /opt/kafka/bin/kafka-console-producer.sh \
         --bootstrap-server "$BOOTSTRAP" --topic "$TOPIC" >/dev/null 2>&1
 ) &
 PIDS+=($!)
@@ -132,7 +146,7 @@ export NIEM_CCH_TOKEN="$TOKEN"
         started=$(date +%H:%M:%S)
         out=$("$NIEM" run --module "$MODULE" --mapping "$MAPPING" --source "$SOURCE" \
                 --bronze "$WORK/bronze-leon" --tenant fl.leon.so \
-                --engine "$ENGINE" --cch-url "$BASE" 2>&1 | grep -v '^{' || true)
+                --engine "$ENGINE" --exchange "$WORK/exchange-leon.yaml" 2>&1 | grep -v '^{' || true)
 
         landed=$(sed -n 's/^Landed \([0-9]*\) record.*/\1/p' <<<"$out" | head -1)
         # Canonical output rather than cluster count: on Flink the driver cannot see the

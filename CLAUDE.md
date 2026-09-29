@@ -450,6 +450,9 @@ connector-agnostic operator surface (ADR 0029); the rest cost only their own mod
       Every projection store claims its tenant on open, the graph included (not via `--neo4j-uri`)
 - [x] `demo/stores/` — PostgreSQL, Elasticsearch and Neo4j on ports shifted by 10000, and `demo.sh`
       landing one drop into all three and checking they agree
+- [x] The ODS records every finished run — `ProjectionWriter.recordRun(RunReport)`, no-op by default;
+      the ODS writes `niem_meta.run` and `niem_meta.quarantine` (violations by shape only). Direct
+      engine only: Flink's account never reaches the driver
 - [x] The chart projects: `projections.{ods,search,graph}` in values, rendered to a ConfigMap and passed
       to ingest and replay alike. `storage.graph` removed
 - [x] FDLE CCH is fed by exchange again (`exchanges/fdle-cch-incidents-*.yaml`, CCH's

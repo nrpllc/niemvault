@@ -42,6 +42,8 @@ import java.util.LinkedHashMap;
 import gov.niemplatform.projections.api.ProjectionDefinitionException;
 import gov.niemplatform.projections.api.ProjectionException;
 import gov.niemplatform.projections.api.ProjectionWriter;
+import java.time.Instant;
+import gov.niemplatform.projections.api.RunReport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -202,6 +204,7 @@ final class RunCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        Instant startedAt = Instant.now();
         ArtifactSet artifacts = ArtifactSet.load(mappingFile, moduleDirectory.resolve("contracts"));
         List<String> crossReference = artifacts.crossReferenceProblems();
         if (!crossReference.isEmpty()) {
@@ -339,6 +342,13 @@ final class RunCommand implements Callable<Integer> {
             // produced records nothing can replay or correct.
             projections.flush();
             projected = projections.applied();
+            // The run as a whole, to every projection that keeps operational state (the ODS).
+            // Direct engine only: on Flink the account lives inside the operators and never
+            // reaches this driver, and a report with made-up numbers is worse than none.
+            if (account != null && !openProjections.isEmpty()) {
+                RunReport report = runReport(artifacts, startedAt, account, recorder);
+                openProjections.forEach(projection -> projection.recordRun(report));
+            }
             if (exchange != null) {
                 submitted = exchange.submit(System.out, System.err);
             }
@@ -500,6 +510,25 @@ final class RunCommand implements Callable<Integer> {
         openProjections.addAll(ProjectionTargets.open(projectionFiles, tenant, sourceId,
                 mappingName, mappingVersion, canonicalTypes, System.out));
         return openProjections;
+    }
+
+    private RunReport runReport(
+            ArtifactSet artifacts, Instant startedAt, RecordAccount account,
+            RecordingObservabilityEmitter recorder) {
+        List<RunReport.Violation> violations = recorder.eventsOfType(ContractViolation.class).stream()
+                .map(violation -> new RunReport.Violation(
+                        violation.context().hopId(),
+                        violation.direction().name().toLowerCase(java.util.Locale.ROOT),
+                        violation.recordTypeName(),
+                        // Failure.toString is field, rule, expected and the value's shape -- the
+                        // same text the terminal shows, and never the value (ADR 0015).
+                        String.join("; ", violation.failures().stream().map(Object::toString).toList())))
+                .toList();
+        return new RunReport(runId, artifacts.mapping().sourceId(),
+                artifacts.mapping().name() + "@" + artifacts.mapping().version(),
+                startedAt, Instant.now(),
+                account.landedCount(), account.producedCount(), account.quarantinedCount(),
+                account.skippedCount(), account.balances(), violations);
     }
 
     private static void reportProjections(Map<String, Long> projected) {

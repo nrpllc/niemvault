@@ -112,6 +112,22 @@ ConfigMap and passes the same `--projection` list to the ingest CronJob and the 
 cannot disagree about which stores exist. `storage.graph` is gone from the chart's values.
 `replay --neo4j-uri` still works for an operator at a terminal, and does not claim a tenant.
 
+### 5. The ODS records what each run did
+
+*Added 2026-09-29.* The completeness line (`landed x hops = produced + quarantined + skipped`) and the
+list of contract violations used to reach a terminal and nothing else, so the only record that a
+vendor's export had drifted was the scrollback of whoever ran the job. A repository reading the ODS
+could show "3 incidents arrived" and have no way to show that four rows were refused.
+
+`ProjectionWriter.recordRun(RunReport)` is called once a run has finished, with a no-op default:
+gold keeps no operational state. The ODS writes `niem_meta.run` (one row per run, with the counts and
+whether they balanced) and `niem_meta.quarantine` (one row per violation, referencing its run).
+Violations are stored as the platform prints them — field, rule, expected, and the *shape* of what
+was found — never the value (ADR 0015). Both are operational state: a rebuild never touches them.
+
+Direct engine only. On Flink the account lives inside the operators and never reaches the driver,
+and a report with invented numbers is worse than none.
+
 ## Consequences
 
 - **The ODS is not the source of truth for canonical data.** Silver is. Anything that reads

@@ -38,6 +38,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -452,5 +453,61 @@ class PostgresOdsProjectionWriterTest {
         assertThatThrownBy(() -> new PostgresOdsProjectionFactory().open(definition, context(LEON, model())))
                 .isInstanceOf(ProjectionDefinitionException.class)
                 .hasMessageContaining("unrecognised setting 'passwrodEnv'");
+    }
+
+    // --- run reports -----------------------------------------------------
+
+    @Test
+    @DisplayName("a finished run is recorded with its completeness and every violation, by shape")
+    void recordsARun() throws SQLException {
+        PostgresOdsProjectionWriter writer = open();
+        java.time.Instant started = java.time.Instant.parse("2026-09-29T14:00:00Z");
+
+        writer.recordRun(new gov.niemplatform.projections.api.RunReport(
+                "run-report-1", "riverton-pd-cad", "cad-to-canonical@1.0.0",
+                started, started.plusSeconds(3), 5, 8, 4, 3, true,
+                List.of(new gov.niemplatform.projections.api.RunReport.Violation(
+                        "map-person", "input", "source:cad-csv/incident-person",
+                        "DOB: pattern (expected text matching ^\\d{2}/\\d{2}/\\d{4}$, "
+                                + "found String(len=10, shape=####-##-##))"))));
+
+        assertThat(single("SELECT landed || '/' || produced || '/' || quarantined || '/' || skipped "
+                + "|| ' ' || balanced FROM niem_meta.run WHERE run_id = 'run-report-1'"))
+                .isEqualTo("5/8/4/3 true");
+        assertThat((String) single("SELECT q.hop || ' ' || q.detail FROM niem_meta.quarantine q "
+                + "JOIN niem_meta.run r ON r.id = q.run_ref WHERE r.run_id = 'run-report-1'"))
+                .startsWith("map-person DOB: pattern")
+                .contains("shape=####-##-##");
+    }
+
+    @Test
+    @DisplayName("a rebuild leaves run history alone -- it is what happened, not a projection")
+    void rebuildKeepsRunHistory() throws SQLException {
+        PostgresOdsProjectionWriter writer = open();
+        java.time.Instant at = java.time.Instant.parse("2026-09-29T14:00:00Z");
+        writer.recordRun(new gov.niemplatform.projections.api.RunReport(
+                "run-report-2", "leon-so-cad", "leon-cad-to-canonical@1.0.0",
+                at, at, 1, 3, 0, 0, true, List.of()));
+
+        writer.rebuild(new CanonicalSnapshot(oneIncident("run-3").changes()));
+
+        assertThat(single("SELECT count(*) FROM niem_meta.run WHERE run_id = 'run-report-2'"))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("a projection that keeps no operational state ignores a run report")
+    void defaultIsANoOp() {
+        ProjectionWriter gold = new ProjectionWriter() {
+            @Override public gov.niemplatform.projections.api.ProjectionType type() { return null; }
+            @Override public void apply(CanonicalChangeSet changes) { }
+            @Override public void rebuild(CanonicalSnapshot snapshot) { }
+            @Override public long count(CanonicalTypeDescriptor descriptor) { return 0; }
+            @Override public void close() { }
+        };
+        java.time.Instant at = java.time.Instant.now();
+
+        gold.recordRun(new gov.niemplatform.projections.api.RunReport(
+                "r", "s", "m@1.0.0", at, at, 0, 0, 0, 0, true, List.of()));
     }
 }

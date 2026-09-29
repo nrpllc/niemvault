@@ -34,6 +34,12 @@ MODULE="$NV/modules/law-enforcement/src/main/resources"
 MAPPING="$MODULE/mappings/leon-cad-to-canonical-1.0.0.yaml"
 NIEM="$NV/tools/cli/build/install/niem/bin/niem"
 TENANT="fl.leon.so"
+# A second stack beside the default one: same overrides docker-compose.yml takes.
+STACK="${NIEM_STACK:-niem}"
+ODS_PORT="${NIEM_ODS_PORT:-15432}"
+SEARCH_PORT="${NIEM_SEARCH_PORT:-19200}"
+GRAPH_HTTP_PORT="${NIEM_GRAPH_HTTP_PORT:-17474}"
+GRAPH_BOLT_PORT="${NIEM_GRAPH_BOLT_PORT:-17687}"
 COMPOSE=(docker compose -f "$HERE/docker-compose.yml")
 
 # The demo stores' passwords, fixed in docker-compose.yml. The projection files name these
@@ -45,16 +51,16 @@ step() { printf '\n\033[90m%s\033[0m\n \033[36m%s\033[0m\n\033[90m%s\033[0m\n\n'
     "$(printf '=%.0s' {1..78})" "$1" "$(printf '=%.0s' {1..78})"; }
 note() { printf '  \033[90m%s\033[0m\n' "$1"; }
 
-sql()    { docker exec niem-ods psql -U niem -d niem -P pager=off -c "$1"; }
-cypher() { docker exec niem-graph cypher-shell -u neo4j -p "$NIEM_NEO4J_PASSWORD" --format plain "$1"; }
-search() { curl -fsS -H 'Content-Type: application/json' "http://localhost:19200/$1" -d "$2"; }
+sql()    { docker exec "$STACK-ods" psql -U niem -d niem -P pager=off -c "$1"; }
+cypher() { docker exec "$STACK-graph" cypher-shell -u neo4j -p "$NIEM_NEO4J_PASSWORD" --format plain "$1"; }
+search() { curl -fsS -H 'Content-Type: application/json' "http://localhost:$SEARCH_PORT/$1" -d "$2"; }
 
 run_once() {
     "$NIEM" run --module "$MODULE" --mapping "$MAPPING" --run-id "$1" \
         --drop "$WORK/drop" --bronze "$WORK/bronze" --tenant "$TENANT" --engine DIRECT \
-        --projection "$HERE/projections/ods.yaml" \
-        --projection "$HERE/projections/search.yaml" \
-        --projection "$HERE/projections/graph.yaml"
+        --projection "$WORK/projections/ods.yaml" \
+        --projection "$WORK/projections/search.yaml" \
+        --projection "$WORK/projections/graph.yaml"
 }
 
 # --- setup ------------------------------------------------------------------
@@ -65,7 +71,7 @@ if $RESET; then
     "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 fi
 "${COMPOSE[@]}" up -d --wait
-note "PostgreSQL :15432   Elasticsearch :19200   Neo4j :17474 (browser) / :17687 (bolt)"
+note "PostgreSQL :$ODS_PORT   Elasticsearch :$SEARCH_PORT   Neo4j :$GRAPH_HTTP_PORT (browser) / :$GRAPH_BOLT_PORT (bolt)"
 
 if [[ -z "${JAVA_HOME:-}" ]] && command -v brew >/dev/null && [[ -d "$(brew --prefix openjdk@21 2>/dev/null)" ]]; then
     export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
@@ -76,6 +82,16 @@ note "Building the operator CLI..."
 rm -rf "$WORK"
 mkdir -p "$WORK/drop" "$WORK/bronze"
 cp "$MODULE/fixtures/leon-incidents.csv" "$WORK/drop/"
+
+# The projection files name the default ports. Copies pointed at this stack's, so a second stack
+# projects into its own stores rather than into the first one's.
+mkdir -p "$WORK/projections"
+for p in ods search graph; do
+    sed -e "s#localhost:15432#localhost:$ODS_PORT#" \
+        -e "s#localhost:19200#localhost:$SEARCH_PORT#" \
+        -e "s#localhost:17687#localhost:$GRAPH_BOLT_PORT#" \
+        "$HERE/projections/$p.yaml" > "$WORK/projections/$p.yaml"
+done
 
 # --- 1 ----------------------------------------------------------------------
 
@@ -145,8 +161,8 @@ echo
 run_once leon-day1-again 2>&1 | grep -E 'Projected|record\(s\)$' || true
 echo
 note "Every store, every type -- they have to agree, or one of them is wrong (§4.7):"
-es_count()  { curl -fsS "http://localhost:19200/niem-$TENANT-$1/_count" | python3 -c 'import sys,json;print(json.load(sys.stdin)["count"])'; }
-pg_count()  { docker exec niem-ods psql -U niem -d niem -tAc "SELECT count(*) FROM canonical.$1"; }
+es_count()  { curl -fsS "http://localhost:$SEARCH_PORT/niem-$TENANT-$1/_count" | python3 -c 'import sys,json;print(json.load(sys.stdin)["count"])'; }
+pg_count()  { docker exec "$STACK-ods" psql -U niem -d niem -tAc "SELECT count(*) FROM canonical.$1"; }
 neo_count() { cypher "$1" | tail -1; }
 printf '    %-28s %6s %8s %7s\n' "" "ODS" "search" "graph"
 printf '    %-28s %6s %8s %7s\n' Person \
@@ -162,6 +178,6 @@ sql "SELECT run_id, operation, canonical_type, records, applied_at::time(0)
        FROM niem_meta.projection_run ORDER BY applied_at, canonical_type;"
 
 step "Done"
-note "psql:     docker exec -it niem-ods psql -U niem -d niem"
-note "search:   curl 'http://localhost:19200/_cat/aliases/niem-*?v'"
-note "graph:    http://localhost:17474  (neo4j / $NIEM_NEO4J_PASSWORD)"
+note "psql:     docker exec -it $STACK-ods psql -U niem -d niem"
+note "search:   curl 'http://localhost:$SEARCH_PORT/_cat/aliases/niem-*?v'"
+note "graph:    http://localhost:$GRAPH_HTTP_PORT  (neo4j / $NIEM_NEO4J_PASSWORD)"
