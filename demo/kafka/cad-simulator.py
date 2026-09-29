@@ -81,6 +81,9 @@ def main():
                     help="Stop after this many calls. 0 runs until killed.")
     ap.add_argument("--seed", type=int, default=None,
                     help="Makes a session reproducible. Omitted: a different shift every run.")
+    ap.add_argument("--cast-seed", type=int, default=None,
+                    help="Seeds only the cast, so the same people recur across restarts while every "
+                         "call is still new. Omitted: --seed, or a new cast every run.")
     ap.add_argument("--start-incident", type=int, default=500,
                     help="First incident number. Default: %(default)s")
     ap.add_argument("--header", action="store_true",
@@ -89,7 +92,11 @@ def main():
     args = ap.parse_args()
 
     r = random.Random(args.seed)
-    cast = build_cast(r)
+    # The cast from its own seed when one is given. A stack that restarts must meet the same
+    # people again -- a new cast every restart made the "who recurs" views about restarts, not
+    # about the calls -- while the calls themselves keep coming from the session's own stream.
+    cast_seed = args.cast_seed if args.cast_seed is not None else args.seed
+    cast = build_cast(random.Random(cast_seed) if cast_seed is not None else r)
     # Four pairs who turn up together more than once. This is the recurrence the graph exists for.
     pairs = [(0, 5), (2, 11), (7, 14), (3, 18)]
 
