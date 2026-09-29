@@ -155,6 +155,58 @@ public final class MappingText {
                         .formatted(stepIndex, hopId, key));
     }
 
+    /**
+     * Gives a step an option it does not have yet, or changes one it has.
+     *
+     * <p>Without this an option could only be changed, never added, so a step added in the editor --
+     * a {@code parseDate}, which cannot compile without its pattern -- could not be finished there.
+     * Written in the step's own style: into its flow mapping, under its block, or as a new flow line
+     * after the step's last line, the way {@link #addStep} writes options.
+     */
+    public MappingText addStepOption(String hopId, int stepIndex, String key, String value) {
+        try {
+            return setStepOption(hopId, stepIndex, key, value);
+        } catch (IllegalArgumentException absent) {
+            // Not there yet: added below.
+        }
+        Block step = step(hopId, stepIndex);
+        int last = step.start();
+        for (int line = step.start(); line < step.end(); line++) {
+            String text = lines.get(line);
+            if (!text.isBlank() && !isComment(text)) {
+                last = line;
+            }
+            if (text.stripLeading().startsWith("options:")) {
+                String trimmed = text.stripTrailing();
+                List<String> edited = new ArrayList<>(lines);
+                if (trimmed.endsWith("}")) {
+                    int close = trimmed.lastIndexOf('}');
+                    String before = trimmed.substring(0, close).stripTrailing();
+                    String separator = before.endsWith("{") ? " " : ", ";
+                    edited.set(line, before + separator + key + ": " + scalar(value) + " }");
+                    return new MappingText(edited);
+                }
+                if (trimmed.strip().equals("options:")) {
+                    int at = line + 1;
+                    int childIndent = indentOf(text) + 2;
+                    while (at < step.end()
+                            && (lines.get(at).isBlank() || indentOf(lines.get(at)) > indentOf(text))) {
+                        if (!lines.get(at).isBlank()) {
+                            childIndent = indentOf(lines.get(at));
+                        }
+                        at++;
+                    }
+                    edited.add(at, " ".repeat(childIndent) + key + ": " + scalar(value));
+                    return new MappingText(edited);
+                }
+            }
+        }
+        List<String> edited = new ArrayList<>(lines);
+        edited.add(last + 1, " ".repeat(step.childIndent()) + "options: { " + key + ": "
+                + scalar(value) + " }");
+        return new MappingText(edited);
+    }
+
     // --- the source's own vocabulary ---------------------------------------
 
     /**

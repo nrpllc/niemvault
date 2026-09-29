@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mapping authoring</title>
+  <title>NIEMVault authoring</title>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -16,56 +16,101 @@
   </div>
   <div class="actions">
     <div class="views" role="tablist" aria-label="View">
-      <button id="view-pipelines" type="button" class="view" role="tab" aria-selected="false">Pipelines</button>
-      <button id="view-flow" type="button" class="view is-current" role="tab" aria-selected="true">Flow</button>
+      <button id="view-pipelines" type="button" class="view is-current" role="tab" aria-selected="true">Pipelines</button>
+      <button id="view-flow" type="button" class="view" role="tab" aria-selected="false">Mapping</button>
       <button id="view-catalogue" type="button" class="view" role="tab" aria-selected="false">Catalogue</button>
       <button id="view-coverage" type="button" class="view" role="tab" aria-selected="false">NIEM</button>
     </div>
-    <span id="status" class="status status--idle">ready</span>
-    <button id="save" type="button" disabled>Save as new version</button>
   </div>
 </header>
 
-<section class="flow-strip">
-  <h2>Mapping<span class="hint">click a step to open the fields it maps</span></h2>
-  <div id="dag" class="dag-frame"></div>
-</section>
+<!-- Where you are: Pipeline › Stage › Hop › Step. One path, drawn on every view, so drilling from a
+     pipeline into the fields of its mapping never loses the pipeline it started from. -->
+<nav id="context-bar" class="context-bar" aria-label="Where you are" hidden>
+  <ol id="crumbs" class="crumbs"></ol>
+  <div class="toolbar-spacer"></div>
+  <button id="ctx-back" type="button" class="primary" hidden>← Back to pipeline</button>
+</nav>
 
-<main id="flow-view">
-  <nav class="rail" aria-label="Mappings and tools">
-    <h2>Mappings</h2>
-    <ul id="mapping-list"></ul>
+<section id="mapping-view" class="mapping-view" aria-label="Mapping" hidden>
+  <div class="toolbar">
+    <label class="field compact">
+      <span>Mapping</span>
+      <select id="mapping-open" aria-label="Open a mapping"></select>
+    </label>
+    <label class="field compact narrow"><span>Version</span><input id="mapping-version" type="text" spellcheck="false" placeholder="1.0.1"></label>
+    <div class="toolbar-spacer"></div>
+    <button id="mapping-validate" type="button" class="ghost">Validate</button>
+    <button id="mapping-preview" type="button" class="ghost" aria-pressed="false">Preview</button>
+    <button id="save" type="button" disabled>Save</button>
+  </div>
+  <p id="status" class="status-line" role="status" aria-live="polite"></p>
 
-    <h2>Add a transform</h2>
-    <p class="detail">Adds a step to the open mapping step. Wire its input on the canvas.</p>
-    <ul id="palette" class="palette"></ul>
-
-    <h2>Source columns</h2>
-    <ul id="column-list" class="columns"></ul>
-  </nav>
-
-  <section class="stage">
-    <div class="stage-head">
-      <h2 id="stage-title">Field flow</h2>
-      <button id="relayout" type="button" class="ghost inline">Tidy layout</button>
-    </div>
-    <div id="canvas" class="canvas-frame"></div>
+  <section class="flow-strip">
+    <h2>Hops<span class="hint">each hop is gated by its contract; click one to open the fields it maps</span></h2>
+    <div id="dag" class="dag-frame"></div>
   </section>
 
-  <aside class="inspector" aria-label="Selected item">
-    <h2 id="inspector-title">Nothing selected</h2>
-    <div id="inspector"></div>
+  <main id="flow-view">
+    <nav class="rail" aria-label="Mappings and tools">
+      <section class="pl-group">
+        <h2>Mappings</h2>
+        <ul id="mapping-list"></ul>
+      </section>
 
-    <h2>Suggestions<span id="advisor" class="hint"></span></h2>
-    <div id="suggestions"></div>
+      <section class="pl-group">
+        <h2>Add a step</h2>
+        <p class="detail">Adds a step to the end of the open hop. Choose what it reads in the panel.</p>
+        <ul id="palette" class="palette"></ul>
+      </section>
 
-    <h2>Problems</h2>
-    <div id="problems" role="status" aria-live="polite"></div>
-  </aside>
-</main>
+      <section class="pl-group">
+        <h2>Source columns</h2>
+        <p class="detail">What the origin sends. With a step selected, click one to have the step read it.</p>
+        <ul id="column-list" class="columns"></ul>
+      </section>
+    </nav>
 
-<section id="pipelines-view" class="designer" hidden aria-label="Pipeline designer">
-  <div class="designer-toolbar">
+    <section class="stage">
+      <div class="stage-head">
+        <h2 id="stage-title">Fields</h2>
+        <div id="record-picker" class="record-picker" hidden>
+          <button id="record-prev" type="button" class="ghost inline" aria-label="Previous sample record">‹</button>
+          <span id="record-label"></span>
+          <button id="record-next" type="button" class="ghost inline" aria-label="Next sample record">›</button>
+        </div>
+        <button id="relayout" type="button" class="ghost inline">Tidy layout</button>
+      </div>
+      <div id="canvas" class="canvas-frame"></div>
+    </section>
+
+    <aside class="inspector panel" aria-label="Selected item">
+      <div class="panel-head"><h2 id="inspector-title" class="panel-title">Nothing selected</h2></div>
+      <div id="inspector"></div>
+
+      <h3>Sample values<span id="sample-origin" class="hint"></span></h3>
+      <div id="samples"></div>
+
+      <h3>Suggestions<span id="advisor" class="hint"></span></h3>
+      <div id="suggestions"></div>
+
+      <h3>Problems</h3>
+      <div id="problems" role="status" aria-live="polite"></div>
+    </aside>
+  </main>
+
+  <details class="source">
+    <summary>Mapping source (YAML)</summary>
+    <p class="detail">
+      The artifact on disk. Editing here does the same thing the canvas does — both are checked by
+      the same loaders the runtime uses.
+    </p>
+    <textarea id="yaml" spellcheck="false" aria-label="Mapping definition"></textarea>
+  </details>
+</section>
+
+<section id="pipelines-view" class="designer" aria-label="Pipeline designer">
+  <div class="toolbar">
     <label class="field compact">
       <span>Pipeline</span>
       <select id="pl-open" aria-label="Open a pipeline"></select>
@@ -78,7 +123,7 @@
     <button id="pl-preview" type="button" class="ghost">Preview</button>
     <button id="pl-save" type="button">Save</button>
   </div>
-  <p id="pl-status" class="pl-status" role="status" aria-live="polite">
+  <p id="pl-status" class="status-line" role="status" aria-live="polite">
     Drag a stage from the palette onto the canvas, or start with <strong>Add a data source</strong>.
   </p>
 
@@ -102,7 +147,7 @@
       </section>
     </section>
 
-    <aside id="pl-config" class="pl-config" aria-label="Stage configuration"></aside>
+    <aside id="pl-config" class="pl-config panel" aria-label="Stage configuration"></aside>
   </div>
 
   <dialog id="pl-wizard-dialog" class="pl-wizard" aria-labelledby="pl-wizard-title">
@@ -162,14 +207,7 @@
   <div id="coverage-extensions"></div>
 </section>
 
-<details class="source">
-  <summary>Mapping source (YAML)</summary>
-  <p class="detail">
-    The artifact on disk. Editing here does the same thing the canvas does — both are checked by
-    the same loaders the runtime uses.
-  </p>
-  <textarea id="yaml" spellcheck="false" aria-label="Mapping definition"></textarea>
-</details>
+
 
 <script type="module" src="app.js"></script>
 </body>

@@ -228,6 +228,74 @@ public final class MappingPipeline {
         return breach.isEmpty();
     }
 
+    /** One step as it ran on one record: what it read, and what it wrote or why it could not. */
+    public record StepTrace(
+            int index, String target, String type, Map<String, Object> inputs, Object value, String failure) {
+
+        public StepTrace {
+            inputs = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(inputs));
+        }
+    }
+
+    /**
+     * One hop as it ran on one record.
+     *
+     * @param admitted whether the hop's inbound contract let the record in; when it did not, no step
+     *     ran, and the reasons are the violations the gate emitted
+     */
+    public record HopTrace(String hopId, boolean admitted, List<StepTrace> steps) {
+
+        public HopTrace {
+            steps = List.copyOf(steps);
+        }
+    }
+
+    /**
+     * Runs one hop over one envelope and reports every step: the values it read and the value it
+     * wrote. For an author looking at a step, which is otherwise a configuration with no data in it.
+     *
+     * <p>The same decoder, the same inbound gate and the same compiled transforms as
+     * {@link #process} -- a second evaluator written for the editor would be a second opinion about
+     * what a mapping does, and the one the author trusts would be the wrong one. Stops at the first
+     * step that fails, as a run does. Keeps no books: a trace is not a record landing, and counting
+     * it would make a preview's completeness equation describe the editor rather than the data.
+     *
+     * @throws IllegalArgumentException if the mapping has no such hop
+     */
+    public HopTrace trace(RawEnvelope envelope, String hopId, String runId) {
+        HopDefinition hop = definition.hops().stream()
+                .filter(candidate -> candidate.hopId().equals(hopId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Mapping '%s' has no hop '%s'".formatted(definition.qualifiedName(), hopId)));
+        PipelineContext runContext = PipelineContext.of(definition.sourceId(), runId);
+        Record decoded = decoder.decode(envelope.payload());
+
+        Optional<Record> admitted = inboundGates.get(hop.hopId()).check(decoded, runContext);
+        if (admitted.isEmpty()) {
+            return new HopTrace(hopId, false, List.of());
+        }
+        List<StepTrace> traced = new ArrayList<>();
+        Map<String, Object> emitted = new LinkedHashMap<>();
+        List<Transform> compiled = stepsByHop.get(hop.hopId());
+        for (int i = 0; i < compiled.size(); i++) {
+            Transform step = compiled.get(i);
+            TransformInput input = new TransformInput(admitted.get(), emitted);
+            Map<String, Object> inputs = new LinkedHashMap<>();
+            hop.steps().get(i).from().forEach(name -> inputs.put(name, input.value(name)));
+            try {
+                Object value = step.evaluate(input);
+                emitted.put(step.target(), value);
+                traced.add(new StepTrace(i, step.target(), step.type(), inputs, value, null));
+            } catch (TransformException e) {
+                // The exception describes the value by its shape, never by its content (ADR 0015).
+                traced.add(new StepTrace(i, step.target(), step.type(), inputs, null, e.getMessage()));
+                break;
+            }
+        }
+        return new HopTrace(hopId, true, traced);
+    }
+
     /** Runs one hop's steps, assigns identity, and builds its canonical record. */
     private Optional<Record> applyHop(
             HopDefinition hop,

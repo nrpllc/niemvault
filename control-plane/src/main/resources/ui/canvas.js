@@ -35,6 +35,7 @@ export function createCanvas(root, handlers) {
     wire: null,
     nodeEls: new Map(),     // node id -> <g>, so a drag moves an element instead of rebuilding
     edgeEls: [],            // {edge, path, hit}, likewise
+    values: new Map(),      // node id -> {text, bad}: one sample record's value, drawn under the node
   };
 
   // --- layout ---------------------------------------------------------------
@@ -99,7 +100,8 @@ export function createCanvas(root, handlers) {
     if (!graph) return;
 
     const width = Math.max(...[...state.positions.values()].map((p) => p.x + NODE_W)) + PAD;
-    const height = Math.max(...[...state.positions.values()].map((p) => p.y + NODE_H)) + PAD;
+    const height = Math.max(...[...state.positions.values()].map((p) => p.y + NODE_H)) + PAD
+      + (state.values.size ? 16 : 0);
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);
@@ -205,6 +207,14 @@ export function createCanvas(root, handlers) {
 
     group.append(text(node.label, 12, 22, 'canvas-label'));
     if (node.detail) group.append(text(node.detail, 12, 39, 'canvas-detail'));
+
+    // A sample value, under the node rather than in it: the box says what a step is, the line under
+    // it what it did to the record in hand -- the same record for every node, so a row reads left to
+    // right as one value being transformed.
+    const value = state.values.get(node.id);
+    if (value) {
+      group.append(text(value.text, 4, NODE_H + 13, `canvas-value${value.bad ? ' is-bad' : ''}`));
+    }
 
     // Ports. Out on every node that can feed something, in on transforms only -- values are
     // written by exactly one step, so an inbound port on a value would promise an edit that the
@@ -390,6 +400,11 @@ export function createCanvas(root, handlers) {
     reset() {
       state.moved.clear();
       if (state.graph) this.render(state.graph);
+    },
+    /** Sample values to draw under nodes, keyed by node id; an empty map removes them. */
+    setValues(values) {
+      state.values = values || new Map();
+      draw();
     },
   };
 }

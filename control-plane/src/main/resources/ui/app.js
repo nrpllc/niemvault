@@ -1,5 +1,5 @@
 /*
- * Mapping authoring surface.
+ * NIEMVault authoring surface: the pipeline designer and the mapping editor, as one tool.
  *
  * Vanilla JS modules on purpose: no framework, no build step, nothing fetched at runtime. Spec
  * section 6 makes air-gapped delivery mandatory, and every dependency is one an agency has to
@@ -10,15 +10,24 @@
  * line by line. That is ADR 0021 -- an editor with its own opinion about validity would eventually
  * disagree with the engine, and one that regenerated YAML would erase the commentary explaining why
  * each step exists.
+ *
+ * One path through it: Pipeline › Stage › Hop › Step. A pipeline's Mapping stage opens here, in the
+ * mapping editor, with the pipeline still named above it and a way back to exactly where the author
+ * left it; the sample records the pipeline preview reads are the ones each step shows here. The
+ * words are one per thing: an origin is where a pipeline's records come from and a source is the
+ * definition that describes it; a pipeline has stages, a mapping has hops, a hop has steps.
  */
 
 import { createCanvas } from './canvas.js';
 import { initPipelines } from './pipelines.js';
-
-const el = (id) => document.getElementById(id);
+import * as nav from './nav.js';
+import {
+  el, api, post, hint, action, field, renderProblems, setStatusLine, humanize, orderTransforms,
+} from './shared.js';
 
 const state = {
   file: null,
+  name: null,
   savedYaml: '',
   mapping: null,
   transforms: [],
@@ -26,16 +35,35 @@ const state = {
   contract: null,
   selected: null,
   debounce: null,
+  saveAs: '',
+  versionTouched: false,
+  draft: false,
+};
+
+/*
+ * Where the mapping was opened from. A pipeline's Mapping stage, a new source being added in the
+ * wizard, or nowhere (opened on its own). It is what the context bar draws and where "Back" goes.
+ */
+const context = {
+  pipeline: null,        // { label, mappingName, mappingRef, origin }
+  wizard: null,          // { sourceId, origin }
+};
+
+/*
+ * The field preview: one hop of the mapping as it stands in the editor, run over a few real records
+ * from the origin. Off until asked for; once on, it follows every edit.
+ */
+const preview = {
+  on: false,
+  result: null,
+  key: null,
+  record: 0,
+  loading: false,
+  timer: null,
 };
 
 let canvas;
-
-async function api(path, options) {
-  const response = await fetch(path, options);
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || 'Request failed');
-  return payload;
-}
+let pipelines;
 
 const currentHop = () => (state.mapping?.hops || []).find((hop) => hop.id === state.hopId);
 
@@ -54,12 +82,23 @@ async function loadModule() {
   }
 }
 
+let mappingFiles = [];
+
 async function loadMappingList() {
-  const { mappings } = await api('/api/mappings');
+  mappingFiles = (await api('/api/mappings')).mappings;
   const list = el('mapping-list');
   list.replaceChildren();
+  const select = el('mapping-open');
+  select.replaceChildren();
 
-  mappings.forEach((mapping) => {
+  if (state.draft) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = `${state.name || 'new mapping'} (not saved yet)`;
+    select.append(option);
+  }
+
+  mappingFiles.forEach((mapping) => {
     const button = document.createElement('button');
     button.type = 'button';
     // A mapping that will not load is still listed. Hiding it would leave an author unable to open
@@ -79,13 +118,20 @@ async function loadMappingList() {
     const item = document.createElement('li');
     item.append(button);
     list.append(item);
+
+    const option = document.createElement('option');
+    option.value = mapping.file;
+    option.textContent = `${mapping.name}@${mapping.version}${mapping.loadable ? '' : ' (does not load)'}`;
+    select.append(option);
   });
+  select.value = state.draft ? '' : (state.file || '');
 }
 
 function renderPalette() {
   const list = el('palette');
   list.replaceChildren();
-  state.transforms.forEach((type) => {
+  const { common, rest } = orderTransforms(state.transforms);
+  const chip = (type) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'chip';
@@ -93,32 +139,76 @@ function renderPalette() {
     button.addEventListener('click', () => addStep(type));
     const item = document.createElement('li');
     item.append(button);
-    list.append(item);
-  });
+    return item;
+  };
+  common.forEach((type) => list.append(chip(type)));
+  if (rest.length) {
+    const more = document.createElement('li');
+    more.className = 'palette-divider';
+    more.textContent = 'more';
+    list.append(more);
+    rest.forEach((type) => list.append(chip(type)));
+  }
 }
 
-async function openMapping(file) {
+/**
+ * Opens a mapping from disk.
+ *
+ * @param at where in it to land: a hop and a selected node, restored from the URL or carried from
+ *     the pipeline
+ */
+async function openMapping(file, at = {}) {
   try {
     const mapping = await api(`/api/mapping?file=${encodeURIComponent(file)}`);
     state.file = file;
+    state.name = mapping.name;
+    state.draft = false;
     state.savedYaml = mapping.source;
-    state.hopId = null;
-    state.selected = null;
+    state.hopId = at.hop || null;
+    state.selected = at.step || null;
+    state.saveAs = mapping.nextVersion;
+    state.versionTouched = false;
     el('yaml').value = mapping.source;
+    resetPreview();
     apply(mapping.svg, mapping, []);
-    setStatus('valid', `${mapping.name}@${mapping.version}`);
+    syncVersion();
+    setStatus('idle', `Opened ${mapping.name}@${mapping.version}. Saving writes a new version; `
+      + 'the opened one is never changed.');
+    el('save').disabled = true;
     await loadMappingList();
+    if (!at.restoring) nav.go({ view: 'flow', mapping: mapping.name, hop: state.hopId, step: state.selected });
+    renderContext();
   } catch (error) {
-    setStatus('invalid', 'cannot open');
+    setStatus('invalid', `Cannot open this mapping: ${error.message}`);
     showProblems([error.message]);
   }
+}
+
+/**
+ * Opens a mapping that exists only as text so far -- a new source's first mapping, started in the
+ * wizard. It is validated like any draft, and Save writes it for the first time.
+ */
+async function openDraft(yaml, name) {
+  state.file = null;
+  state.name = name;
+  state.draft = true;
+  state.savedYaml = '';
+  state.hopId = null;
+  state.selected = null;
+  state.saveAs = '';
+  state.versionTouched = false;
+  el('yaml').value = yaml;
+  resetPreview();
+  await loadMappingList();
+  await validate();
+  setStatus('idle', `${name} is not saved yet. Fill in what the problems list says is missing, then save it.`);
 }
 
 // --- validation and edits ---------------------------------------------------
 
 function scheduleValidation() {
   clearTimeout(state.debounce);
-  setStatus('idle', 'checking…');
+  setStatus('idle', 'Checking…');
   state.debounce = setTimeout(validate, 350);
 }
 
@@ -127,7 +217,7 @@ async function validate() {
   try {
     accept(await api('/api/validate', { method: 'POST', body: yaml }), yaml);
   } catch (error) {
-    setStatus('invalid', 'invalid');
+    setStatus('invalid', 'Does not load.');
     showProblems([error.message]);
     el('save').disabled = true;
   }
@@ -150,7 +240,7 @@ async function edit(request) {
     // An edit the text patcher will not make -- an option that spans lines, a step that cannot move
     // any further. Say so and change nothing.
     showProblems([error.message]);
-    setStatus('invalid', 'not applied');
+    setStatus('invalid', `Not applied: ${humanize(error.message)}`);
   }
 }
 
@@ -167,7 +257,7 @@ async function editContract(request) {
     renderInspector();
   } catch (error) {
     showProblems([error.message]);
-    setStatus('invalid', 'not applied');
+    setStatus('invalid', `Not applied: ${humanize(error.message)}`);
   }
 }
 
@@ -418,30 +508,30 @@ function producedRow(produced) {
   return row;
 }
 
-const VIEWS = ['pipelines', 'flow', 'catalogue', 'coverage'];
 
-function showView(view) {
-  const current = VIEWS.includes(view) ? view : 'flow';
+// --- views ------------------------------------------------------------------
+
+const VIEWS = ['pipelines', 'flow', 'catalogue', 'coverage'];
+let currentView = 'pipelines';
+
+function showView(view, { record = true } = {}) {
+  const current = VIEWS.includes(view) ? view : 'pipelines';
+  currentView = current;
 
   VIEWS.forEach((name) => {
-    const pane = name === 'flow' ? el('flow-view') : el(name + '-view');
+    const pane = name === 'flow' ? el('mapping-view') : el(name + '-view');
     const tab = el('view-' + name);
     pane.hidden = name !== current;
     tab.classList.toggle('is-current', name === current);
     tab.setAttribute('aria-selected', String(name === current));
   });
 
-  // The mapping strip belongs to the mapping. NIEM coverage describes the model, which is the same
-  // whichever mapping happens to be open, so leaving the strip up would imply a connection.
-  document.querySelector('.flow-strip').hidden = current === 'coverage' || current === 'pipelines';
-  // The masthead's save and the YAML source belong to the open mapping, not to a pipeline, which
-  // saves from its own toolbar.
-  el('save').hidden = current === 'pipelines';
-  document.querySelector('details.source').hidden = current === 'pipelines';
   if (current === 'pipelines') pipelines.show();
-
   if (current === 'catalogue') showCatalogue();
   if (current === 'coverage') showCoverage();
+  // The URL names only the place the view shows: a pipeline view carries no mapping hop or step.
+  if (record) nav.go(current === 'pipelines' ? { view: current, mapping: null, hop: null, step: null, draft: null } : { view: current });
+  renderContext();
 }
 
 /*
@@ -588,22 +678,34 @@ function extensionRow(extension) {
   return row;
 }
 
+// --- accepting a validated draft --------------------------------------------
+
 function accept(report, yaml) {
   if (report.svg) {
     apply(report.svg, report.mapping, report.problems);
+    state.name = report.mapping?.name || state.name;
   } else {
     // The mapping did not parse, so there is nothing new to draw. The previous picture stays: an
     // author fixing a mistake wants to see what they are fixing.
     showProblems(report.problems);
   }
+  if (report.saveAs && !state.versionTouched) {
+    state.saveAs = report.saveAs;
+    syncVersion();
+  }
+  const dirty = state.draft || yaml !== state.savedYaml;
   if (report.valid) {
-    setStatus('valid', 'valid');
-    el('save').disabled = yaml === state.savedYaml;
+    setStatus('valid', dirty
+      ? `Valid. Save writes ${state.name}@${versionToSave()}.`
+      : 'Valid. Nothing changed since it was opened.');
+    el('save').disabled = !dirty;
   } else {
     const count = report.problems.length;
-    setStatus('invalid', `${count} problem${count === 1 ? '' : 's'}`);
+    setStatus('invalid', `${count} problem${count === 1 ? '' : 's'} — listed in the panel; the canvas marks where.`);
     el('save').disabled = true;
   }
+  schedulePreview();
+  renderContext();
 }
 
 function apply(svg, mapping, problems) {
@@ -616,8 +718,18 @@ function apply(svg, mapping, problems) {
   if (!hops.some((hop) => hop.id === state.hopId)) {
     state.hopId = hops.length ? hops[0].id : null;
   }
-  showHop();
+  // Problems first: the inspector reads them for the option names a step needs.
   showProblems(problems);
+  showHop();
+}
+
+function versionToSave() {
+  return el('mapping-version').value.trim() || state.saveAs || '?';
+}
+
+function syncVersion() {
+  if (!state.versionTouched) el('mapping-version').value = state.saveAs || '';
+  el('save').textContent = `Save as v${versionToSave()}`;
 }
 
 // --- the hop strip ----------------------------------------------------------
@@ -626,10 +738,17 @@ function wireDagNodes() {
   el('dag').querySelectorAll('.dag-node[data-hop]').forEach((node) => {
     const hopId = (node.dataset.hop || '').trim();
     node.classList.toggle('is-selected', hopId === state.hopId);
-    node.addEventListener('click', () => {
+    node.setAttribute('tabindex', '0');
+    node.setAttribute('role', 'button');
+    const open = () => {
       state.hopId = hopId;
       state.selected = null;
       showHop();
+      nav.go({ hop: hopId, step: null }, { replace: true });
+    };
+    node.addEventListener('click', open);
+    node.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
     });
   });
 }
@@ -639,9 +758,27 @@ function renderColumns(columns) {
   list.replaceChildren();
   (columns || []).forEach((column) => {
     const item = document.createElement('li');
-    item.textContent = column;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chip chip--origin';
+    button.textContent = column;
+    button.title = 'With a step selected: have it read this column';
+    button.addEventListener('click', () => readInto(column));
+    item.append(button);
     list.append(item);
   });
+}
+
+/** Makes the selected step read a source column: the rail's columns are a way in, not a legend. */
+function readInto(name) {
+  const node = state.selected ? nodeById(state.selected) : null;
+  if (!node || node.kind !== 'transform') {
+    setStatus('idle', `Select a step first; then clicking ${name} makes it read that column.`);
+    return;
+  }
+  const step = currentHop().steps[node.step];
+  if (step.from.includes(name)) return;
+  edit({ op: 'setFrom', step: node.step, from: [...step.from, name] });
 }
 
 // --- the canvas -------------------------------------------------------------
@@ -665,18 +802,23 @@ function showHop() {
     node.classList.toggle('is-selected', (node.dataset.hop || '').trim() === state.hopId));
 
   if (!hop) {
-    el('stage-title').textContent = 'Field flow';
+    el('stage-title').textContent = 'Fields';
     el('canvas').replaceChildren();
+    renderContext();
     return;
   }
-  el('stage-title').textContent = `${hop.id} → ${hop.entityType}`;
+  el('stage-title').textContent = `Fields of ${hop.id} → ${hop.entityType}`;
   canvas.render(hop.graph);
   canvas.select(state.selected);
+  paintValues();
   renderInspector();
+  renderSamples();
   // The contract and the suggestions arrive after the drawing rather than blocking it. Both are
   // detail on demand; the flow is what the author came to look at.
   loadContract().then(renderInspector);
   loadSuggestions();
+  schedulePreview();
+  renderContext();
 }
 
 /*
@@ -700,7 +842,7 @@ async function loadSuggestions() {
       + (result.shapesObserved ? ` · ${result.shapesObserved} column shapes read` : ' · names only');
 
     if (!result.suggestions.length) {
-      container.append(hint('Nothing to propose — every field this step can fill is filled.'));
+      container.append(hint('Nothing to propose — every field this hop can fill is filled.'));
       return;
     }
     result.suggestions.forEach((suggestion) => container.append(suggestionCard(suggestion)));
@@ -742,7 +884,7 @@ function suggestionCard(suggestion) {
     type: suggestion.type,
     from: suggestion.from,
     options: suggestion.options || {},
-  })));
+  }), 'ghost'));
 
   card.append(head, how, why, actions);
   return card;
@@ -756,6 +898,9 @@ function onSelect(node) {
   state.selected = node.id;
   canvas.select(node.id);
   renderInspector();
+  renderSamples();
+  renderContext();
+  nav.go({ step: node.id }, { replace: true });
 }
 
 /**
@@ -771,7 +916,7 @@ function onConnect(stepIndex, source) {
       `"${source.label}" is produced after this step runs, so this step would read nothing. `
       + 'Move this step later first.',
     ]);
-    setStatus('invalid', 'not applied');
+    setStatus('invalid', 'Not applied: that value is written after this step runs.');
     return;
   }
   const hop = currentHop();
@@ -792,7 +937,7 @@ function onDisconnect(stepIndex, name) {
  * A window.prompt blocks the whole page, cannot be styled or explained, and offers no way to show
  * which field names would actually be accepted. Here the panel can list them.
  */
-function addStep(type) {
+function addStep(type, carried = {}) {
   const hop = currentHop();
   if (!hop) return;
 
@@ -805,12 +950,71 @@ function addStep(type) {
   const name = document.createElement('input');
   name.type = 'text';
   name.placeholder = 'field name';
+  name.value = carried.target || '';
   name.setAttribute('aria-label', 'field this step writes');
 
-  const commit = () => {
+  // Options the transform turned out to need, asked for here: a step that cannot compile would stop
+  // the whole mapping loading, and a mapping that does not load draws no new step to select and fix.
+  const optionInputs = new Map();
+  (carried.needed || []).forEach((key) => {
+    const box = document.createElement('input');
+    box.type = 'text';
+    box.value = carried.options?.[key] || '';
+    box.setAttribute('aria-label', `option ${key}`);
+    optionInputs.set(key, box);
+  });
+
+  // What it reads, chosen with the step: most transforms will not compile reading nothing.
+  const reads = document.createElement('select');
+  reads.multiple = true;
+  reads.size = 5;
+  reads.setAttribute('aria-label', 'what this step reads');
+  const written = [...new Set(hop.steps.map((step) => step.target))];
+  [['Source columns', state.mapping.columns || []], ['Written by earlier steps', written]].forEach(([label, names]) => {
+    if (!names.length) return;
+    const group = document.createElement('optgroup');
+    group.label = label;
+    names.forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      option.selected = (carried.from || []).includes(value);
+      group.append(option);
+    });
+    reads.append(group);
+  });
+
+  const commit = async () => {
     const target = name.value.trim();
     if (!target) return;
-    edit({ op: 'addStep', target, type, from: [] });
+    const options = {};
+    optionInputs.forEach((box, key) => { if (box.value) options[key] = box.value; });
+    const from = [...reads.selectedOptions].map((option) => option.value);
+    const yaml = el('yaml').value;
+    let report;
+    try {
+      report = await api('/api/edit', {
+        method: 'POST',
+        body: JSON.stringify({ yaml, hop: state.hopId, op: 'addStep', target, type, from, options }),
+      });
+    } catch (error) {
+      showProblems([error.message]);
+      return;
+    }
+    const about = (report.problems || []).filter((problem) => problem.includes(`steps[${target}]`));
+    if (!report.svg && about.length) {
+      // Not applied. A step that would stop the whole mapping loading is refused here, with the
+      // loader's reason and a field for whatever it named, rather than written into a mapping that
+      // then draws nothing an author could select to fix it.
+      const needed = [...new Set(about.flatMap((problem) =>
+        [...problem.matchAll(/requires option '([^']+)'/g)].map((match) => match[1])))];
+      addStep(type, { target, from, needed: [...new Set([...optionInputs.keys(), ...needed])], options });
+      el('inspector').prepend(problemsNote(about));
+      return;
+    }
+    el('yaml').value = report.yaml;
+    accept(report, report.yaml);
+    loadSuggestions();
   };
   name.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') commit();
@@ -819,15 +1023,23 @@ function addStep(type) {
 
   const actions = document.createElement('div');
   actions.className = 'inspector-actions';
-  actions.append(action('Add step', commit), action('Cancel', renderInspector));
+  actions.append(action('Add step', commit, 'primary'), action('Cancel', renderInspector, 'ghost'));
 
   panel.append(
-    row('Writes', name),
-    hint(`Added to the end of ${hop.id}. Wire its input on the canvas afterwards.`),
+    field('Writes', name),
+    field('Reads (choose one or more)', reads),
+    ...[...optionInputs].map(([key, box]) => field(`${key} (required by ${type})`, box)),
+    hint(`Added to the end of hop ${hop.id}. Choose what it reads once it is added.`),
     suggestions(hop, name),
     actions,
   );
-  name.focus();
+  (optionInputs.size ? [...optionInputs.values()].find((box) => !box.value) || name : name).focus();
+}
+
+function problemsNote(problems) {
+  const box = document.createElement('div');
+  renderProblems(box, problems);
+  return box;
 }
 
 /**
@@ -875,8 +1087,14 @@ function renderInspector() {
 
   const node = state.selected ? nodeById(state.selected) : null;
   if (!node) {
-    title.textContent = 'Nothing selected';
-    panel.append(hint('Click a box on the canvas to see and change what it does.'));
+    const hop = currentHop();
+    title.textContent = hop ? `Hop ${hop.id}` : 'Nothing selected';
+    if (hop) {
+      panel.append(hint(`Gated by contract ${hop.contract} on the way in and out; emits ${hop.entityType}. `
+        + 'Select a step, column or field on the canvas to see and change what it does.'));
+    } else {
+      panel.append(hint('Open a hop in the strip above.'));
+    }
     return;
   }
 
@@ -893,34 +1111,138 @@ function renderInspector() {
 
   const hop = currentHop();
   const step = hop.steps[node.step];
-  title.textContent = `${node.label} → ${step.target}`;
+  title.textContent = `Step ${node.step + 1} · ${node.label} → ${step.target}`;
 
   panel.append(
-    row('Writes', input(step.target, (value) =>
+    field('Writes', input(step.target, (value) =>
       edit({ op: 'setField', step: node.step, key: 'target', value }))),
-    row('Transform', transformPicker(node.step, step.type)),
-    row('Reads', hint(step.from.length ? step.from.join(', ') : 'nothing yet — wire an input')),
+    field('Transform', transformPicker(node.step, step.type)),
+    field('Reads', readsPicker(node.step, step)),
   );
 
   Object.entries(step.options || {}).forEach(([key, value]) => {
-    panel.append(row(key, input(value, (next) =>
+    panel.append(field(key, input(value, (next) =>
       edit({ op: 'setOption', step: node.step, key, value: next }))));
   });
+  panel.append(optionAdder(node.step, step));
 
   const actions = document.createElement('div');
   actions.className = 'inspector-actions';
   actions.append(
-    action('Move earlier', () => edit({ op: 'moveStep', step: node.step, delta: -1 })),
-    action('Move later', () => edit({ op: 'moveStep', step: node.step, delta: 1 })),
+    action('Move earlier', () => edit({ op: 'moveStep', step: node.step, delta: -1 }), 'ghost'),
+    action('Move later', () => edit({ op: 'moveStep', step: node.step, delta: 1 }), 'ghost'),
     action('Delete step', () => {
       state.selected = null;
       edit({ op: 'removeStep', step: node.step });
-    }, 'danger'),
+    }, 'ghost danger'),
   );
   panel.append(actions);
 
   // Order is meaning here, not presentation: a step reads what earlier steps produced.
   panel.append(hint(`Step ${node.step + 1} of ${hop.steps.length}. Steps run in order.`));
+}
+
+/**
+ * Adds an option a step does not have yet -- a parseDate's pattern, a codeMap's default.
+ *
+ * The names offered are the ones the runtime itself says this step needs or accepts, read from the
+ * loader's problems about it ("requires option 'pattern'", "it accepts [pattern, zone]"): the factory
+ * is the only authority on a transform's options, and a list kept here would drift from it.
+ */
+function optionAdder(stepIndex, step) {
+  const wrap = document.createElement('div');
+  wrap.className = 'option-adder';
+  const about = (state.problems || []).filter((problem) =>
+    problem.includes(`steps[${step.target}]`) || problem.includes(`writing '${step.target}'`));
+  const named = new Set();
+  about.forEach((problem) => {
+    const required = problem.match(/requires option '([^']+)'/);
+    if (required) named.add(required[1]);
+    const accepts = problem.match(/accepts \[([^\]]*)\]/);
+    if (accepts) accepts[1].split(',').map((name) => name.trim()).filter(Boolean).forEach((name) => named.add(name));
+  });
+  Object.keys(step.options || {}).forEach((name) => named.delete(name));
+
+  const key = document.createElement('input');
+  key.type = 'text';
+  key.placeholder = named.size ? [...named][0] : 'option';
+  key.setAttribute('aria-label', 'Option name');
+  const list = document.createElement('datalist');
+  list.id = `option-names-${stepIndex}`;
+  named.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    list.append(option);
+  });
+  key.setAttribute('list', list.id);
+  const value = document.createElement('input');
+  value.type = 'text';
+  value.placeholder = 'value';
+  value.setAttribute('aria-label', 'Option value');
+  const add = () => {
+    const name = key.value.trim() || (named.size === 1 ? [...named][0] : '');
+    if (!name || !value.value) return;
+    edit({ op: 'addOption', step: stepIndex, key: name, value: value.value });
+  };
+  value.addEventListener('keydown', (event) => { if (event.key === 'Enter') add(); });
+  const row = document.createElement('div');
+  row.className = 'option-row';
+  row.append(key, value, action('Add', add, 'ghost inline'), list);
+  wrap.append(field(named.size ? `Add an option · needs or accepts: ${[...named].join(', ')}` : 'Add an option', row));
+  return wrap;
+}
+
+/**
+ * What a step reads, edited here as well as by wiring on the canvas.
+ *
+ * The canvas only draws the columns some step already reads, so a new mapping -- whose steps read
+ * nothing yet -- had no column on the canvas to wire from. Offered: every source column, and every
+ * value an earlier step writes. Never a later one: it would be read before it exists.
+ */
+function readsPicker(stepIndex, step) {
+  const wrap = document.createElement('div');
+  wrap.className = 'reads';
+  step.from.forEach((name) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip chip--read';
+    chip.textContent = name;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'chip-remove';
+    remove.setAttribute('aria-label', `Stop reading ${name}`);
+    remove.textContent = '×';
+    remove.addEventListener('click', () => onDisconnect(stepIndex, name));
+    chip.append(remove);
+    wrap.append(chip);
+  });
+  const hop = currentHop();
+  const earlier = [...new Set(hop.steps.slice(0, stepIndex).map((s) => s.target))];
+  const offered = [...(state.mapping.columns || []), ...earlier].filter((name) => !step.from.includes(name));
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', 'Add something for this step to read');
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = step.from.length ? '+ read another…' : '+ choose what it reads…';
+  select.append(none);
+  const group = (label, names) => {
+    if (!names.length) return;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = label;
+    names.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      optgroup.append(option);
+    });
+    select.append(optgroup);
+  };
+  group('Source columns', offered.filter((name) => (state.mapping.columns || []).includes(name)));
+  group('Written by earlier steps', offered.filter((name) => earlier.includes(name)));
+  select.addEventListener('change', () => {
+    if (select.value) edit({ op: 'setFrom', step: stepIndex, from: [...step.from, select.value] });
+  });
+  wrap.append(select);
+  return wrap;
 }
 
 /**
@@ -932,18 +1254,18 @@ function renderInspector() {
  * both at once.
  */
 function renderColumnInspector(node, title, panel) {
-  title.textContent = node.label;
+  title.textContent = `Column ${node.label}`;
 
   if (!state.contract) {
     panel.append(hint(describeKind(node)));
-    panel.append(hint('No contract governs this step, so nothing checks this column.'));
+    panel.append(hint('No contract gates this hop, so nothing checks this column.'));
     return;
   }
 
-  const field = (state.contract.expects || []).find((entry) => entry.name === node.label);
+  const expected = (state.contract.expects || []).find((entry) => entry.name === node.label);
   panel.append(hint(`Checked by ${state.contract.name}@${state.contract.version} on the way in.`));
 
-  if (!field) {
+  if (!expected) {
     // The column is read but the inbound gate does not allow it: the record is rejected before the
     // step ever runs. One button fixes it.
     panel.append(hint('The contract does not declare this column, so the record would be rejected '
@@ -951,29 +1273,29 @@ function renderColumnInspector(node, title, panel) {
     const actions = document.createElement('div');
     actions.className = 'inspector-actions';
     actions.append(action('Declare it', () =>
-      editContract({ op: 'addField', field: node.label, type: 'string' })));
+      editContract({ op: 'addField', field: node.label, type: 'string' }), 'ghost'));
     panel.append(actions);
     return;
   }
 
-  panel.append(row('Type', choice(
-    ['string', 'integer', 'decimal', 'boolean', 'date', 'datetime'], field.type,
-    (value) => editContract({ op: 'setAttribute', field: field.name, key: 'type', value }))));
+  panel.append(field('Type', choice(
+    ['string', 'integer', 'decimal', 'boolean', 'date', 'datetime'], expected.type,
+    (value) => editContract({ op: 'setAttribute', field: expected.name, key: 'type', value }))));
 
-  panel.append(row('Required', choice(['false', 'true'], String(field.required),
-    (value) => editContract({ op: 'setAttribute', field: field.name, key: 'required', value }))));
+  panel.append(field('Required', choice(['false', 'true'], String(expected.required),
+    (value) => editContract({ op: 'setAttribute', field: expected.name, key: 'required', value }))));
 
-  panel.append(row('Pattern', input(field.pattern, (value) =>
-    editContract({ op: 'setAttribute', field: field.name, key: 'pattern', value }))));
+  panel.append(field('Pattern', input(expected.pattern, (value) =>
+    editContract({ op: 'setAttribute', field: expected.name, key: 'pattern', value }))));
 
-  panel.append(hint(field.pattern
-    ? 'A value that does not match is quarantined with a ContractViolation, rather than passed on.'
+  panel.append(hint(expected.pattern
+    ? 'A value that does not match is held back with its reason, rather than passed on.'
     : 'No pattern. A source that changes format would pass through unnoticed.'));
 
   const actions = document.createElement('div');
   actions.className = 'inspector-actions';
   actions.append(action('Remove from contract', () =>
-    editContract({ op: 'removeField', field: field.name }), 'danger'));
+    editContract({ op: 'removeField', field: expected.name }), 'ghost danger'));
   panel.append(actions);
 }
 
@@ -999,14 +1321,14 @@ function choice(values, current, commit) {
 
 function describeKind(node) {
   switch (node.kind) {
-    case 'column': return 'A column the source sends. Drag its right-hand dot onto a transform to feed it.';
+    case 'column': return 'A column the origin sends. Drag its right-hand dot onto a step to feed it.';
     case 'scratch': return 'A working value. It is used by later steps and never reaches the record.';
     case 'field': return node.terminal
-      ? 'A field of the record this step emits. This is the value the contract checks.'
+      ? 'A field of the record this hop emits. This is the value the contract checks.'
       : 'An intermediate value. A later step overwrites it before the record is emitted.';
     case 'identity': return node.detail + '. This is what decides whether two records are the same thing.';
     case 'unbound': return 'Nothing produces this name, so the step reads nothing. Wire it to a column, or correct the name in the step that reads it.';
-    case 'missing': return 'The contract requires this field and no step writes it. Deployed as it stands, every record would be quarantined. Add a step that writes it.';
+    case 'missing': return 'The contract requires this field and no step writes it. Deployed as it stands, every record would be held back. Add a step that writes it.';
     default: return '';
   }
 }
@@ -1014,7 +1336,8 @@ function describeKind(node) {
 function transformPicker(stepIndex, current) {
   const select = document.createElement('select');
   select.setAttribute('aria-label', 'transform');
-  state.transforms.forEach((type) => {
+  const { common, rest } = orderTransforms(state.transforms);
+  [...common, ...rest].forEach((type) => {
     const option = document.createElement('option');
     option.value = type;
     option.textContent = type;
@@ -1035,75 +1358,293 @@ function transformPicker(stepIndex, current) {
   return select;
 }
 
-function row(label, control) {
-  const wrapper = document.createElement('label');
-  wrapper.className = 'field';
-  const name = document.createElement('span');
-  name.textContent = label;
-  wrapper.append(name, control);
-  return wrapper;
-}
-
 function input(value, commit) {
-  const field = document.createElement('input');
-  field.type = 'text';
-  field.value = value;
+  const box = document.createElement('input');
+  box.type = 'text';
+  box.value = value;
   // Committed on blur and on Enter, not per keystroke: each edit revalidates the whole mapping,
   // and half a field name is not worth validating.
-  field.addEventListener('blur', () => {
-    if (field.value !== value) commit(field.value);
+  box.addEventListener('blur', () => {
+    if (box.value !== value) commit(box.value);
   });
-  field.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') field.blur();
+  box.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') box.blur();
     if (event.key === 'Escape') {
-      field.value = value;
-      field.blur();
+      box.value = value;
+      box.blur();
     }
   });
-  return field;
+  return box;
 }
 
-function action(label, onClick, kind) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'ghost' + (kind ? ` ${kind}` : '');
-  button.textContent = label;
-  button.addEventListener('click', onClick);
-  return button;
+// --- the field preview ------------------------------------------------------
+
+function resetPreview() {
+  preview.result = null;
+  preview.key = null;
+  preview.record = 0;
+  if (canvas) canvas.setValues(new Map());
 }
 
-function hint(text) {
-  const paragraph = document.createElement('p');
-  paragraph.className = 'detail';
-  paragraph.textContent = text;
-  return paragraph;
+function schedulePreview() {
+  if (!preview.on) return;
+  clearTimeout(preview.timer);
+  preview.timer = setTimeout(runPreview, 500);
 }
 
-// --- problems and status ----------------------------------------------------
+function setPreviewOn(on) {
+  preview.on = on;
+  el('mapping-preview').setAttribute('aria-pressed', String(on));
+  el('mapping-preview').classList.toggle('is-on', on);
+  el('mapping-preview').textContent = on ? 'Preview: on' : 'Preview';
+  if (on) runPreview();
+  else {
+    resetPreview();
+    renderSamples();
+    el('record-picker').hidden = true;
+  }
+}
 
-function showProblems(problems) {
-  const container = el('problems');
-  container.replaceChildren();
+/**
+ * Runs the open hop, as it stands in the editor, over a few records from the origin. From the
+ * pipeline's origin when the mapping was opened from one -- the same records its preview read --
+ * and otherwise from the module's own source definition for the mapping's source.
+ */
+async function runPreview() {
+  const yaml = el('yaml').value;
+  const hop = state.hopId;
+  if (!hop) return;
+  const key = `${hop}\n${yaml}`;
+  if (preview.key === key && preview.result) return;
+  preview.loading = true;
+  renderSamples();
+  try {
+    const origin = context.pipeline?.origin || context.wizard?.origin || null;
+    const result = await api('/api/preview/field', post({ yaml, hop, origin, limit: 8 }));
+    // An edit made while this was in flight wins; this answer is for text no longer on screen.
+    if (el('yaml').value !== yaml || state.hopId !== hop) return;
+    preview.result = result;
+    preview.key = key;
+    if (preview.record >= (result.records || []).length) preview.record = 0;
+  } catch (error) {
+    preview.result = { ran: false, why: error.message };
+  } finally {
+    preview.loading = false;
+  }
+  paintValues();
+  renderSamples();
+}
 
-  if (!problems || problems.length === 0) {
-    const ok = document.createElement('div');
-    ok.className = 'problem problem--ok';
-    ok.textContent = 'No problems. This mapping will load.';
-    container.append(ok);
+/** One record's values under the canvas's nodes, so a row reads as the value being transformed. */
+function paintValues() {
+  const result = preview.result;
+  const picker = el('record-picker');
+  if (!preview.on || !result?.ran || !result.records?.length) {
+    canvas.setValues(new Map());
+    picker.hidden = true;
     return;
   }
-  problems.forEach((problem) => {
-    const item = document.createElement('div');
-    item.className = 'problem';
-    item.textContent = problem;
-    container.append(item);
+  const record = result.records[preview.record];
+  picker.hidden = false;
+  el('record-label').textContent = `record ${record.record} of ${result.records.length}`
+    + (record.admitted ? '' : ' · held at the gate');
+  const values = new Map();
+  Object.entries(record.columns || {}).forEach(([name, value]) =>
+    values.set(`col:${name}`, { text: value ?? '∅', bad: !record.admitted }));
+  (record.steps || []).forEach((step) => {
+    if (step.failure) {
+      values.set(`step:${step.index}`, { text: '✗ failed here', bad: true });
+    } else {
+      values.set(`value:${step.index}`, { text: step.value ?? '∅' });
+    }
   });
+  canvas.setValues(values);
 }
 
-function setStatus(kind, text) {
-  const status = el('status');
-  status.className = `status status--${kind}`;
-  status.textContent = text;
+function stepRecord(delta) {
+  const records = preview.result?.records || [];
+  if (!records.length) return;
+  preview.record = (preview.record + delta + records.length) % records.length;
+  paintValues();
+  renderSamples();
+}
+
+/**
+ * The sample values for what is selected: for a step, what it read and what it wrote on every
+ * sampled record; for a column, what arrived; with nothing selected, how the hop fared overall.
+ * Violations are the gate's own words, which describe a value by its shape (ADR 0015).
+ */
+function renderSamples() {
+  const container = el('samples');
+  container.replaceChildren();
+  const result = preview.result;
+  el('sample-origin').textContent = result?.ran ? `${result.read} from ${result.origin}` : '';
+  if (!preview.on) {
+    container.append(hint('Preview runs this hop on a few real records from its origin and shows each '
+      + 'step’s values here and on the canvas. Nothing is written or acknowledged.'));
+    return;
+  }
+  if (preview.loading && !result) {
+    container.append(hint('Reading a few records from the origin…'));
+    return;
+  }
+  if (!result) return;
+  if (!result.ran) {
+    const box = document.createElement('div');
+    box.className = 'problem';
+    box.textContent = humanize(result.why || 'The preview could not run.');
+    container.append(box);
+    return;
+  }
+
+  const node = state.selected ? nodeById(state.selected) : null;
+  const table = document.createElement('table');
+  table.className = 'pl-table samples-table';
+  const body = document.createElement('tbody');
+  const row = (cells, bad, current) => {
+    const tr = document.createElement('tr');
+    if (bad) tr.className = 'is-bad';
+    if (current) tr.classList.add('is-current');
+    cells.forEach((text) => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.append(td);
+    });
+    body.append(tr);
+  };
+
+  if (node?.kind === 'transform' || node?.kind === 'field' || node?.kind === 'scratch') {
+    const index = node.step;
+    // One input: named once in the heading, so each row is just the value before and after.
+    const inputs = new Set(result.records.flatMap((record) =>
+      (record.steps || []).filter((s) => s.index === index).flatMap((s) => Object.keys(s.inputs || {}))));
+    const single = inputs.size === 1 ? [...inputs][0] : null;
+    const target = (currentHop()?.steps[index] || {}).target || 'value';
+    // Built with textContent: column and field names are the author's text, not markup.
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['#', single ? `${single} (read)` : 'Reads', `${target} (written)`].forEach((text) => {
+      const th = document.createElement('th');
+      th.textContent = text;
+      headRow.append(th);
+    });
+    head.append(headRow);
+    table.append(head);
+    result.records.forEach((record, i) => {
+      if (!record.admitted) {
+        row([record.record, 'held at the gate', (record.violations || []).map(humanize).join('; ')], true, i === preview.record);
+        return;
+      }
+      const step = (record.steps || []).find((s) => s.index === index);
+      if (!step) {
+        row([record.record, '—', 'an earlier step failed; this one did not run'], true, i === preview.record);
+        return;
+      }
+      const reads = single
+        ? String(step.inputs[single] ?? '∅')
+        : Object.entries(step.inputs || {}).map(([k, v]) => `${k}=${v ?? '∅'}`).join('  ');
+      row([record.record, reads || '(nothing)', step.failure ? `✗ ${step.failure}` : (step.value ?? '∅')],
+        !!step.failure, i === preview.record);
+    });
+  } else if (node?.kind === 'column' || node?.kind === 'unbound' || node?.kind === 'missing') {
+    table.innerHTML = '<thead><tr><th>#</th><th>Value</th><th>Gate</th></tr></thead>';
+    result.records.forEach((record, i) => {
+      const value = (record.columns || {})[node.label];
+      row([record.record, value ?? '∅', record.admitted ? 'admitted' : (record.violations || []).map(humanize).join('; ')],
+        !record.admitted, i === preview.record);
+    });
+  } else {
+    const failed = result.records.filter((r) => (r.steps || []).some((s) => s.failure));
+    const held = result.records.filter((r) => !r.admitted);
+    container.append(hint(`${result.read} read · ${result.admitted} admitted by the gate · `
+      + `${held.length} held at the gate · ${failed.length} failed at a step. Select a step to see its values.`));
+    table.innerHTML = '<thead><tr><th>#</th><th>What happened</th></tr></thead>';
+    [...held, ...failed].forEach((record) => {
+      const failure = (record.steps || []).find((s) => s.failure);
+      row([record.record, !record.admitted
+        ? `held at the gate: ${(record.violations || []).map(humanize).join('; ')}`
+        : `step ${failure.index + 1} (${failure.type} → ${failure.target}): ${failure.failure}`], true);
+    });
+    if (!held.length && !failed.length) return;
+  }
+  table.append(body);
+  container.append(table);
+}
+
+// --- where the author is ----------------------------------------------------
+
+/*
+ * The context bar: Pipeline › Stage › Hop › Step, and the way back.
+ *
+ * Drawn from state, never stored: it says where the author is, and every crumb is a place they can
+ * go back to with one click.
+ */
+function renderContext() {
+  const crumbs = [];
+  const add = (label, onClick) => crumbs.push({ label, onClick });
+
+  if (context.wizard) add(`Adding ${context.wizard.sourceId}`, returnToWizard);
+  const pipelineLabel = context.pipeline?.label || pipelines?.currentLabel();
+  if (pipelineLabel && (currentView === 'pipelines' || context.pipeline)) {
+    add(`Pipeline ${pipelineLabel}`, backToPipeline);
+  }
+  if (currentView === 'pipelines') {
+    const stage = pipelines?.selectedStageLabel();
+    if (stage) add(`Stage ${stage}`, null);
+  } else if (currentView === 'flow' || currentView === 'catalogue') {
+    if (state.name) {
+      add(`Mapping ${state.name}${state.draft ? ' (not saved yet)' : `@${state.mapping?.version || ''}`}`,
+        () => { state.selected = null; showView('flow'); showHop(); });
+    }
+    if (currentView === 'flow') {
+      const hop = currentHop();
+      if (hop) add(`Hop ${hop.id}`, () => { state.selected = null; canvas.select(null); renderInspector(); renderSamples(); renderContext(); });
+      const node = state.selected ? nodeById(state.selected) : null;
+      if (node) {
+        const label = node.kind === 'transform'
+          ? `Step ${node.step + 1} · ${node.label} → ${hop.steps[node.step].target}`
+          : node.kind === 'column' ? `Column ${node.label}` : `${node.kind === 'missing' ? 'Missing field' : 'Field'} ${node.label}`;
+        add(label, null);
+      }
+    }
+  }
+
+  const bar = el('context-bar');
+  bar.hidden = currentView === 'coverage' || crumbs.length === 0;
+  const list = el('crumbs');
+  list.replaceChildren(...crumbs.map((crumb, i) => {
+    const item = document.createElement('li');
+    if (crumb.onClick && i < crumbs.length - 1) {
+      const link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'crumb';
+      link.textContent = crumb.label;
+      link.addEventListener('click', crumb.onClick);
+      item.append(link);
+    } else {
+      const here = document.createElement('span');
+      here.className = 'crumb is-here';
+      here.textContent = crumb.label;
+      item.append(here);
+    }
+    return item;
+  }));
+
+  const back = el('ctx-back');
+  const away = currentView !== 'pipelines';
+  back.hidden = !(away && (context.pipeline || context.wizard));
+  back.textContent = context.wizard ? '← Back to adding the source' : '← Back to pipeline';
+}
+
+/** Leaves the mapping for the pipeline it was opened from, at the stage the author left. */
+function backToPipeline() {
+  showView('pipelines');
+  pipelines.returnFromMapping();
+}
+
+function returnToWizard() {
+  showView('pipelines');
+  pipelines.returnToWizard();
 }
 
 // --- saving -----------------------------------------------------------------
@@ -1111,23 +1652,45 @@ function setStatus(kind, text) {
 async function save() {
   const yaml = el('yaml').value;
   try {
-    const result = await api('/api/save', { method: 'POST', body: JSON.stringify({ yaml }) });
+    const result = await api('/api/save', {
+      method: 'POST', body: JSON.stringify({ yaml, version: versionToSave() }),
+    });
     if (!result.saved) {
       showProblems(result.problems);
-      setStatus('invalid', 'not saved');
+      setStatus('invalid', `Not saved: ${humanize(result.problems[0] || 'fix the problems listed first.')}`);
       return;
     }
     // A save writes a new version rather than replacing the file that was opened, so the mapping
     // that may already have been reviewed stays exactly as it was.
-    state.savedYaml = yaml;
+    el('yaml').value = result.yaml;
+    state.savedYaml = result.yaml;
     state.file = result.file;
+    state.draft = false;
+    state.saveAs = result.nextVersion;
+    state.versionTouched = false;
+    syncVersion();
     el('save').disabled = true;
-    setStatus('saved', `saved ${result.qualifiedName}`);
     await loadMappingList();
+    await validate();
+    const back = await pipelines.mappingSaved(result, { fromWizard: !!context.wizard, fromPipeline: !!context.pipeline });
+    setStatus('saved', `Saved ${result.qualifiedName}.${back ? ` ${back}` : ''}`);
+    nav.go({ mapping: result.name }, { replace: true });
+    renderContext();
   } catch (error) {
-    setStatus('invalid', 'not saved');
+    setStatus('invalid', `Not saved: ${humanize(error.message)}`);
     showProblems([error.message]);
   }
+}
+
+// --- problems and status ----------------------------------------------------
+
+function showProblems(problems) {
+  state.problems = problems || [];
+  renderProblems(el('problems'), problems, 'No problems. This mapping will load.');
+}
+
+function setStatus(kind, text) {
+  setStatusLine(el('status'), kind, text);
 }
 
 // --- start ------------------------------------------------------------------
@@ -1136,18 +1699,78 @@ canvas = createCanvas(el('canvas'), { onSelect, onConnect, onDisconnect });
 
 el('yaml').addEventListener('input', scheduleValidation);
 el('save').addEventListener('click', save);
+el('mapping-validate').addEventListener('click', validate);
+el('mapping-preview').addEventListener('click', () => setPreviewOn(!preview.on));
+el('mapping-version').addEventListener('input', () => {
+  state.versionTouched = true;
+  syncVersion();
+});
+el('mapping-open').addEventListener('change', (event) => {
+  if (event.target.value) {
+    // Opening another mapping by hand leaves the pipeline it was opened from: it is no longer
+    // that stage the author is looking at.
+    context.pipeline = null;
+    openMapping(event.target.value);
+  }
+});
+el('record-prev').addEventListener('click', () => stepRecord(-1));
+el('record-next').addEventListener('click', () => stepRecord(1));
 el('view-pipelines').addEventListener('click', () => showView('pipelines'));
 el('view-flow').addEventListener('click', () => showView('flow'));
 el('view-catalogue').addEventListener('click', () => showView('catalogue'));
 el('view-coverage').addEventListener('click', () => showView('coverage'));
 el('relayout').addEventListener('click', () => canvas.reset());
+el('ctx-back').addEventListener('click', () => (context.wizard ? returnToWizard() : backToPipeline()));
 
-// The designer opens a mapping in the field editor by name, which is how a Mapping stage's "edit"
-// reaches the canvas this file already draws.
-const pipelines = initPipelines({
-  api,
-  openMapping: async (file) => { await openMapping(file); showView('flow'); },
+pipelines = initPipelines({
+  // A pipeline's Mapping stage opens here with the pipeline still named above it, its origin as the
+  // source of sample records, and a way back to exactly where the author left it.
+  openMapping: async ({ file, label, mappingName, mappingRef, origin }) => {
+    context.pipeline = { label, mappingName, mappingRef, origin };
+    context.wizard = null;
+    await openMapping(file);
+    showView('flow');
+  },
+  // A new source's first mapping, started from what it sent.
+  openDraft: async ({ yaml, name, sourceId, origin }) => {
+    context.wizard = { sourceId, origin };
+    context.pipeline = null;
+    showView('flow', { record: false });
+    await openDraft(yaml, name);
+    nav.go({ view: 'flow', draft: '1', pipeline: null, stage: null, mapping: null, hop: null, step: null });
+  },
+  leftMapping: () => {
+    context.wizard = null;
+    context.pipeline = null;
+  },
+  changed: () => renderContext(),
 });
+
+nav.onPop(async (where) => {
+  await nav.restoring(() => restore(where));
+});
+
+/** Goes back to a place the URL names: a view, a pipeline and its stage, a mapping and its hop. */
+async function restore(where) {
+  const view = where.view || 'pipelines';
+  if (where.pipeline) await pipelines.openByName(where.pipeline, where.stage);
+  if (view === 'flow' && where.mapping) {
+    const file = mappingFiles.find((m) => m.loadable && m.name === where.mapping)
+      || [...mappingFiles].reverse().find((m) => m.name === where.mapping);
+    if (file && (state.file !== file.file || state.hopId !== (where.hop || state.hopId))) {
+      if (where.pipeline) {
+        const ctx = pipelines.mappingContext();
+        if (ctx) context.pipeline = ctx;
+      }
+      await openMapping(file.file, { hop: where.hop, step: where.step, restoring: true });
+    } else if (where.hop && where.hop !== state.hopId) {
+      state.hopId = where.hop;
+      state.selected = where.step || null;
+      showHop();
+    }
+  }
+  showView(view, { record: false });
+}
 
 (async function start() {
   await loadModule();
@@ -1156,27 +1779,25 @@ const pipelines = initPipelines({
   state.transforms = (await api('/api/transforms')).types;
   renderPalette();
   await loadMappingList();
-  const { mappings } = await api('/api/mappings');
 
-  // ?mapping= opens a named mapping instead of the first loadable one, so a link from
-  // elsewhere can land on the flow it is talking about. Matched on the mapping's own name
-  // rather than on its file path: a consumer knows which mapping produced its records and
-  // has no business knowing where on this filesystem the artifact happens to sit.
-  //
-  // An unknown name falls through to the default rather than erroring. The link is a
-  // convenience, and an author who followed a stale one is better served by the editor
-  // opening than by a message about a file.
-  const wanted = new URLSearchParams(location.search).get('mapping');
-  const requested = wanted
-    ? mappings.find((mapping) => mapping.loadable && mapping.name === wanted)
-    : null;
-
-  const target = requested ?? mappings.find((mapping) => mapping.loadable);
-  if (target) await openMapping(target.file);
-  if (wanted && !requested) {
-    setStatus('invalid', `No mapping named "${wanted}" in this module; opened the first instead.`);
-  }
-  // ?view=pipelines (or ?pipeline=) lands on the designer, which is the page a new author wants.
-  const params = new URLSearchParams(location.search);
-  if (params.get('view') === 'pipelines' || params.get('pipeline')) showView('pipelines');
+  const where = nav.read();
+  // Kept for links from elsewhere: ?mapping= alone opens that mapping's fields. Matched on the
+  // mapping's own name, never on a file path -- a consumer knows which mapping produced its
+  // records and has no business knowing where on this filesystem the artifact sits.
+  if (where.mapping && !where.view) where.view = 'flow';
+  await nav.restoring(async () => {
+    const wanted = where.mapping;
+    const requested = wanted ? mappingFiles.find((m) => m.loadable && m.name === wanted) : null;
+    if (wanted && !requested) {
+      where.view = where.view === 'flow' ? 'pipelines' : where.view;
+      setStatus('invalid', `No mapping named "${wanted}" in this module.`);
+    }
+    // The mapping editor always has something open, so the Mapping tab is never an empty page.
+    if (!requested) {
+      const first = mappingFiles.find((m) => m.loadable);
+      if (first) await openMapping(first.file, { restoring: true });
+    }
+    await restore(where);
+  });
+  history.replaceState(nav.read(), '', `${location.pathname}${location.search}`);
 })();

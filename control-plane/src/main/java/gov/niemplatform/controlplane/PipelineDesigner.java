@@ -717,31 +717,78 @@ public final class PipelineDesigner {
                 result.resolution(), limit);
     }
 
-    private ObjectNode run(ObjectNode node, SourceDefinition origin, MappingDefinition mapping,
-            PipelineResolver.Resolution resolution, int limit) {
-        SourceDefinition preview = forPreview(origin, "preview", limit);
-        preview.settings().entrySet().stream()
-                .filter(e -> e.getKey().equals("groupId"))
-                .forEach(e -> node.put("consumerGroup", e.getValue()));
+    /**
+     * A few records read from an origin for someone to look at.
+     *
+     * @param why set when nothing could be read, saying what stopped it
+     */
+    record Sample(List<RawEnvelope> envelopes, String consumerGroup, String why) {
 
-        List<RawEnvelope> envelopes;
+        boolean read() {
+            return why == null;
+        }
+    }
+
+    /**
+     * Reads up to {@code limit} records from an origin, the way every look at an origin in the
+     * designer does: on a throwaway consumer group where there is one, and closed without
+     * acknowledging -- nothing is committed, archived, deleted or advanced. The pipeline preview, the
+     * field preview and the skeleton a new mapping starts from all read through here, so there is
+     * one place that has to be right about not touching a live feed.
+     */
+    Sample readSample(SourceDefinition origin, String purpose, int limit) {
+        int bounded = Math.max(1, Math.min(limit, PREVIEW_CEILING));
+        SourceDefinition preview = forPreview(origin, purpose, bounded);
+        String consumerGroup = KAFKA.equals(preview.type().id()) ? preview.settings().get("groupId") : null;
         try (SourceConnector connector = fresh(preview)) {
             SourceHandle handle = connector.open();
             try (Stream<RawEnvelope> stream = handle.envelopes()) {
-                envelopes = stream.limit(limit).toList();
+                return new Sample(stream.limit(bounded).toList(), consumerGroup, null);
             } finally {
-                // Closed, never acknowledged: nothing is committed, archived, deleted or advanced.
+                // Closed, never acknowledged.
                 handle.close();
             }
         } catch (ConnectorConfigurationException e) {
-            node.put("ran", false);
-            node.put("why", String.join("; ", e.problems().stream().map(Object::toString).toList()));
-            return node;
+            return new Sample(List.of(), consumerGroup,
+                    String.join("; ", e.problems().stream().map(Object::toString).toList()));
         } catch (RuntimeException e) {
+            return new Sample(List.of(), consumerGroup, "The origin could not be read: " + e.getMessage());
+        }
+    }
+
+    /**
+     * The origin a draft names, or -- when there is no draft, as when a mapping is opened on its own
+     * -- the module's first source definition for the mapping's source.
+     */
+    Optional<SourceDefinition> originFor(JsonNode origin, String sourceId, ObjectNode report) {
+        if (origin != null && origin.isObject() && text(origin, "sourceId") != null) {
+            return originDefinition(origin, report);
+        }
+        if (sourceId == null) {
+            return Optional.empty();
+        }
+        return catalog(List.of()).entries(ArtifactCatalog.Kind.SOURCE).stream()
+                .filter(entry -> entry.name().startsWith(sourceId + "/"))
+                .findFirst()
+                .map(entry -> SourceDefinition.load(entry.file()));
+    }
+
+    MappingWorkspace workspace() {
+        return workspace;
+    }
+
+    private ObjectNode run(ObjectNode node, SourceDefinition origin, MappingDefinition mapping,
+            PipelineResolver.Resolution resolution, int limit) {
+        Sample sample = readSample(origin, "preview", limit);
+        if (sample.consumerGroup() != null) {
+            node.put("consumerGroup", sample.consumerGroup());
+        }
+        if (!sample.read()) {
             node.put("ran", false);
-            node.put("why", "The origin could not be read: " + e.getMessage());
+            node.put("why", sample.why());
             return node;
         }
+        List<RawEnvelope> envelopes = sample.envelopes();
         if (mapping == null) {
             ArrayNode raw = node.putObject("samples").putArray("origin");
             envelopes.forEach(envelope -> raw.add(truncate(envelope.payloadAsText(), 300)));

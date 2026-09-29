@@ -12,13 +12,19 @@
  * file names its parts; where their boxes sit is this page's business.
  */
 
-const el = (id) => document.getElementById(id);
+import * as nav from './nav.js';
+import {
+  el, api, post, hint, action, field, problems as problemBlock, setStatusLine, humanize,
+} from './shared.js';
+
 const SVG = 'http://www.w3.org/2000/svg';
 
 const NODE_W = 210;
 const NODE_H = 86;
-const COLUMN_X = { origin: 24, mapping: 364, destination: 704 };
-const VIEW_W = 940;
+// Stages sit close enough that a pipeline of three columns fits the canvas without scrolling
+// sideways at an ordinary laptop width; the edge between columns still has room for its count.
+const COLUMN_X = { origin: 16, mapping: 312, destination: 608 };
+const VIEW_W = 834;
 
 // Characters that fit on a stage's lines, at the canvas's monospace sizes.
 const FIT = { 'pl-node-title': 17, 'pl-node-sub': 26, 'pl-node-count': 26, 'pl-node-hint': 27 };
@@ -42,7 +48,7 @@ const ICONS = {
   box: 'M4 4h16v16H4z',
 };
 
-export function initPipelines({ api, openMapping }) {
+export function initPipelines(hooks) {
   const pl = {
     loaded: false,
     palette: null,
@@ -56,6 +62,11 @@ export function initPipelines({ api, openMapping }) {
     drag: null,
     notice: null,
     openedFrom: null,
+    // The Mapping stage the author drilled into, and where the canvas was, so "Back to pipeline"
+    // returns to exactly that.
+    trip: null,
+    // A newer version of this pipeline's mapping, saved while the author was in the mapping editor.
+    pendingUse: null,
   };
 
   // ------------------------------------------------------------------------------ model
@@ -200,18 +211,18 @@ export function initPipelines({ api, openMapping }) {
     };
 
     group('Origins', 'Where records come from.',
-      (pl.palette.origins || []).map((o) => paletteItem(o.label, o.summary, o.icon, { kind: 'origin', type: o.type })));
+      (pl.palette.origins || []).map((o) => paletteItem(o.label, o.summary, o.icon, { kind: 'origin', type: o.type }, 'origin')));
     group('Processors', 'What they become. Gates and identity come with the mapping.',
-      [paletteItem('Mapping', pl.palette.processors?.[0]?.summary || '', 'mapping', { kind: 'mapping' })]);
+      [paletteItem('Mapping', pl.palette.processors?.[0]?.summary || '', 'mapping', { kind: 'mapping' }, 'processor')]);
     group('Destinations', 'Where the canonical records go.',
-      (pl.palette.destinations || []).map((d) => paletteItem(d.label, d.summary, d.icon, { kind: d.kind, type: d.type })));
+      (pl.palette.destinations || []).map((d) => paletteItem(d.label, d.summary, d.icon, { kind: d.kind, type: d.type }, 'destination')));
   }
 
-  function paletteItem(label, summary, icon, payload) {
+  function paletteItem(label, summary, icon, payload, kind) {
     const li = document.createElement('li');
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'pl-item';
+    button.className = `pl-item pl-item--${kind}`;
     button.draggable = true;
     button.title = `${summary}\n\nDrag onto the canvas, or press to add.`;
     button.append(iconSvg(icon, 18));
@@ -299,7 +310,7 @@ export function initPipelines({ api, openMapping }) {
     defs.innerHTML = '<marker id="pl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="pl-arrowhead"/></marker>';
     svg.append(defs);
 
-    if (!list.length) {
+    if (!list.length && !pl.list.length) {
       const empty = document.createElementNS(SVG, 'text');
       empty.setAttribute('x', VIEW_W / 2);
       empty.setAttribute('y', 170);
@@ -327,6 +338,7 @@ export function initPipelines({ api, openMapping }) {
     list.forEach((node) => svg.append(nodeGroup(node)));
 
     frame.replaceChildren(svg);
+    if (!list.length && pl.list.length) frame.append(openList());
     frame.ondragover = (event) => {
       if ([...event.dataTransfer.types].includes('application/x-niem-stage')) {
         event.preventDefault();
@@ -341,6 +353,20 @@ export function initPipelines({ api, openMapping }) {
       event.preventDefault();
       addStage(JSON.parse(raw));
     };
+  }
+
+  /** On an empty canvas: the pipelines there already are, so the first thing to do is obvious. */
+  function openList() {
+    const box = document.createElement('div');
+    box.className = 'pl-open-list';
+    const h = document.createElement('h3');
+    h.textContent = 'Open a pipeline';
+    box.append(h);
+    pl.list.filter((p) => p.loadable).forEach((p) => {
+      box.append(action(`${p.name}@${p.version}`, () => openPipeline(p.file), 'ghost'));
+    });
+    box.append(hint('Or start a new one: drop an origin from the palette here, or use “Add a data source” above.'));
+    return box;
   }
 
   function point(svg, event) {
@@ -587,12 +613,16 @@ export function initPipelines({ api, openMapping }) {
     changed();
   }
 
+  const KIND_WORD = { origin: 'Origin', mapping: 'Processor', destination: 'Destination' };
+
   // ------------------------------------------------------------------------- the panel
 
   function select(id) {
     pl.selected = id;
     render();
     renderConfig();
+    nav.go({ stage: id }, { replace: true });
+    hooks.changed?.();
   }
 
   function renderConfig() {
@@ -606,7 +636,8 @@ export function initPipelines({ api, openMapping }) {
     const head = document.createElement('div');
     head.className = 'pl-config-head';
     const h = document.createElement('h2');
-    h.textContent = nodeTitle(node);
+    h.className = 'panel-title';
+    h.textContent = `${KIND_WORD[node.kind]} · ${nodeTitle(node)}`;
     const remove = action('Remove', () => removeStage(node.id), 'ghost');
     head.append(h, remove);
     aside.append(head);
@@ -622,9 +653,10 @@ export function initPipelines({ api, openMapping }) {
   function renderPipelinePanel(aside) {
     const h = document.createElement('h2');
     h.textContent = 'Pipeline';
+    h.className = 'panel-title';
     aside.append(h);
     aside.append(hint('Select a stage to configure it. A pipeline is saved as a versioned file that names '
-      + 'its source, mapping and destinations; `niem run --pipeline` runs exactly what you save.'));
+      + 'its origin, mapping and destinations; `niem run --pipeline` runs exactly what you save.'));
     aside.append(field('Description', input(pl.draft.pipeline.description, (v) => { pl.draft.pipeline.description = v; changed(); })));
     const problems = [...(pl.validation?.problems?.pipeline || []), ...(pl.validation?.problems?.destinations || []), ...unwired()];
     problemList(aside, problems);
@@ -692,7 +724,9 @@ export function initPipelines({ api, openMapping }) {
       const response = await api('/api/source/test', post({ origin: draftForServer().origin }));
       result.classList.toggle('is-ok', !!response.healthy);
       result.classList.toggle('is-bad', !response.healthy);
-      result.textContent = `${response.healthy ? '✓ Reachable' : `✗ ${response.state}`} — ${response.detail}`
+      const detail = String(response.detail || '');
+      const said = detail && detail.toLowerCase() !== 'reachable' && detail.toLowerCase() !== String(response.state).toLowerCase();
+      result.textContent = `${response.healthy ? '✓ Reachable' : `✗ ${response.state}`}${said ? ` — ${detail}` : ''}`
         + (response.consumerGroup ? ` (probed as ${response.consumerGroup}; the live group is untouched)` : '');
     } catch (error) {
       result.classList.add('is-bad');
@@ -719,7 +753,12 @@ export function initPipelines({ api, openMapping }) {
       aside.append(facts);
       aside.append(hint('Every hop is gated by its contract on the way in and out, and identities are resolved inside it. '
         + 'A record a contract refuses is held, never dropped.'));
-      aside.append(action('Open in the field editor', () => openMappingEditor(), 'primary'));
+      aside.append(action('Open in the mapping editor', () => openMappingEditor(), 'primary'));
+      aside.append(hint('Or double-click the stage. The mapping opens with this pipeline named above it, '
+        + 'and Preview there reads the same records as the pipeline preview.'));
+    }
+    if (pl.pendingUse && pl.pendingUse !== pl.draft.mapping) {
+      aside.append(useOffer());
     }
     if (source && !all.some((m) => m.sourceId === source)) {
       aside.append(hint(`No mapping in this module reads "${source}" yet. Write one in the Flow view, saved `
@@ -727,9 +766,51 @@ export function initPipelines({ api, openMapping }) {
     }
   }
 
+  /** A newer version of the mapping, saved on the trip into it, offered back to this pipeline. */
+  function useOffer() {
+    const box = document.createElement('div');
+    box.className = 'pl-offer';
+    const version = pl.pendingUse.split('@')[1];
+    box.append(hint(`${pl.pendingUse} was saved while you were in the mapping. This pipeline still uses `
+      + `${pl.draft.mapping}.`));
+    box.append(action(`Use v${version} in this pipeline`, () => {
+      const was = pl.draft.mapping;
+      pl.draft.mapping = pl.pendingUse;
+      pl.pendingUse = null;
+      changed();
+      renderConfig();
+      status('idle', `Changed: the Mapping stage now uses ${pl.draft.mapping} instead of ${was}. `
+        + `Save as v${pl.draft.pipeline.version} to keep it.`);
+    }, 'primary'));
+    return box;
+  }
+
+  /** Drills into the Mapping stage: the mapping editor, with this pipeline kept as its context. */
   function openMappingEditor() {
     const entry = mappingEntry(pl.draft.mapping);
-    if (entry) openMapping(entry.file);
+    if (!entry) return;
+    const frame = el('pl-canvas');
+    pl.trip = { selected: 'mapping', scrollLeft: frame.scrollLeft, scrollTop: frame.scrollTop,
+      windowY: window.scrollY };
+    hooks.openMapping(mappingContext(entry));
+  }
+
+  function mappingContext(entry = mappingEntry(pl.draft.mapping)) {
+    if (!entry) return null;
+    const origin = pl.draft.origin ? draftForServer().origin : null;
+    return {
+      file: entry.file,
+      label: currentLabel(),
+      mappingName: entry.ref.split('@')[0],
+      mappingRef: entry.ref,
+      origin,
+    };
+  }
+
+  function currentLabel() {
+    const p = pl.draft.pipeline;
+    if (!p.name && !pl.draft.origin && pl.draft.mapping === null && !pl.draft.destinations.length) return null;
+    return pl.openedFrom || `${p.name || 'new pipeline'}@${p.version || '?'} (not saved)`;
   }
 
   function renderDestination(aside, d) {
@@ -846,15 +927,6 @@ export function initPipelines({ api, openMapping }) {
     return dl;
   }
 
-  function field(label, control) {
-    const wrapper = document.createElement('label');
-    wrapper.className = 'field';
-    const span = document.createElement('span');
-    span.textContent = label;
-    wrapper.append(span, control);
-    return wrapper;
-  }
-
   function input(value, commit, placeholder, list) {
     const box = document.createElement('input');
     box.type = 'text';
@@ -891,37 +963,12 @@ export function initPipelines({ api, openMapping }) {
     return 'pl-source-ids';
   }
 
-  function action(label, onClick, kind) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    if (kind) button.className = kind;
-    button.addEventListener('click', onClick);
-    return button;
-  }
-
-  function hint(text) {
-    const p = document.createElement('p');
-    p.className = 'detail';
-    p.textContent = text;
-    return p;
-  }
-
   function problemList(container, problems) {
     if (!problems.length) return;
-    const ul = document.createElement('ul');
-    ul.className = 'pl-problems';
-    problems.forEach((problem) => {
-      const li = document.createElement('li');
-      li.textContent = problem;
-      ul.append(li);
-    });
-    container.append(ul);
+    container.append(problemBlock(problems));
   }
 
   // --------------------------------------------------------------------- server round trips
-
-  const post = (body) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
   /**
    * Drops any wire that no longer holds. A wire drawn while the origin and mapping agreed does not
@@ -1029,7 +1076,7 @@ export function initPipelines({ api, openMapping }) {
         const raw = document.createElement('code');
         raw.textContent = `#${h.record}  ${h.raw}`;
         const ul = document.createElement('ul');
-        h.violations.forEach((v) => { const li = document.createElement('li'); li.textContent = v; ul.append(li); });
+        h.violations.forEach((v) => { const li = document.createElement('li'); li.textContent = humanize(v); ul.append(li); });
         card.append(raw, ul);
         body.append(card);
       });
@@ -1088,9 +1135,12 @@ export function initPipelines({ api, openMapping }) {
       pl.selected = null;
       pl.validation = null;
       pl.openedFrom = null;
+      pl.pendingUse = null;
       el('pl-open').value = '';
       changed();
       renderConfig();
+      nav.go({ view: 'pipelines', pipeline: null, stage: null, mapping: null, hop: null, step: null, draft: null });
+      hooks.changed?.();
       return;
     }
     const opened = await api(`/api/pipeline?file=${encodeURIComponent(file)}`);
@@ -1115,7 +1165,10 @@ export function initPipelines({ api, openMapping }) {
     syncToolbar();
     render();
     renderConfig();
+    pl.pendingUse = null;
     status('idle', `Opened ${pl.openedFrom}. Saving writes ${d.pipeline.name}@${d.pipeline.version}; the opened version is never changed.`);
+    nav.go({ view: 'pipelines', pipeline: d.pipeline.name, stage: null, mapping: null, hop: null, step: null, draft: null });
+    hooks.changed?.();
   }
 
   function syncToolbar() {
@@ -1125,9 +1178,7 @@ export function initPipelines({ api, openMapping }) {
   }
 
   function status(kind, text) {
-    const s = el('pl-status');
-    s.className = `pl-status is-${kind}`;
-    s.textContent = text;
+    setStatusLine(el('pl-status'), kind, humanize(text));
   }
 
   // ------------------------------------------------------------------------- the wizard
@@ -1139,7 +1190,7 @@ export function initPipelines({ api, openMapping }) {
    * the work on the canvas rather than discarding it.
    */
   const STEPS = ['Transport', 'Configure', 'Test', 'Sample', 'Mapping', 'Destinations', 'Save'];
-  const wizard = { step: 0, sample: null };
+  const wizard = { step: 0, sample: null, skeleton: null, away: false, templates: null };
 
   function openWizard() {
     pl.draft = emptyDraft();
@@ -1148,6 +1199,11 @@ export function initPipelines({ api, openMapping }) {
     pl.validation = null;
     wizard.step = 0;
     wizard.sample = null;
+    wizard.skeleton = null;
+    wizard.away = false;
+    // The wizard builds a new pipeline on the canvas; the one that was open is no longer what the
+    // address names.
+    nav.go({ pipeline: null, stage: null });
     el('pl-wizard-dialog').showModal();
     renderWizard();
   }
@@ -1221,9 +1277,7 @@ export function initPipelines({ api, openMapping }) {
       const all = pl.palette.processors?.[0]?.mappings || [];
       const matching = all.filter((m) => m.sourceId === o.sourceId);
       if (!matching.length) {
-        body.append(problemBox(`No mapping in this module reads "${o.sourceId}" yet.`));
-        body.append(hint('Write one in the Flow view with source: ' + o.sourceId + '. The pipeline can be saved '
-          + 'once it exists; your work so far stays on the canvas.'));
+        renderNewMapping(body, o, all);
       } else {
         if (!matching.some((m) => m.ref === pl.draft.mapping)) pl.draft.mapping = matching[0].ref;
         matching.forEach((m) => {
@@ -1280,6 +1334,96 @@ export function initPipelines({ api, openMapping }) {
     }
   }
 
+  /*
+   * No mapping reads this source yet. Not a dead end: start one from the columns the sample just
+   * showed, following the hops of a mapping the module already has, with the module's advisor
+   * proposing what it can and the contracts drafted from the shapes it saw. The mapping opens in the
+   * mapping editor; saving it there brings the author straight back here with it chosen.
+   */
+  function renderNewMapping(body, o, all) {
+    body.append(hint(`No mapping in this module reads "${o.sourceId}" yet. Start one from what it sent:`));
+    const templates = [...new Map(all.map((m) => [m.ref.split('@')[0], m])).values()]
+      .sort((a, b) => b.hops - a.hops);
+    const template = document.createElement('select');
+    templates.forEach((m) => {
+      const option = document.createElement('option');
+      option.value = m.ref;
+      option.textContent = `${m.ref} — ${m.hops} hops, produces ${m.produces.join(', ')}`;
+      template.append(option);
+    });
+    body.append(field('Follow the hops of', template));
+    body.append(hint('The new mapping gets the same hops, identities and roles; its steps read your columns. '
+      + 'A contract is drafted for each hop from the shapes sampled — nothing is saved until you save the mapping.'));
+
+    const result = document.createElement('div');
+    result.className = 'pl-skeleton';
+    const start = action(wizard.skeleton ? 'Start again from the sample' : 'Start a new mapping from these columns', async () => {
+      start.disabled = true;
+      result.replaceChildren(hint('Reading the sample and drafting…'));
+      try {
+        wizard.skeleton = await api('/api/mapping/skeleton', post({ origin: draftForServer().origin, template: template.value }));
+      } catch (error) {
+        wizard.skeleton = { ran: false, why: error.message };
+      }
+      start.disabled = false;
+      renderSkeleton(result);
+    }, wizard.skeleton ? 'ghost' : 'primary');
+    body.append(start, result);
+    if (wizard.skeleton) renderSkeleton(result);
+  }
+
+  function renderSkeleton(container) {
+    const k = wizard.skeleton;
+    container.replaceChildren();
+    if (!k.ran) {
+      container.append(problemBox(k.why));
+      return;
+    }
+    const facts = document.createElement('dl');
+    facts.className = 'pl-facts';
+    const fact = (term, value) => {
+      const dt = document.createElement('dt'); dt.textContent = term;
+      const dd = document.createElement('dd'); dd.textContent = value;
+      facts.append(dt, dd);
+    };
+    fact('Mapping', `${k.mapping} (not saved yet)`);
+    fact('Columns', `${k.columns.length} ${k.header ? 'from the header' : 'numbered — the source sent no header'}`);
+    fact('Contracts drafted', k.contractsWritten.length ? k.contractsWritten.join(', ') : 'none — already present');
+    fact('Steps proposed', k.seeded.length ? k.seeded.map((s) => `${s.target} (${Math.round(s.confidence * 100)}%)`).join(', ') : 'none');
+    container.append(facts);
+
+    const shapes = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `Shapes sampled from ${k.sampled} record(s)`;
+    const table = document.createElement('table');
+    table.className = 'pl-table';
+    table.innerHTML = '<thead><tr><th>Column</th><th>Shapes seen</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    k.columns.forEach((column) => {
+      const tr = document.createElement('tr');
+      const seen = Object.entries(column.shapes);
+      [column.name, seen.length ? seen.map(([shape, n]) => (seen.length > 1 ? `${shape} ×${n}` : shape)).join(', ') : 'always empty']
+        .forEach((text) => { const td = document.createElement('td'); td.textContent = text; tr.append(td); });
+      if (seen.length > 1) tr.className = 'is-bad';
+      tbody.append(tr);
+    });
+    table.append(tbody);
+    shapes.append(summary, table);
+    container.append(shapes);
+
+    if (k.problems.length) {
+      container.append(hint(`Still to do before it can be saved (${k.problems.length}):`));
+      container.append(problemBlock(k.problems));
+    }
+    container.append(action('Open it in the mapping editor', () => {
+      wizard.away = true;
+      el('pl-wizard-dialog').close();
+      hooks.openDraft({ yaml: k.yaml, name: k.mapping.split('@')[0], sourceId: pl.draft.origin.sourceId,
+        origin: draftForServer().origin });
+    }, 'primary'));
+    container.append(hint('Saving it there brings you back here with it chosen.'));
+  }
+
   function problemBox(text) {
     const p = document.createElement('p');
     p.className = 'pl-problem-box';
@@ -1304,6 +1448,7 @@ export function initPipelines({ api, openMapping }) {
       }
       el('pl-wizard-dialog').close();
       wizard.problems = null;
+      hooks.leftMapping?.();
       await refreshPalette();
       await loadList();
       await openPipeline(result.file);
@@ -1316,6 +1461,8 @@ export function initPipelines({ api, openMapping }) {
 
   function closeWizard() {
     el('pl-wizard-dialog').close();
+    wizard.away = false;
+    hooks.leftMapping?.();
     // The work stays on the canvas: closing is not discarding.
     pl.wires = new Set([
       ...(pl.draft.origin && pl.draft.mapping ? ['origin>mapping'] : []),
@@ -1344,6 +1491,72 @@ export function initPipelines({ api, openMapping }) {
   el('pl-drawer-close').addEventListener('click', () => { el('pl-drawer').hidden = true; });
   document.querySelectorAll('.pl-tab').forEach((tab) => tab.addEventListener('click', () => showDrawer(tab.dataset.tab)));
 
+  /** Back from the mapping editor, to the stage the author drilled in from, as they left it. */
+  function returnFromMapping() {
+    const trip = pl.trip;
+    pl.trip = null;
+    if (pl.pendingUse && pl.pendingUse !== pl.draft.mapping) {
+      // The preview was read under the version this pipeline still uses; saying so beats a drawer
+      // of counts that describe a mapping the author has just changed.
+      pl.preview = null;
+      el('pl-drawer').hidden = true;
+      status('idle', `${pl.pendingUse} was saved in the mapping editor. The Mapping stage offers it; `
+        + 'preview again once it is in use.');
+    }
+    select(trip?.selected || 'mapping');
+    const frame = el('pl-canvas');
+    if (trip) {
+      frame.scrollLeft = trip.scrollLeft;
+      frame.scrollTop = trip.scrollTop;
+      window.scrollTo(0, trip.windowY);
+    }
+    hooks.leftMapping?.();
+  }
+
+  /** Back into the wizard at its Mapping step, with a mapping saved on the way chosen. */
+  function returnToWizard() {
+    wizard.away = false;
+    wizard.step = 4;
+    if (!el('pl-wizard-dialog').open) el('pl-wizard-dialog').showModal();
+    renderWizard();
+  }
+
+  /**
+   * A mapping was saved in the mapping editor. Returns what the author should be told there, or
+   * takes them back to the wizard when that is where the mapping was started from.
+   */
+  async function mappingSaved(result, { fromWizard, fromPipeline }) {
+    await refreshPalette();
+    if (fromWizard && pl.draft.origin?.sourceId === result.sourceId) {
+      pl.draft.mapping = result.qualifiedName;
+      wizard.skeleton = null;
+      returnToWizard();
+      hooks.leftMapping?.();
+      return 'Back in the wizard with it chosen.';
+    }
+    const current = pl.draft.mapping ? pl.draft.mapping.split('@')[0] : null;
+    if (fromPipeline && current === result.name && pl.draft.mapping !== result.qualifiedName) {
+      pl.pendingUse = result.qualifiedName;
+      return `Back to pipeline to use v${result.version} there.`;
+    }
+    return '';
+  }
+
+  async function openByName(name, stage) {
+    if (!pl.loaded) await this.show();
+    const current = pl.draft.pipeline?.name;
+    if (current !== name || !pl.openedFrom) {
+      const match = pl.list.find((p) => p.name === name || p.file === name);
+      if (match) await openPipeline(match.file);
+    }
+    if (stage && nodes().some((n) => n.id === stage)) select(stage);
+  }
+
+  function selectedStageLabel() {
+    const node = nodes().find((n) => n.id === pl.selected);
+    return node ? nodeTitle(node) : null;
+  }
+
   return {
     async show() {
       if (pl.loaded) return;
@@ -1352,13 +1565,22 @@ export function initPipelines({ api, openMapping }) {
         pl.palette = await api('/api/palette');
         renderPalette();
         await loadList();
-        const wanted = new URLSearchParams(location.search).get('pipeline');
+        const wanted = nav.read().pipeline;
         const match = wanted && pl.list.find((p) => p.name === wanted || p.file === wanted);
-        if (match) await openPipeline(match.file);
+        if (match) await nav.restoring(() => openPipeline(match.file));
         else { syncToolbar(); render(); renderConfig(); }
+        const stage = nav.read().stage;
+        if (match && stage && nodes().some((n) => n.id === stage)) await nav.restoring(() => select(stage));
       } catch (error) {
         status('invalid', `The designer could not load: ${error.message}`);
       }
     },
+    openByName,
+    returnFromMapping,
+    returnToWizard,
+    mappingSaved,
+    mappingContext: () => mappingContext(),
+    currentLabel,
+    selectedStageLabel,
   };
 }

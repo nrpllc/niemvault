@@ -18,6 +18,14 @@
   --scratch-soft: #F2EDE2;
 
   --display: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* One colour per kind of thing, the same in all three drawings -- the pipeline canvas, the hop
+     strip and the field canvas. Where records come from is indigo, what works on them is a teal
+     outline, what they become is teal filled. Processors are square; data is rounded. */
+  --kind-origin: var(--provenance);
+  --kind-processor: var(--flow);
+  --kind-destination: var(--flow);
+  --kind-destination-fill: var(--flow-soft);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -173,10 +181,10 @@ h2 {
 
 svg.dag { display: block; max-width: none; flex: none; }
 
-.dag-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1; }
-.dag-node--source rect { stroke: var(--slate); }
-.dag-node--hop rect { stroke: var(--flow); stroke-width: 1.5; }
-.dag-node--canonical rect { fill: var(--flow-soft); stroke: var(--flow); }
+.dag-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1; rx: 8px; }
+.dag-node--source rect { stroke: var(--kind-origin); stroke-width: 2; }
+.dag-node--hop rect { stroke: var(--kind-processor); stroke-width: 2; rx: 3px; }
+.dag-node--canonical rect { fill: var(--kind-destination-fill); stroke: var(--kind-destination); }
 
 /* A hop node is the way into its fields, so it advertises that it can be clicked. */
 .dag-node[data-hop] { cursor: pointer; }
@@ -212,7 +220,7 @@ main {
 main > * { overflow: auto; padding: 0.9rem 1rem; min-width: 0; }
 .rail { border-right: 1px solid var(--hairline); }
 .inspector { border-left: 1px solid var(--hairline); background: var(--card); }
-.rail h2:not(:first-child), .inspector h2:not(:first-child) { margin-top: 1.3rem; }
+.rail .pl-group + .pl-group { margin-top: 1.2rem; }
 
 .stage { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 1rem; }
 .stage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
@@ -253,11 +261,18 @@ main > * { overflow: auto; padding: 0.9rem 1rem; min-width: 0; }
 
 .palette button.chip:hover { border-color: var(--flow); background: var(--flow-soft); }
 
-.columns li {
-  font-size: 0.68rem;
-  background: var(--flow-soft);
-  color: var(--flow);
-  padding: 0.1rem 0.35rem;
+.chip { font-family: var(--display); }
+button.chip--origin, .rail .columns li button.chip--origin {
+  width: auto; font-size: 0.68rem; padding: 0.1rem 0.4rem; flex-direction: row;
+  background: transparent; color: var(--kind-origin); border: 1px solid var(--kind-origin);
+}
+button.chip--origin:hover, .rail .columns li button.chip--origin:hover { background: color-mix(in srgb, var(--kind-origin) 12%, transparent); border-color: var(--kind-origin); }
+
+.columns li { display: contents; }
+.palette-divider {
+  width: 100%;
+  font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate);
+  margin-top: 0.3rem;
 }
 
 /* --- the canvas ----------------------------------------------------------- */
@@ -291,10 +306,10 @@ svg.canvas {
 .canvas-detail { font-family: var(--display); font-size: 10px; fill: var(--slate); }
 
 /* Shape carries meaning before colour does: transforms are square, values are rounded. */
-.canvas-node--column rect { fill: var(--flow-soft); stroke: var(--flow); }
+.canvas-node--column rect { fill: var(--card); stroke: var(--kind-origin); stroke-width: 2; }
 .canvas-node--transform rect { stroke: var(--flow); stroke-width: 2; }
 .canvas-node--field rect { fill: var(--card); stroke: var(--slate); stroke-dasharray: 4 3; }
-.canvas-node--field.is-terminal rect { fill: var(--flow-soft); stroke: var(--flow); stroke-dasharray: none; }
+.canvas-node--field.is-terminal rect { fill: var(--kind-destination-fill); stroke: var(--kind-destination); stroke-dasharray: none; }
 .canvas-node--scratch rect { fill: var(--scratch-soft); stroke: var(--scratch); stroke-dasharray: 4 3; }
 .canvas-node--identity rect { fill: transparent; stroke: var(--provenance); stroke-width: 2; }
 .canvas-node--unbound rect { fill: var(--divert-soft); stroke: var(--divert); stroke-width: 2; }
@@ -330,15 +345,13 @@ svg.canvas {
 
 .canvas-wire { fill: none; stroke: var(--flow); stroke-width: 2; stroke-dasharray: 5 4; }
 
+/* A sample value under a node: the record in hand, as it passes through. */
+.canvas-value { font-family: var(--display); font-size: 10.5px; font-weight: 600; fill: var(--provenance); }
+.canvas-value.is-bad { fill: var(--divert); }
+
 /* --- inspector ------------------------------------------------------------ */
 
-#inspector-title {
-  color: var(--ink);
-  font-size: 0.82rem;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  font-weight: 600;
-}
+.inspector.panel { border: none; border-left: 1px solid var(--hairline); }
 
 .field { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.55rem; }
 .field > span { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); }
@@ -726,22 +739,26 @@ button.view:not(.is-current):hover { color: var(--ink); }
 
 .designer { padding: 0 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
 
-.designer-toolbar {
+/* The toolbar and the status line are the same in both editors: what you are editing on the left,
+   Validate · Preview · Save on the right, and one sentence underneath saying what just happened. */
+.toolbar {
   display: flex; align-items: flex-end; gap: 0.6rem; flex-wrap: wrap;
   padding: 0.75rem 0 0.25rem;
   border-bottom: 1px solid var(--hairline);
 }
-.designer-toolbar .field { margin-bottom: 0; }
-.designer-toolbar .field.compact input, .designer-toolbar .field.compact select { min-width: 12rem; }
-.designer-toolbar .field.narrow input { min-width: 0; width: 6.5rem; }
+.toolbar .field { margin-bottom: 0; }
+.toolbar .field.compact input, .toolbar .field.compact select { min-width: 12rem; }
+.toolbar .field.narrow input { min-width: 0; width: 6.5rem; }
 .toolbar-spacer { flex: 1; }
+button.is-on { background: var(--flow-soft); color: var(--flow); border-color: var(--flow); }
 
 button.primary { background: var(--flow); border-color: var(--flow); color: var(--card); }
 button.primary:hover { filter: brightness(1.08); }
 
-.pl-status { margin: 0; font-size: 0.82rem; color: var(--slate); min-height: 1.4em; }
-.pl-status.is-valid { color: var(--flow); }
-.pl-status.is-invalid { color: var(--divert); }
+.status-line { margin: 0; font-size: 0.82rem; color: var(--slate); min-height: 1.4em; }
+.status-line.is-valid, .status-line.is-saved { color: var(--flow); }
+.status-line.is-saved::before { content: "✓ "; }
+.status-line.is-invalid { color: var(--divert); }
 
 .designer-body {
   display: grid;
@@ -785,16 +802,16 @@ button.primary:hover { filter: brightness(1.08); }
   overflow: auto;
 }
 .pl-canvas.is-drop { outline: 2px dashed var(--flow); outline-offset: -6px; }
-.pl-svg { display: block; width: 100%; height: auto; min-width: 52rem; }
+.pl-svg { display: block; width: 100%; height: auto; min-width: 36rem; }
 
 .pl-caption { font-size: 10px; letter-spacing: 0.14em; fill: var(--slate); }
 .pl-empty { font-size: 14px; fill: var(--slate); }
 
 .pl-node { cursor: pointer; outline: none; }
 .pl-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1.5; }
-.pl-node--origin rect { stroke: var(--provenance); }
-.pl-node--mapping rect { stroke: var(--flow); stroke-width: 2; }
-.pl-node--destination rect { stroke: var(--flow); }
+.pl-node--origin rect { stroke: var(--kind-origin); stroke-width: 2; }
+.pl-node--mapping rect { stroke: var(--kind-processor); stroke-width: 2; rx: 3px; }
+.pl-node--destination rect { stroke: var(--kind-destination); fill: var(--kind-destination-fill); }
 .pl-node:hover rect, .pl-node:focus-visible rect { fill: var(--flow-soft); }
 .pl-node.is-selected rect { stroke-width: 3; fill: var(--flow-soft); }
 .pl-node.has-problems rect { stroke: var(--divert); fill: var(--divert-soft); }
@@ -838,14 +855,20 @@ button.primary:hover { filter: brightness(1.08); }
 
 /* --- the panel ----------------------------------------------------------------------------- */
 
-.pl-config { background: var(--card); border: 1px solid var(--hairline); padding: 0.8rem; position: sticky; top: 0.5rem; max-height: calc(100vh - 2rem); overflow: auto; }
-.pl-config h2 { font-size: 0.95rem; margin: 0 0 0.5rem; }
-.pl-config h3 { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); margin: 0.9rem 0 0.35rem; }
-.pl-config-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+/* The right-hand panel: the same in both editors. A title saying what is selected, its settings,
+   then titled sections. */
+.panel { background: var(--card); border: 1px solid var(--hairline); padding: 0.8rem; }
+.panel .panel-title, .panel h2.panel-title {
+  font-size: 0.95rem; letter-spacing: 0.01em; text-transform: none; color: var(--ink); font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+.panel h3 { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); font-weight: 500; margin: 1rem 0 0.35rem; }
+.panel h3 .hint { margin-left: 0.5rem; }
+.pl-config { position: sticky; top: 0.5rem; max-height: calc(100vh - 2rem); overflow: auto; }
+.pl-config-head, .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .pl-config .field input, .pl-config .field select { width: 100%; }
 .pl-config .detail { font-size: 0.74rem; margin: 0.1rem 0 0.4rem; }
-.pl-problems { margin: 0 0 0.6rem; padding: 0.45rem 0.6rem 0.45rem 1.4rem; background: var(--divert-soft); border-left: 3px solid var(--divert); color: var(--divert); font-size: 0.78rem; }
-.pl-problems li + li { margin-top: 0.25rem; }
+.problems { display: flex; flex-direction: column; gap: 0.3rem; margin: 0 0 0.6rem; }
 .pl-notes { margin: 0; padding-left: 1.1rem; font-size: 0.76rem; color: var(--slate); }
 .pl-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.15rem 0.7rem; font-size: 0.76rem; margin: 0.2rem 0 0.6rem; }
 .pl-facts dt { color: var(--slate); }
@@ -889,3 +912,74 @@ button.primary:hover { filter: brightness(1.08); }
   .designer-body { grid-template-columns: minmax(0, 1fr); }
   .pl-palette { position: static; }
 }
+
+
+/* === one tool: context, mapping view, field preview ========================================= */
+
+/* Where you are: Pipeline › Stage › Hop › Step, on every view, with the way back. */
+.context-bar {
+  display: flex; align-items: center; gap: 0.8rem;
+  padding: 0.45rem 1.25rem;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--paper);
+  flex: none;
+}
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; list-style: none; margin: 0; padding: 0; gap: 0.2rem; font-size: 0.8rem; }
+.crumbs li + li::before { content: "›"; color: var(--slate); margin: 0 0.35rem; }
+button.crumb {
+  background: transparent; border: none; padding: 0.1rem 0.2rem; color: var(--flow);
+  font-size: 0.8rem; text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.crumb.is-here { color: var(--ink); font-weight: 600; }
+.context-bar button.primary { padding: 0.3rem 0.8rem; }
+
+.mapping-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.mapping-view > .toolbar, .mapping-view > .status-line { padding-left: 1.25rem; padding-right: 1.25rem; }
+.mapping-view > .status-line { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.designer > .toolbar { padding-left: 0; padding-right: 0; }
+
+.record-picker { display: flex; align-items: center; gap: 0.35rem; font-size: 0.74rem; color: var(--provenance); margin-left: auto; margin-right: 0.6rem; }
+
+.reads { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.chip--read {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.72rem; padding: 0.1rem 0.15rem 0.1rem 0.4rem;
+  border: 1px solid var(--kind-origin); color: var(--kind-origin);
+}
+.chip-remove { background: transparent; border: none; color: var(--slate); padding: 0 0.25rem; font-size: 0.8rem; line-height: 1; }
+.chip-remove:hover { color: var(--divert); }
+.reads select { flex: 1; min-width: 9rem; }
+
+.samples-table td:first-child { color: var(--slate); width: 1.6rem; }
+.samples-table tr.is-bad td { color: var(--divert); background: var(--divert-soft); }
+.samples-table tr.is-current td:first-child { color: var(--provenance); font-weight: 700; }
+.samples-table tr.is-current td:first-child::before { content: "▸"; }
+
+/* An empty pipeline canvas lists the pipelines there are: the first thing to do is obvious. */
+.pl-canvas { position: relative; }
+.pl-open-list {
+  position: absolute; top: 3.2rem; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: stretch; gap: 0.35rem;
+  background: var(--card); border: 1px solid var(--hairline); padding: 0.8rem 1rem; min-width: 18rem;
+}
+.pl-open-list h3 { margin: 0 0 0.2rem; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); }
+.pl-open-list button { text-align: left; }
+
+.pl-offer { border-left: 3px solid var(--provenance); background: color-mix(in srgb, var(--provenance) 8%, transparent); padding: 0.5rem 0.6rem; margin: 0.6rem 0; }
+.pl-offer .detail { margin: 0 0 0.4rem; color: var(--ink); }
+.pl-skeleton { margin-top: 0.8rem; }
+.pl-skeleton details { margin: 0.4rem 0; font-size: 0.78rem; }
+.pl-skeleton summary { cursor: pointer; color: var(--flow); }
+.pl-table tr.is-bad td { color: var(--divert); }
+
+.pl-item--origin { border-left-color: var(--kind-origin); }
+.pl-item--origin .pl-icon path { stroke: var(--kind-origin); }
+.pl-item--processor { border-left-color: var(--kind-processor); }
+.pl-item--destination { border-left-color: var(--kind-destination); background: color-mix(in srgb, var(--kind-destination-fill) 55%, var(--card)); }
+
+.option-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 0.3rem; }
+.option-row input { min-width: 0; }
+
+.samples-table { table-layout: fixed; }
+.samples-table th:first-child, .samples-table td:first-child { width: 1.8rem; }
+.samples-table td { overflow-wrap: anywhere; }

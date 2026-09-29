@@ -389,7 +389,7 @@ class PipelineDesignerTest {
     }
 
     /** A Kafka-typed connector that serves five records and counts acknowledgements. */
-    private static final class CountingConnector implements SourceConnector {
+    static final class CountingConnector implements SourceConnector {
         private final AtomicInteger acknowledged;
         private final List<ConnectorConfig> configured;
         private ConnectorConfig config;

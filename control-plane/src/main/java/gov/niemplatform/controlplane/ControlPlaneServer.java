@@ -92,6 +92,12 @@ public final class ControlPlaneServer implements AutoCloseable {
             com.fasterxml.jackson.databind.JsonNode body = jsonBody(request);
             return designer.preview(body.path("draft"), body.path("limit").asInt(10));
         }));
+        // Field-level preview and a first mapping for a new source: the designer and the field editor
+        // reading the same sample, so the step an author is writing shows what it does to real data.
+        server.createContext("/api/preview/field", exchange -> respond(exchange,
+                request -> new FieldPreview(designer).preview(jsonBody(request))));
+        server.createContext("/api/mapping/skeleton", exchange -> respond(exchange,
+                request -> new MappingSkeleton(designer, advisor).start(jsonBody(request))));
     }
 
     /**
@@ -259,6 +265,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         if (report.definition() != null) {
             node.set("mapping", describe(report.definition()));
             node.put("svg", DagSvg.render(report.definition()));
+            saveAs(node, report.definition());
         }
         return node;
     }
@@ -285,6 +292,8 @@ public final class ControlPlaneServer implements AutoCloseable {
             case "setFrom" -> text.setStepFrom(hop, step, strings(request.get("from")));
             case "setOption" -> text.setStepOption(hop, step,
                     request.get("key").asText(), request.get("value").asText());
+            case "addOption" -> text.addStepOption(hop, step,
+                    request.get("key").asText(), request.get("value").asText());
             case "addStep" -> text.addStep(hop,
                     request.get("target").asText(), request.get("type").asText(),
                     strings(request.path("from")), options(request.path("options")));
@@ -305,6 +314,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         if (report.definition() != null) {
             node.set("mapping", describe(report.definition()));
             node.put("svg", DagSvg.render(report.definition()));
+            saveAs(node, report.definition());
         }
         return node;
     }
@@ -512,6 +522,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         if (report.definition() != null) {
             node.set("mapping", describe(report.definition()));
             node.put("svg", DagSvg.render(report.definition()));
+            saveAs(node, report.definition());
         }
         return node;
     }
@@ -586,6 +597,7 @@ public final class ControlPlaneServer implements AutoCloseable {
         if (report.definition() != null) {
             node.set("mapping", describe(report.definition()));
             node.put("svg", DagSvg.render(report.definition()));
+            saveAs(node, report.definition());
         }
         return node;
     }
@@ -601,6 +613,15 @@ public final class ControlPlaneServer implements AutoCloseable {
     private ObjectNode save(HttpExchange exchange) throws IOException {
         ObjectNode request = (ObjectNode) json.readTree(body(exchange));
         String yaml = request.get("yaml").asText();
+        // The version the author chose in the toolbar, written into the artifact's own version line
+        // rather than asked for by editing YAML: saving an edited mapping under the version it was
+        // opened at is refused (a reviewed artifact is never replaced), and an author who is not
+        // reading the source has no other way to say what the new one is called.
+        String version = request.path("version").asText("").trim();
+        if (!version.isEmpty()) {
+            yaml = yaml.replaceFirst("(?m)^version:[^\\n]*$",
+                    java.util.regex.Matcher.quoteReplacement("version: \"" + version + "\""));
+        }
 
         MappingWorkspace.ValidationReport report = workspace.validate(yaml);
         ObjectNode node = json.createObjectNode();
@@ -614,11 +635,32 @@ public final class ControlPlaneServer implements AutoCloseable {
         }
 
         MappingDefinition definition = report.definition();
+        if (workspace.existing(definition.name(), definition.version()).isPresent()) {
+            node.put("saved", false);
+            node.putArray("problems").add(definition.qualifiedName() + " already exists and is never "
+                    + "replaced. Save as " + workspace.nextVersion(definition.version()) + " instead.");
+            return node;
+        }
         Path written = workspace.saveAsNewVersion(yaml, definition.name(), definition.version());
         node.put("saved", true);
         node.put("file", written.getFileName().toString());
         node.put("qualifiedName", definition.qualifiedName());
+        node.put("name", definition.name());
+        node.put("version", definition.version());
+        node.put("sourceId", definition.sourceId());
+        node.put("yaml", yaml);
+        node.put("nextVersion", workspace.nextVersion(definition.version()));
         return node;
+    }
+
+    /**
+     * What Save would call a draft: its own version when that is new, the next one when the draft is
+     * an edit of a version already on disk -- which is never replaced.
+     */
+    private void saveAs(ObjectNode node, MappingDefinition definition) {
+        boolean exists = workspace.existing(definition.name(), definition.version()).isPresent();
+        node.put("exists", exists);
+        node.put("saveAs", exists ? workspace.nextVersion(definition.version()) : definition.version());
     }
 
     // --- shaping ---------------------------------------------------------

@@ -308,4 +308,58 @@ class MappingPipelineTest {
 
         assertThat(second).containsExactlyElementsOf(first);
     }
+
+    @Nested
+    @DisplayName("tracing a hop for an author")
+    class Tracing {
+
+        @Test
+        @DisplayName("every step shows what it read and what it wrote, from the same transforms a run uses")
+        void tracesSteps() {
+            MappingPipeline.HopTrace trace = pipeline().trace(
+                    CadMappingFixture.envelope(CadMappingFixture.ROW_BURGLARY_VICTIM, 2), "map-incident", "t");
+
+            assertThat(trace.admitted()).isTrue();
+            assertThat(trace.steps()).hasSize(5);
+            MappingPipeline.StepTrace first = trace.steps().get(0);
+            assertThat(first.target()).isEqualTo("incidentNumber");
+            assertThat(first.inputs()).containsEntry("INC_NUM", "2026-000114");
+            assertThat(first.value()).isEqualTo("2026-000114");
+            assertThat(trace.steps().get(1).value()).isEqualTo(Instant.parse("2026-03-04T18:20:00Z"));
+        }
+
+        @Test
+        @DisplayName("a record the gate refuses runs no steps, and the gate says why")
+        void refusedAtTheGate() {
+            MappingPipeline.HopTrace trace = pipeline().trace(CadMappingFixture.envelope(
+                    "2026-000114,BURG,2026-03-04T11:20,\"418 W 9TH ST\",3A,VICT,\"DOE, JANE M\",03/14/1988,F,K447-1902",
+                    2), "map-incident", "t");
+
+            assertThat(trace.admitted()).isFalse();
+            assertThat(trace.steps()).isEmpty();
+            assertThat(emitter.eventsOfType(ContractViolation.class)).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("a step that cannot convert its value stops the trace and says why by shape")
+        void failingStep() {
+            MappingPipeline.HopTrace trace = pipeline().trace(CadMappingFixture.envelope(
+                    "2026-000114,BURG,2026/13/45 11:20,\"418 W 9TH ST\",3A,VICT,\"DOE, JANE M\",03/14/1988,F,K447-1902",
+                    2), "map-incident", "t");
+
+            assertThat(trace.steps()).hasSize(2);
+            assertThat(trace.steps().get(1).value()).isNull();
+            assertThat(trace.steps().get(1).failure()).contains("parseDateTime").doesNotContain("2026/13/45");
+        }
+
+        @Test
+        @DisplayName("a trace keeps no books: it is not a record landing")
+        void keepsNoBooks() {
+            MappingPipeline pipeline = pipeline();
+            pipeline.trace(CadMappingFixture.envelope(CadMappingFixture.ROW_BURGLARY_VICTIM, 2), "map-incident", "t");
+
+            assertThat(pipeline.account().landedCount()).isZero();
+            assertThat(pipeline.account().producedCount()).isZero();
+        }
+    }
 }

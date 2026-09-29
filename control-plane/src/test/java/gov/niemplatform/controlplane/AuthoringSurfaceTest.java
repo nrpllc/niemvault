@@ -535,6 +535,30 @@ class AuthoringSurfaceTest {
             assertThat(result.get("qualifiedName").asText()).isEqualTo("cad-to-canonical@1.1.0");
             assertThat(moduleRoot.resolve("mappings/cad-to-canonical-1.1.0.yaml")).exists();
         }
+
+        @Test
+        @DisplayName("saves under the version chosen in the toolbar, written into the artifact itself")
+        void savesUnderTheChosenVersion() throws Exception {
+            var result = post("/api/save", json.createObjectNode()
+                    .put("yaml", shippedYaml()).put("version", "1.0.1").toString());
+
+            assertThat(result.get("saved").asBoolean()).isTrue();
+            assertThat(result.get("qualifiedName").asText()).isEqualTo("cad-to-canonical@1.0.1");
+            assertThat(java.nio.file.Files.readString(moduleRoot.resolve("mappings/cad-to-canonical-1.0.1.yaml")))
+                    .contains("version: \"1.0.1\"")
+                    // The version line is patched; the commentary around it is not regenerated.
+                    .contains("#");
+        }
+
+        @Test
+        @DisplayName("an unchanged version is refused with the version to use instead")
+        void namesTheNextVersion() throws Exception {
+            var result = post("/api/save", json.createObjectNode().put("yaml", shippedYaml()).toString());
+
+            assertThat(result.get("saved").asBoolean()).isFalse();
+            assertThat(result.get("problems").get(0).asText())
+                    .contains("cad-to-canonical@1.0.0 already exists").contains("1.0.1");
+        }
     }
 
     @Nested
