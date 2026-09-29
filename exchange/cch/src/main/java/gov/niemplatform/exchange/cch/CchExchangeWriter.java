@@ -1,5 +1,6 @@
 package gov.niemplatform.exchange.cch;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -91,6 +92,28 @@ public final class CchExchangeWriter implements ExchangeWriter {
     public CchExchangeWriter(HttpClient http, Clock clock) {
         this.http = http;
         this.clock = clock;
+    }
+
+    @Override
+    public String summary() {
+        return "Submits assembled documents to a state criminal history repository over HTTP.";
+    }
+
+    /** What this reads from a definition's settings, key for key (ADR 0037). */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text(SETTING_ENDPOINT).label("Endpoint").required()
+                        .describe("Absolute URL documents are posted to.").build(),
+                SettingDescriptor.text(SETTING_TOKEN_ENV).label("Token variable").envVarName()
+                        .describe("Name of the environment variable holding the token.").build(),
+                SettingDescriptor.integer(SETTING_TIMEOUT_SECONDS).label("Timeout (seconds)")
+                        .defaultsTo("30").build(),
+                SettingDescriptor.integer(SETTING_BATCH_SIZE).label("Documents per request")
+                        .defaultsTo("100").build(),
+                SettingDescriptor.bool(SETTING_SYNTHETIC).label("Synthetic data").defaultsTo("false")
+                        .describe("Stated on every submission; a POC repository refuses anything else.")
+                        .build());
     }
 
     @Override

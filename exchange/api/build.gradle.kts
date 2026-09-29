@@ -5,6 +5,9 @@ plugins {
 description = "Exchange SPI (ADR 0034). Canonical records assembled into a document and submitted to an external system of record."
 
 dependencies {
+    // Each implementation describes its own settings, so an authoring surface can build a form
+    // from what the component actually reads rather than from a copy that drifts (ADR 0037).
+    api(project(":core:settings"))
     // An exchange is declared against the canonical model and validated against it on load, so
     // the descriptors are part of this API rather than an implementation detail of it.
     api(project(":core:canonical"))

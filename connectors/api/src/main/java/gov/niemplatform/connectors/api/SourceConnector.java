@@ -82,6 +82,22 @@ public interface SourceConnector extends AutoCloseable {
     /** Whether the connector can currently reach its source. */
     HealthStatus health();
 
+    /**
+     * The settings this transport reads, as it reads them (ADR 0037).
+     *
+     * <p>Empty by default, which an authoring surface treats as "no form -- configure() is the only
+     * authority". Each shipped connector declares exactly the keys it accepts, and its tests hold it
+     * to that.
+     */
+    default java.util.List<gov.niemplatform.settings.SettingDescriptor> settings() {
+        return java.util.List.of();
+    }
+
+    /** One line saying what this transport is, for a palette. */
+    default String summary() {
+        return "";
+    }
+
     @Override
     void close();
 }

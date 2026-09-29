@@ -46,3 +46,4 @@ deciding stated) · **Superseded**.
 | [0034](0034-an-exchange-is-configuration.md) | What this platform submits is configuration, not a class | Accepted |
 | [0035](0035-postgresql-is-the-operational-data-store.md) | PostgreSQL is the operational data store, and a projection is a file | Accepted |
 | [0036](0036-search-document-shape.md) | What a search document is | Accepted |
+| [0037](0037-a-pipeline-is-an-artifact.md) | A pipeline is an artifact, and the designer draws it | Accepted |

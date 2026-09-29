@@ -82,8 +82,27 @@ final class RunCommand implements Callable<Integer> {
     String tenant;
 
 
-    @Option(names = "--mapping", required = true, description = "Mapping artifact to run.")
+    @Option(names = "--mapping", description = "Mapping artifact to run. Required unless --pipeline names it.")
     Path mappingFile;
+
+    /**
+     * Everything this run does, named in one artifact (ADR 0037): the origin, the mapping, and
+     * the destinations. Resolved to exactly what --source, --mapping, --projection and --exchange
+     * would say, so a pipeline saved in the designer is the pipeline that runs.
+     */
+    @Option(names = "--pipeline",
+            description = "Pipeline artifact (YAML) naming the origin, mapping and destinations. "
+                    + "Not combined with --mapping, --drop, --source, --projection or --exchange.")
+    Path pipelineFile;
+
+    /**
+     * Where a deployment keeps the definitions only it knows -- which database, which broker, which
+     * endpoint. Searched before the module, so a name found here shadows the module's.
+     */
+    @Option(names = "--artifacts",
+            description = "Directory of deployment-supplied source, projection and exchange "
+                    + "definitions a --pipeline resolves names against. Repeatable.")
+    List<Path> artifactDirectories = new ArrayList<>();
 
     /**
      * How the source is described.
@@ -94,7 +113,7 @@ final class RunCommand implements Callable<Integer> {
      * retention posture, and a CDC source will need a log position -- none of which belongs on a
      * command line shared with all the others.
      */
-    @picocli.CommandLine.ArgGroup(multiplicity = "1")
+    @picocli.CommandLine.ArgGroup(multiplicity = "0..1")
     SourceOptions source;
 
     static final class SourceOptions {
@@ -205,6 +224,10 @@ final class RunCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         Instant startedAt = Instant.now();
+        Integer refused = applyPipeline();
+        if (refused != null) {
+            return refused;
+        }
         ArtifactSet artifacts = ArtifactSet.load(mappingFile, moduleDirectory.resolve("contracts"));
         List<String> crossReference = artifacts.crossReferenceProblems();
         if (!crossReference.isEmpty()) {
@@ -510,6 +533,60 @@ final class RunCommand implements Callable<Integer> {
         openProjections.addAll(ProjectionTargets.open(projectionFiles, tenant, sourceId,
                 mappingName, mappingVersion, canonicalTypes, System.out));
         return openProjections;
+    }
+
+    /**
+     * Resolves --pipeline into the options it stands for, or checks that they were given directly.
+     *
+     * @return an exit code if the run cannot proceed, or null
+     */
+    private Integer applyPipeline() {
+        if (pipelineFile == null) {
+            if (!artifactDirectories.isEmpty()) {
+                System.err.println("--artifacts is where a --pipeline finds its definitions; there is no --pipeline.");
+                return 2;
+            }
+            if (mappingFile == null || source == null) {
+                System.err.println("Name a --mapping and one of --drop or --source, or a --pipeline.");
+                return 2;
+            }
+            return null;
+        }
+        if (mappingFile != null || source != null || !projectionFiles.isEmpty() || exchangeFile != null) {
+            // Refused rather than merged: which of two answers wins is exactly the question a
+            // pipeline exists to settle, and an operator who typed both meant one of them.
+            System.err.println("--pipeline names the origin, mapping and destinations; it cannot be "
+                    + "combined with --mapping, --drop, --source, --projection or --exchange.");
+            return 2;
+        }
+        gov.niemplatform.pipeline.PipelineDefinition pipeline;
+        try {
+            pipeline = gov.niemplatform.pipeline.PipelineDefinition.load(pipelineFile);
+        } catch (gov.niemplatform.pipeline.PipelineDefinitionException e) {
+            System.err.println(e.getMessage());
+            return 1;
+        }
+        var resolution = new gov.niemplatform.pipeline.PipelineResolver(
+                gov.niemplatform.pipeline.ArtifactCatalog.of(moduleDirectory, artifactDirectories),
+                ConnectorRegistry.discover(),
+                gov.niemplatform.projections.api.ProjectionRegistry.discover(),
+                gov.niemplatform.exchange.api.ExchangeRegistry.discover())
+                .resolve(pipeline, gov.niemplatform.pipeline.PipelineResolver.Strictness.RUN);
+        if (!resolution.runnable()) {
+            System.err.printf("Pipeline %s cannot run:%n", pipeline.qualifiedName());
+            resolution.problems().forEach(problem -> System.err.println("  " + problem));
+            return 1;
+        }
+        mappingFile = resolution.mappingFile().orElseThrow();
+        source = new SourceOptions();
+        source.definitionFile = resolution.sourceFile().orElseThrow();
+        projectionFiles = new ArrayList<>(resolution.projectionFiles());
+        exchangeFile = resolution.exchangeFiles().isEmpty() ? null : resolution.exchangeFiles().get(0);
+        System.out.printf("Pipeline %s: %s via %s, %s, %d projection(s), %d exchange(s).%n",
+                pipeline.qualifiedName(), pipeline.originSource(), pipeline.originInstance(),
+                pipeline.mapping(), resolution.projectionFiles().size(), resolution.exchangeFiles().size());
+        resolution.notes().forEach(note -> System.out.println("  " + note));
+        return null;
     }
 
     private RunReport runReport(

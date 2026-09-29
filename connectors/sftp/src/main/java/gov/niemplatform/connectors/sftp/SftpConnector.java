@@ -1,5 +1,6 @@
 package gov.niemplatform.connectors.sftp;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorConfigurationException;
 import gov.niemplatform.connectors.api.ConnectorType;
@@ -115,7 +116,7 @@ public final class SftpConnector implements SourceConnector {
     static final String SETTING_MAX_FILES = "maxFiles";
     static final String SETTING_TIMEOUT_SECONDS = "timeoutSeconds";
 
-    private static final Set<String> RECOGNISED_SETTINGS = Set.of(
+    static final Set<String> RECOGNISED_SETTINGS = Set.of(
             SETTING_HOST, SETTING_PORT, SETTING_USERNAME, SETTING_PASSWORD,
             SETTING_PRIVATE_KEY_PATH, SETTING_PRIVATE_KEY_PASSPHRASE, SETTING_KNOWN_HOSTS_PATH,
             SETTING_HOST_KEY_FINGERPRINT, SETTING_HOST_KEY_CHECK, SETTING_DIRECTORY,
@@ -151,6 +152,56 @@ public final class SftpConnector implements SourceConnector {
 
     public SftpConnector(Clock clock) {
         this.clock = clock;
+    }
+
+    @Override
+    public String summary() {
+        return "Files pulled from an SFTP server, with the host key verified.";
+    }
+
+    /** What configure() reads, key for key. The tests hold this to RECOGNISED_SETTINGS. */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text(SETTING_HOST).label("Host").required().build(),
+                SettingDescriptor.integer(SETTING_PORT).label("Port").defaultsTo("22").build(),
+                SettingDescriptor.text(SETTING_USERNAME).label("Username").required().build(),
+                SettingDescriptor.text(SETTING_PASSWORD).label("Password").secretValue()
+                        .describe("Supplied by the deployment. Prefer a private key.").build(),
+                SettingDescriptor.text(SETTING_PRIVATE_KEY_PATH).label("Private key path")
+                        .describe("Path to the key file on the machine that runs the pipeline.").build(),
+                SettingDescriptor.text(SETTING_PRIVATE_KEY_PASSPHRASE).label("Key passphrase")
+                        .secretValue().build(),
+                SettingDescriptor.text(SETTING_KNOWN_HOSTS_PATH).label("known_hosts path").build(),
+                SettingDescriptor.text(SETTING_HOST_KEY_FINGERPRINT).label("Host key fingerprint")
+                        .describe("SHA256:... of the server key. One of fingerprint, known_hosts or "
+                                + "hostKeyCheck is required.").build(),
+                SettingDescriptor.text(SETTING_HOST_KEY_CHECK).label("Host key check")
+                        .describe("accept-any states that this deployment does not verify the server.")
+                        .build(),
+                SettingDescriptor.text(SETTING_DIRECTORY).label("Remote directory").required()
+                        .describe("Directory on the server to read files from.").build(),
+                SettingDescriptor.text(SETTING_FILE_PATTERN).label("File pattern").defaultsTo("*")
+                        .describe("Glob of file names to pick up, e.g. *.csv.").build(),
+                SettingDescriptor.choice(SETTING_AFTER_DOWNLOAD, "archive", "delete", "watermark", "none")
+                        .label("After download").required()
+                        .describe("Who remembers a file was read: archive or delete on the server, "
+                                + "watermark on this platform, or none (ADR 0031).").build(),
+                SettingDescriptor.text(SETTING_ARCHIVE_DIRECTORY).label("Archive directory")
+                        .describe("Where files are moved when afterDownload is archive.").build(),
+                SettingDescriptor.choice(SETTING_RETENTION, "retained", "transient").label("Retention")
+                        .required()
+                        .describe("Whether this agency may keep what arrives (ADR 0027). No default.")
+                        .build(),
+                SettingDescriptor.choice(SETTING_RECORD_MODE, "line", "file").label("Record mode")
+                        .defaultsTo("line").describe("One record per line, or one per file.").build(),
+                SettingDescriptor.integer(SETTING_SKIP_HEADER_LINES).label("Header lines to skip")
+                        .defaultsTo("0").build(),
+                SettingDescriptor.text(SETTING_CHARSET).label("Character set").defaultsTo("UTF-8").build(),
+                SettingDescriptor.integer(SETTING_MAX_FILES).label("Most files per run")
+                        .defaultsTo("1000").build(),
+                SettingDescriptor.integer(SETTING_TIMEOUT_SECONDS).label("Timeout (seconds)")
+                        .defaultsTo("30").build());
     }
 
     @Override

@@ -42,6 +42,11 @@ public final class ProjectionRegistry {
         return new ProjectionRegistry(Map.copyOf(found));
     }
 
+    /** The factory for a type, if this deployment carries one -- for describing it, not opening it. */
+    public java.util.Optional<ProjectionFactory> forType(ProjectionType type) {
+        return java.util.Optional.ofNullable(byType.get(type));
+    }
+
     /** Every projection this deployment can write, in no particular order. */
     public List<ProjectionType> availableTypes() {
         return byType.keySet().stream().sorted(java.util.Comparator.comparing(ProjectionType::id)).toList();

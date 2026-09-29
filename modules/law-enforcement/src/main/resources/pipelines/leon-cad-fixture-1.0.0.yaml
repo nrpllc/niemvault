@@ -1,0 +1,20 @@
+# Leon County SO CAD from its file drop, into FDLE CCH (ADR 0037).
+#
+# Everything this names ships in the module, so it resolves with no deployment directory at all --
+# the pipeline to open first in the designer, and to preview against fixtures/leon-incidents.csv
+# copied into a drop directory.
+
+pipeline: leon-cad-fixture
+version: "1.0.0"
+description: "Leon County SO CAD file drop, into FDLE CCH"
+
+origin:
+  source: leon-so-cad
+  instance: leon-cad-file-drop-1
+
+processors:
+  mapping: leon-cad-to-canonical@1.0.0
+
+destinations:
+  exchanges:
+    - fdle-cch-incidents-leon

@@ -16,6 +16,7 @@
   </div>
   <div class="actions">
     <div class="views" role="tablist" aria-label="View">
+      <button id="view-pipelines" type="button" class="view" role="tab" aria-selected="false">Pipelines</button>
       <button id="view-flow" type="button" class="view is-current" role="tab" aria-selected="true">Flow</button>
       <button id="view-catalogue" type="button" class="view" role="tab" aria-selected="false">Catalogue</button>
       <button id="view-coverage" type="button" class="view" role="tab" aria-selected="false">NIEM</button>
@@ -62,6 +63,62 @@
     <div id="problems" role="status" aria-live="polite"></div>
   </aside>
 </main>
+
+<section id="pipelines-view" class="designer" hidden aria-label="Pipeline designer">
+  <div class="designer-toolbar">
+    <label class="field compact">
+      <span>Pipeline</span>
+      <select id="pl-open" aria-label="Open a pipeline"></select>
+    </label>
+    <button id="pl-wizard" type="button" class="primary">+ Add a data source</button>
+    <label class="field compact"><span>Name</span><input id="pl-name" type="text" spellcheck="false" placeholder="leon-cad-live"></label>
+    <label class="field compact narrow"><span>Version</span><input id="pl-version" type="text" spellcheck="false" placeholder="1.0.0"></label>
+    <div class="toolbar-spacer"></div>
+    <button id="pl-validate" type="button" class="ghost">Validate</button>
+    <button id="pl-preview" type="button" class="ghost">Preview</button>
+    <button id="pl-save" type="button">Save</button>
+  </div>
+  <p id="pl-status" class="pl-status" role="status" aria-live="polite">
+    Drag a stage from the palette onto the canvas, or start with <strong>Add a data source</strong>.
+  </p>
+
+  <div class="designer-body">
+    <nav id="pl-palette" class="pl-palette" aria-label="Palette"></nav>
+
+    <section class="pl-stage" aria-label="Pipeline canvas">
+      <div id="pl-canvas" class="pl-canvas" tabindex="-1"></div>
+      <section id="pl-drawer" class="pl-drawer" hidden aria-label="Preview">
+        <header class="pl-drawer-head">
+          <h3 id="pl-drawer-title">Preview</h3>
+          <div class="pl-tabs" role="tablist">
+            <button type="button" class="pl-tab is-current" data-tab="origin" role="tab">What arrived</button>
+            <button type="button" class="pl-tab" data-tab="mapped" role="tab">Canonical records</button>
+            <button type="button" class="pl-tab" data-tab="held" role="tab">Held back</button>
+          </div>
+          <button id="pl-drawer-close" type="button" class="ghost inline" aria-label="Close preview">✕</button>
+        </header>
+        <p id="pl-completeness" class="detail"></p>
+        <div id="pl-drawer-body" class="pl-drawer-body"></div>
+      </section>
+    </section>
+
+    <aside id="pl-config" class="pl-config" aria-label="Stage configuration"></aside>
+  </div>
+
+  <dialog id="pl-wizard-dialog" class="pl-wizard" aria-labelledby="pl-wizard-title">
+    <header>
+      <h2 id="pl-wizard-title">Add a data source</h2>
+      <ol id="pl-wizard-steps" class="pl-steps"></ol>
+    </header>
+    <div id="pl-wizard-body" class="pl-wizard-body"></div>
+    <footer>
+      <button id="pl-wizard-cancel" type="button" class="ghost">Cancel</button>
+      <div class="toolbar-spacer"></div>
+      <button id="pl-wizard-back" type="button" class="ghost">Back</button>
+      <button id="pl-wizard-next" type="button" class="primary">Next</button>
+    </footer>
+  </dialog>
+</section>
 
 <section id="catalogue-view" class="catalogue" hidden aria-label="Catalogue">
   <header class="catalogue-head">

@@ -33,6 +33,12 @@ final class AuthorCommand implements Callable<Integer> {
                     + "-- never their values (ADR 0023). Omitted: suggestions from names alone.")
     Path bronzeRoot;
 
+    /** Where a deployment keeps its own definitions, as for `niem run --artifacts` (ADR 0037). */
+    @Option(names = "--artifacts",
+            description = "Directory of deployment-supplied source, projection and exchange definitions "
+                    + "the pipeline designer resolves names against. Repeatable.")
+    java.util.List<Path> artifactDirectories = new java.util.ArrayList<>();
+
     @Override
     public Integer call() throws Exception {
         try (ControlPlaneServer server = ControlPlaneServer.open(
@@ -40,6 +46,11 @@ final class AuthorCommand implements Callable<Integer> {
 
             if (bronzeRoot != null) {
                 server.profilingFrom(bronzeRoot.toAbsolutePath().normalize());
+            }
+            if (!artifactDirectories.isEmpty()) {
+                server.withDeploymentArtifacts(artifactDirectories.stream()
+                        .map(path -> path.toAbsolutePath().normalize()).toList());
+                System.out.printf("  deployment definitions  %s%n", artifactDirectories);
             }
 
             System.out.printf("Mapping authoring: %s%n", server.url());

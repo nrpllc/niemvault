@@ -1,5 +1,6 @@
 package gov.niemplatform.connectors.ftp;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorConfigurationException;
 import gov.niemplatform.connectors.api.ConnectorType;
@@ -111,7 +112,7 @@ public final class FtpsConnector implements SourceConnector {
     static final String SETTING_MAX_FILES = "maxFiles";
     static final String SETTING_TIMEOUT_SECONDS = "timeoutSeconds";
 
-    private static final Set<String> RECOGNISED_SETTINGS = Set.of(
+    static final Set<String> RECOGNISED_SETTINGS = Set.of(
             SETTING_HOST, SETTING_PORT, SETTING_USERNAME, SETTING_PASSWORD, SETTING_SECURITY,
             SETTING_CONNECTION_MODE, SETTING_DIRECTORY, SETTING_FILE_PATTERN, SETTING_AFTER_DOWNLOAD,
             SETTING_ARCHIVE_DIRECTORY, SETTING_RETENTION, SETTING_RECORD_MODE,
@@ -154,6 +155,51 @@ public final class FtpsConnector implements SourceConnector {
 
     public FtpsConnector(Clock clock) {
         this.clock = clock;
+    }
+
+    @Override
+    public String summary() {
+        return "Files pulled from an FTPS server; plain FTP only when stated.";
+    }
+
+    /** What configure() reads, key for key. The tests hold this to RECOGNISED_SETTINGS. */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text(SETTING_HOST).label("Host").required().build(),
+                SettingDescriptor.integer(SETTING_PORT).label("Port")
+                        .describe("21, or 990 for implicit TLS.").build(),
+                SettingDescriptor.text(SETTING_USERNAME).label("Username").required().build(),
+                SettingDescriptor.text(SETTING_PASSWORD).label("Password").required().secretValue()
+                        .describe("Supplied by the deployment, never written here.").build(),
+                SettingDescriptor.choice(SETTING_SECURITY, "explicit", "implicit", "none")
+                        .label("Security").required()
+                        .describe("explicit is ordinary FTPS; none is plain FTP (ADR 0033).").build(),
+                SettingDescriptor.choice(SETTING_CONNECTION_MODE, "passive", "active")
+                        .label("Connection mode").defaultsTo("passive").build(),
+                SettingDescriptor.text(SETTING_DIRECTORY).label("Remote directory").required()
+                        .describe("Directory on the server to read files from.").build(),
+                SettingDescriptor.text(SETTING_FILE_PATTERN).label("File pattern").defaultsTo("*")
+                        .describe("Glob of file names to pick up, e.g. *.csv.").build(),
+                SettingDescriptor.choice(SETTING_AFTER_DOWNLOAD, "archive", "delete", "watermark", "none")
+                        .label("After download").required()
+                        .describe("Who remembers a file was read: archive or delete on the server, "
+                                + "watermark on this platform, or none (ADR 0031).").build(),
+                SettingDescriptor.text(SETTING_ARCHIVE_DIRECTORY).label("Archive directory")
+                        .describe("Where files are moved when afterDownload is archive.").build(),
+                SettingDescriptor.choice(SETTING_RETENTION, "retained", "transient").label("Retention")
+                        .required()
+                        .describe("Whether this agency may keep what arrives (ADR 0027). No default.")
+                        .build(),
+                SettingDescriptor.choice(SETTING_RECORD_MODE, "line", "file").label("Record mode")
+                        .defaultsTo("line").describe("One record per line, or one per file.").build(),
+                SettingDescriptor.integer(SETTING_SKIP_HEADER_LINES).label("Header lines to skip")
+                        .defaultsTo("0").build(),
+                SettingDescriptor.text(SETTING_CHARSET).label("Character set").defaultsTo("UTF-8").build(),
+                SettingDescriptor.integer(SETTING_MAX_FILES).label("Most files per run")
+                        .defaultsTo("1000").build(),
+                SettingDescriptor.integer(SETTING_TIMEOUT_SECONDS).label("Timeout (seconds)")
+                        .defaultsTo("30").build());
     }
 
     @Override

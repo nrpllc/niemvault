@@ -25,4 +25,19 @@ public interface ProjectionFactory {
      * @throws ProjectionException if the store cannot be reached or belongs to another tenant
      */
     ProjectionWriter open(ProjectionDefinition definition, ProjectionContext context);
+
+    /**
+     * The settings a definition of this type carries (ADR 0037). Empty by default.
+     *
+     * <p>How an authoring surface checks a projection without opening one: opening connects to the
+     * store and claims it for a tenant, which is never something a form should do.
+     */
+    default java.util.List<gov.niemplatform.settings.SettingDescriptor> settings() {
+        return java.util.List.of();
+    }
+
+    /** One line saying what this projection is, for a palette. */
+    default String summary() {
+        return "";
+    }
 }

@@ -13,6 +13,7 @@
  */
 
 import { createCanvas } from './canvas.js';
+import { initPipelines } from './pipelines.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -417,7 +418,7 @@ function producedRow(produced) {
   return row;
 }
 
-const VIEWS = ['flow', 'catalogue', 'coverage'];
+const VIEWS = ['pipelines', 'flow', 'catalogue', 'coverage'];
 
 function showView(view) {
   const current = VIEWS.includes(view) ? view : 'flow';
@@ -432,7 +433,12 @@ function showView(view) {
 
   // The mapping strip belongs to the mapping. NIEM coverage describes the model, which is the same
   // whichever mapping happens to be open, so leaving the strip up would imply a connection.
-  document.querySelector('.flow-strip').hidden = current === 'coverage';
+  document.querySelector('.flow-strip').hidden = current === 'coverage' || current === 'pipelines';
+  // The masthead's save and the YAML source belong to the open mapping, not to a pipeline, which
+  // saves from its own toolbar.
+  el('save').hidden = current === 'pipelines';
+  document.querySelector('details.source').hidden = current === 'pipelines';
+  if (current === 'pipelines') pipelines.show();
 
   if (current === 'catalogue') showCatalogue();
   if (current === 'coverage') showCoverage();
@@ -1130,10 +1136,18 @@ canvas = createCanvas(el('canvas'), { onSelect, onConnect, onDisconnect });
 
 el('yaml').addEventListener('input', scheduleValidation);
 el('save').addEventListener('click', save);
+el('view-pipelines').addEventListener('click', () => showView('pipelines'));
 el('view-flow').addEventListener('click', () => showView('flow'));
 el('view-catalogue').addEventListener('click', () => showView('catalogue'));
 el('view-coverage').addEventListener('click', () => showView('coverage'));
 el('relayout').addEventListener('click', () => canvas.reset());
+
+// The designer opens a mapping in the field editor by name, which is how a Mapping stage's "edit"
+// reaches the canvas this file already draws.
+const pipelines = initPipelines({
+  api,
+  openMapping: async (file) => { await openMapping(file); showView('flow'); },
+});
 
 (async function start() {
   await loadModule();
@@ -1162,4 +1176,7 @@ el('relayout').addEventListener('click', () => canvas.reset());
   if (wanted && !requested) {
     setStatus('invalid', `No mapping named "${wanted}" in this module; opened the first instead.`);
   }
+  // ?view=pipelines (or ?pipeline=) lands on the designer, which is the page a new author wants.
+  const params = new URLSearchParams(location.search);
+  if (params.get('view') === 'pipelines' || params.get('pipeline')) showView('pipelines');
 })();

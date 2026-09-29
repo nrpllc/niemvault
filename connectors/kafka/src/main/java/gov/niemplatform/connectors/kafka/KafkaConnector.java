@@ -1,5 +1,6 @@
 package gov.niemplatform.connectors.kafka;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorConfigurationException;
 import gov.niemplatform.connectors.api.ConnectorType;
@@ -94,7 +95,7 @@ public final class KafkaConnector implements SourceConnector {
     static final String SETTING_SASL_MECHANISM = "saslMechanism";
     static final String SETTING_SASL_JAAS_CONFIG = "saslJaasConfig";
 
-    private static final Set<String> RECOGNISED_SETTINGS = Set.of(
+    static final Set<String> RECOGNISED_SETTINGS = Set.of(
             SETTING_BOOTSTRAP_SERVERS, SETTING_TOPIC, SETTING_GROUP_ID, SETTING_RETENTION,
             SETTING_AUTO_OFFSET_RESET, SETTING_MAX_RECORDS, SETTING_IDLE_MILLIS, SETTING_POLL_MILLIS,
             SETTING_SECURITY_PROTOCOL, SETTING_SASL_MECHANISM, SETTING_SASL_JAAS_CONFIG);
@@ -118,6 +119,41 @@ public final class KafkaConnector implements SourceConnector {
 
     public KafkaConnector(Clock clock) {
         this.clock = clock;
+    }
+
+    @Override
+    public String summary() {
+        return "A Kafka topic, read in bounded slices and acknowledged after bronze commits.";
+    }
+
+    /** What configure() reads, key for key. The tests hold this to RECOGNISED_SETTINGS. */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text(SETTING_BOOTSTRAP_SERVERS).label("Bootstrap servers").required()
+                        .describe("host:port of the brokers, comma separated.").build(),
+                SettingDescriptor.text(SETTING_TOPIC).label("Topic").required().build(),
+                SettingDescriptor.text(SETTING_GROUP_ID).label("Consumer group").required()
+                        .describe("Where the read position is kept. One group per source.").build(),
+                SettingDescriptor.choice(SETTING_RETENTION, "retained", "transient").label("Retention")
+                        .required()
+                        .describe("Whether this agency may keep what arrives (ADR 0027). No default.")
+                        .build(),
+                SettingDescriptor.choice(SETTING_AUTO_OFFSET_RESET, "earliest", "latest")
+                        .label("Start from").defaultsTo("earliest")
+                        .describe("Where a new consumer group begins.").build(),
+                SettingDescriptor.integer(SETTING_MAX_RECORDS).label("Most records per slice")
+                        .defaultsTo("100000").build(),
+                SettingDescriptor.integer(SETTING_IDLE_MILLIS).label("Idle before slice ends (ms)")
+                        .defaultsTo("5000").build(),
+                SettingDescriptor.integer(SETTING_POLL_MILLIS).label("Poll interval (ms)")
+                        .defaultsTo("500").build(),
+                SettingDescriptor.text(SETTING_SECURITY_PROTOCOL).label("Security protocol")
+                        .describe("e.g. SASL_SSL. Empty is plaintext.").build(),
+                SettingDescriptor.text(SETTING_SASL_MECHANISM).label("SASL mechanism").build(),
+                SettingDescriptor.text(SETTING_SASL_JAAS_CONFIG).label("SASL JAAS config").secretValue()
+                        .describe("Carries the credential, so it is supplied by the deployment, never "
+                                + "written here.").build());
     }
 
     @Override

@@ -48,6 +48,9 @@ public final class ControlPlaneServer implements AutoCloseable {
      */
     private Path bronzeRoot;
 
+    /** The pipeline designer (ADR 0037). Replaced when a deployment's definitions are pointed at. */
+    private PipelineDesigner designer;
+
     public ControlPlaneServer(MappingWorkspace workspace, int port) {
         this.workspace = Objects.requireNonNull(workspace, "workspace");
         try {
@@ -72,6 +75,51 @@ public final class ControlPlaneServer implements AutoCloseable {
         server.createContext("/api/contract", exchange -> respond(exchange, this::contract));
         server.createContext("/api/contract/edit", exchange -> respond(exchange, this::editContract));
         server.createContext("/api/save", exchange -> respond(exchange, this::save));
+
+        // The pipeline designer (ADR 0037).
+        designer = new PipelineDesigner(workspace, List.of());
+        server.createContext("/api/palette", exchange -> respond(exchange, ignored -> designer.palette()));
+        server.createContext("/api/pipelines", exchange -> respond(exchange, ignored -> designer.pipelines()));
+        server.createContext("/api/pipeline", exchange -> respond(exchange,
+                request -> designer.pipeline(query(request, "file"))));
+        server.createContext("/api/pipeline/validate", exchange -> respond(exchange,
+                request -> designer.validate(jsonBody(request), false)));
+        server.createContext("/api/pipeline/save", exchange -> respond(exchange,
+                request -> designer.save(jsonBody(request))));
+        server.createContext("/api/source/test", exchange -> respond(exchange,
+                request -> designer.testSource(jsonBody(request))));
+        server.createContext("/api/preview", exchange -> respond(exchange, request -> {
+            com.fasterxml.jackson.databind.JsonNode body = jsonBody(request);
+            return designer.preview(body.path("draft"), body.path("limit").asInt(10));
+        }));
+    }
+
+    /**
+     * Where a deployment keeps the definitions only it knows (ADR 0037), so the designer resolves a
+     * pipeline's destinations the way {@code niem run --artifacts} would.
+     */
+    public ControlPlaneServer withDeploymentArtifacts(List<Path> directories) {
+        this.designer = new PipelineDesigner(workspace, directories);
+        return this;
+    }
+
+    /**
+     * A request body the designer acts on, refused unless it is a JSON POST.
+     *
+     * <p>The designer writes files and reads from live sources. A plain form or a text/plain POST is
+     * something any page open in the same browser can send to localhost without asking; a JSON
+     * content type is not, because the browser has to ask first and this server never says yes. So
+     * the header is the difference between an author clicking Save and a web page doing it for them.
+     */
+    private com.fasterxml.jackson.databind.JsonNode jsonBody(HttpExchange exchange) throws IOException {
+        if (!"POST".equals(exchange.getRequestMethod())) {
+            throw new IllegalArgumentException("POST required");
+        }
+        String contentType = String.valueOf(exchange.getRequestHeaders().getFirst("Content-Type"));
+        if (!contentType.toLowerCase(java.util.Locale.ROOT).startsWith("application/json")) {
+            throw new IllegalArgumentException("Content-Type must be application/json");
+        }
+        return json.readTree(body(exchange));
     }
 
     public void start() {

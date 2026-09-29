@@ -28,6 +28,8 @@ dependencies {
     runtimeOnly(project(":exchange:cch"))
     implementation(project(":core:content"))
     implementation(project(":control-plane"))
+    // A pipeline names its parts (ADR 0037); run and validate resolve it the way the designer does.
+    implementation(project(":pipeline"))
 
     // `simulate` produces a feed, so the CLI carries a Kafka producer as well as the consumer
     // the connector uses. The domain module supplies the records; this supplies the transport.

@@ -122,16 +122,55 @@ final class ValidateCommand implements Callable<Integer> {
         }
 
         int transports = checkSourceDefinitions(module, claimedSourceIds, problems);
+        int pipelines = singleMapping == null && singleSource == null
+                ? checkPipelines(module, problems) : 0;
 
         System.out.println();
         if (problems.isEmpty()) {
             System.out.printf("OK: %d mapping(s) and their contracts are coherent, "
-                    + "%d transport(s) configured.%n", validated, transports);
+                    + "%d transport(s) configured, %d pipeline(s) resolve.%n",
+                    validated, transports, pipelines);
             return 0;
         }
         System.err.printf("%d problem(s):%n", problems.size());
         problems.forEach(problem -> System.err.println("  " + problem));
         return 1;
+    }
+
+    /**
+     * Every pipeline in the module resolves (ADR 0037).
+     *
+     * <p>At authoring strictness: a projection or exchange the module does not ship is a note, not a
+     * problem, because naming a deployment's database is exactly what a module cannot do. Everything
+     * the module does ship -- the origin, the mapping, the exchanges it carries -- must resolve and fit.
+     */
+    private int checkPipelines(Path module, List<String> problems) {
+        var catalog = gov.niemplatform.pipeline.ArtifactCatalog.of(module, List.of());
+        var resolver = new gov.niemplatform.pipeline.PipelineResolver(catalog,
+                gov.niemplatform.connectors.api.ConnectorRegistry.discover(),
+                gov.niemplatform.projections.api.ProjectionRegistry.discover(),
+                gov.niemplatform.exchange.api.ExchangeRegistry.discover());
+        int resolved = 0;
+        for (Path file : ArtifactSet.yamlFiles(module.resolve("pipelines"))) {
+            System.out.println("Checking " + module.relativize(file));
+            try {
+                var pipeline = gov.niemplatform.pipeline.PipelineDefinition.load(file);
+                var resolution = resolver.resolve(pipeline,
+                        gov.niemplatform.pipeline.PipelineResolver.Strictness.AUTHORING);
+                System.out.printf("  %s  origin=%s/%s  mapping=%s  destinations=%d%n",
+                        pipeline.qualifiedName(), pipeline.originSource(), pipeline.originInstance(),
+                        pipeline.mapping(), pipeline.projections().size() + pipeline.exchanges().size());
+                resolution.notes().forEach(note -> System.out.println("  note: " + note));
+                resolution.problems().forEach(problem ->
+                        problems.add(file.getFileName() + ": " + problem));
+                if (resolution.runnable()) {
+                    resolved++;
+                }
+            } catch (gov.niemplatform.pipeline.PipelineDefinitionException e) {
+                e.problems().forEach(problem -> problems.add(file.getFileName() + ": " + problem));
+            }
+        }
+        return resolved;
     }
 
     /**

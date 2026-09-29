@@ -718,3 +718,174 @@ button.view:not(.is-current):hover { color: var(--ink); }
   .citation { grid-template-columns: 4.5rem minmax(0, 1fr); }
   .citation-niem { grid-column: 2; }
 }
+
+/* === the pipeline designer (ADR 0037) ======================================================== */
+/* Palette | canvas | panel, the arrangement StreamSets taught everyone. The flow teal is a wire and
+   a stage that is sound; burnt amber is reserved, as everywhere on this surface, for what diverges:
+   a problem, a record held back. */
+
+.designer { padding: 0 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+
+.designer-toolbar {
+  display: flex; align-items: flex-end; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.75rem 0 0.25rem;
+  border-bottom: 1px solid var(--hairline);
+}
+.designer-toolbar .field { margin-bottom: 0; }
+.designer-toolbar .field.compact input, .designer-toolbar .field.compact select { min-width: 12rem; }
+.designer-toolbar .field.narrow input { min-width: 0; width: 6.5rem; }
+.toolbar-spacer { flex: 1; }
+
+button.primary { background: var(--flow); border-color: var(--flow); color: var(--card); }
+button.primary:hover { filter: brightness(1.08); }
+
+.pl-status { margin: 0; font-size: 0.82rem; color: var(--slate); min-height: 1.4em; }
+.pl-status.is-valid { color: var(--flow); }
+.pl-status.is-invalid { color: var(--divert); }
+
+.designer-body {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr) 21rem;
+  gap: 0.9rem;
+  align-items: start;
+  flex: 1;
+}
+
+/* --- palette ------------------------------------------------------------------------------- */
+
+.pl-palette { display: flex; flex-direction: column; gap: 0.9rem; position: sticky; top: 0.5rem; }
+.pl-group h2 { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); margin: 0; }
+.pl-group .detail { margin: 0.1rem 0 0.4rem; font-size: 0.74rem; }
+.pl-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+
+.pl-item {
+  width: 100%;
+  display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); gap: 0.55rem; align-items: start;
+  text-align: left;
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--hairline); border-left: 3px solid var(--flow);
+  padding: 0.5rem 0.6rem;
+  cursor: grab;
+}
+.pl-item:hover { border-color: var(--flow); }
+.pl-item:active { cursor: grabbing; }
+.pl-item strong { display: block; font-size: 0.84rem; }
+.pl-item small { display: block; font-size: 0.7rem; color: var(--slate); line-height: 1.35; margin-top: 0.1rem; }
+.pl-icon path { fill: none; stroke: var(--flow); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* --- canvas -------------------------------------------------------------------------------- */
+
+.pl-stage { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.pl-canvas {
+  background:
+    radial-gradient(circle, var(--hairline) 1px, transparent 1.2px) 0 0 / 18px 18px,
+    var(--card);
+  border: 1px solid var(--hairline);
+  min-height: 24rem;
+  overflow: auto;
+}
+.pl-canvas.is-drop { outline: 2px dashed var(--flow); outline-offset: -6px; }
+.pl-svg { display: block; width: 100%; height: auto; min-width: 52rem; }
+
+.pl-caption { font-size: 10px; letter-spacing: 0.14em; fill: var(--slate); }
+.pl-empty { font-size: 14px; fill: var(--slate); }
+
+.pl-node { cursor: pointer; outline: none; }
+.pl-node rect { fill: var(--card); stroke: var(--hairline); stroke-width: 1.5; }
+.pl-node--origin rect { stroke: var(--provenance); }
+.pl-node--mapping rect { stroke: var(--flow); stroke-width: 2; }
+.pl-node--destination rect { stroke: var(--flow); }
+.pl-node:hover rect, .pl-node:focus-visible rect { fill: var(--flow-soft); }
+.pl-node.is-selected rect { stroke-width: 3; fill: var(--flow-soft); }
+.pl-node.has-problems rect { stroke: var(--divert); fill: var(--divert-soft); }
+.pl-node-title { font-size: 14px; font-weight: 600; fill: var(--ink); }
+.pl-node-sub { font-size: 11.5px; fill: var(--slate); }
+.pl-node-hint { font-size: 11px; fill: var(--slate); font-style: italic; }
+.pl-node-count { font-size: 12px; font-weight: 600; fill: var(--flow); }
+.pl-node.has-problems .pl-node-count { fill: var(--divert); }
+.pl-badge circle { fill: var(--divert); }
+.pl-badge text { fill: var(--card); font-size: 11px; font-weight: 700; }
+
+.pl-port { fill: var(--card); stroke: var(--flow); stroke-width: 2; }
+.pl-port--out { cursor: crosshair; }
+.pl-port--out:hover, .pl-port.is-target { fill: var(--flow); }
+.pl-port.is-refused { stroke: var(--divert); }
+.pl-port.is-refused.is-target { fill: var(--divert); }
+
+.pl-edge path { fill: none; stroke: var(--flow); stroke-width: 2.2; }
+.pl-edge:hover path { stroke-width: 3.4; cursor: pointer; }
+.pl-edge-label { font-size: 11.5px; font-weight: 600; fill: var(--flow); paint-order: stroke; stroke: var(--card); stroke-width: 4px; }
+.pl-arrowhead { fill: var(--flow); }
+.pl-wire-draft { fill: none; stroke: var(--flow); stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
+
+/* --- the drawer: preview ------------------------------------------------------------------- */
+
+.pl-drawer { background: var(--card); border: 1px solid var(--hairline); border-top: 3px solid var(--flow); padding: 0.6rem 0.8rem 0.8rem; }
+.pl-drawer-head { display: flex; align-items: center; gap: 0.8rem; }
+.pl-drawer-head h3 { margin: 0; font-size: 0.9rem; }
+.pl-tabs { display: flex; gap: 0.25rem; flex: 1; }
+.pl-tab { font-size: 0.75rem; padding: 0.25rem 0.6rem; background: transparent; color: var(--slate); border: 1px solid transparent; }
+.pl-tab.is-current { color: var(--flow); border-color: var(--flow); background: var(--flow-soft); }
+.pl-drawer-body { max-height: 20rem; overflow: auto; }
+.pl-raw { margin: 0; padding-left: 2rem; font-size: 0.78rem; }
+.pl-raw li { padding: 0.15rem 0; border-bottom: 1px dotted var(--hairline); white-space: pre-wrap; word-break: break-all; }
+.pl-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+.pl-table th { text-align: left; color: var(--slate); font-weight: 500; border-bottom: 1px solid var(--hairline); padding: 0.25rem; }
+.pl-table td { padding: 0.25rem; border-bottom: 1px dotted var(--hairline); vertical-align: top; word-break: break-word; }
+.pl-held { border-left: 3px solid var(--divert); background: var(--divert-soft); padding: 0.45rem 0.6rem; margin-bottom: 0.45rem; }
+.pl-held code { display: block; font-size: 0.76rem; word-break: break-all; }
+.pl-held ul { margin: 0.3rem 0 0; padding-left: 1.1rem; font-size: 0.76rem; color: var(--divert); }
+
+/* --- the panel ----------------------------------------------------------------------------- */
+
+.pl-config { background: var(--card); border: 1px solid var(--hairline); padding: 0.8rem; position: sticky; top: 0.5rem; max-height: calc(100vh - 2rem); overflow: auto; }
+.pl-config h2 { font-size: 0.95rem; margin: 0 0 0.5rem; }
+.pl-config h3 { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--slate); margin: 0.9rem 0 0.35rem; }
+.pl-config-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.pl-config .field input, .pl-config .field select { width: 100%; }
+.pl-config .detail { font-size: 0.74rem; margin: 0.1rem 0 0.4rem; }
+.pl-problems { margin: 0 0 0.6rem; padding: 0.45rem 0.6rem 0.45rem 1.4rem; background: var(--divert-soft); border-left: 3px solid var(--divert); color: var(--divert); font-size: 0.78rem; }
+.pl-problems li + li { margin-top: 0.25rem; }
+.pl-notes { margin: 0; padding-left: 1.1rem; font-size: 0.76rem; color: var(--slate); }
+.pl-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.15rem 0.7rem; font-size: 0.76rem; margin: 0.2rem 0 0.6rem; }
+.pl-facts dt { color: var(--slate); }
+.pl-facts dd { margin: 0; word-break: break-all; }
+.pl-secret { font-size: 0.74rem; color: var(--scratch); background: var(--scratch-soft); padding: 0.35rem 0.5rem; margin: 0; }
+.pl-wires { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.pl-wires li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; padding: 0.2rem 0; }
+.pl-test { margin: 0.6rem 0; }
+.pl-test-result { font-size: 0.78rem; margin: 0.4rem 0 0; }
+.pl-test-result.is-ok { color: var(--flow); }
+.pl-test-result.is-bad { color: var(--divert); }
+.pl-yaml pre { font-size: 0.72rem; background: var(--paper); padding: 0.5rem; overflow: auto; white-space: pre; }
+.pl-yaml summary { font-size: 0.78rem; cursor: pointer; color: var(--flow); }
+
+/* --- the wizard ---------------------------------------------------------------------------- */
+
+.pl-wizard { border: 1px solid var(--hairline); background: var(--card); color: var(--ink); width: min(46rem, 94vw); padding: 0; }
+.pl-wizard::backdrop { background: rgb(13 20 23 / 0.45); }
+.pl-wizard header { padding: 1rem 1.2rem 0.4rem; border-bottom: 1px solid var(--hairline); }
+.pl-wizard h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+.pl-steps { display: flex; flex-wrap: wrap; gap: 0.3rem; list-style: none; margin: 0; padding: 0 0 0.5rem; counter-reset: step; }
+.pl-steps li { counter-increment: step; font-size: 0.72rem; color: var(--slate); padding: 0.15rem 0.5rem; border: 1px solid var(--hairline); }
+.pl-steps li::before { content: counter(step) ". "; }
+.pl-steps li.is-current { color: var(--card); background: var(--flow); border-color: var(--flow); }
+.pl-steps li.is-done { color: var(--flow); border-color: var(--flow); }
+.pl-wizard-body { padding: 1rem 1.2rem; max-height: 60vh; overflow: auto; }
+.pl-wizard footer { display: flex; gap: 0.5rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--hairline); }
+.pl-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem; }
+.pl-card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; text-align: left; padding: 0.8rem; background: var(--paper); color: var(--ink); border: 1px solid var(--hairline); }
+.pl-card strong { font-size: 0.9rem; }
+.pl-card small { font-size: 0.72rem; color: var(--slate); }
+.pl-card.is-current, .pl-card:hover { border-color: var(--flow); background: var(--flow-soft); }
+.pl-choice { display: flex; gap: 0.55rem; align-items: flex-start; padding: 0.4rem 0; font-size: 0.84rem; cursor: pointer; }
+.pl-problem-box { background: var(--divert-soft); color: var(--divert); border-left: 3px solid var(--divert); padding: 0.45rem 0.6rem; font-size: 0.8rem; }
+
+@media (max-width: 72rem) {
+  .designer-body { grid-template-columns: 13rem minmax(0, 1fr); }
+  .pl-config { grid-column: 1 / -1; position: static; max-height: none; }
+}
+@media (max-width: 48rem) {
+  .designer-body { grid-template-columns: minmax(0, 1fr); }
+  .pl-palette { position: static; }
+}

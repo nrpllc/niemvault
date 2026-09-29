@@ -21,10 +21,23 @@ dependencies {
     // Value shapes are profiled from what has already landed in bronze (ADR 0023).
     implementation(project(":storage"))
 
+    // The pipeline designer (ADR 0037): the same resolver `niem run --pipeline` uses, so the designer
+    // and the command line cannot disagree about whether a pipeline runs.
+    implementation(project(":pipeline"))
+    // Preview maps sample records in memory with a fresh cluster index, as a direct run would.
+    implementation(project(":identity:internal"))
+
     implementation(libs.bundles.jackson)
     implementation(libs.snakeyaml)
 
     // The tests drive the surface against the artifacts the law enforcement module actually
     // ships, so a broken mapping or contract fails here too.
     testImplementation(project(":modules:law-enforcement"))
+    // The palette is discovered, so its tests need the implementations a deployment ships.
+    testRuntimeOnly(project(":connectors:file"))
+    testRuntimeOnly(project(":connectors:kafka"))
+    testRuntimeOnly(project(":projections:ods"))
+    testRuntimeOnly(project(":projections:search"))
+    testRuntimeOnly(project(":projections:graph"))
+    testRuntimeOnly(project(":exchange:cch"))
 }

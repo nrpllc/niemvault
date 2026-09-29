@@ -1,5 +1,6 @@
 package gov.niemplatform.projections.ods;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import gov.niemplatform.projections.api.ProjectionContext;
 import gov.niemplatform.projections.api.ProjectionDefinition;
 import gov.niemplatform.projections.api.ProjectionDefinitionException;
@@ -31,7 +32,25 @@ public final class PostgresOdsProjectionFactory implements ProjectionFactory {
 
     static final String DEFAULT_SCHEMA = "canonical";
 
-    private static final Set<String> SETTINGS = Set.of("jdbcUrl", "user", "passwordEnv", "schema");
+    static final Set<String> SETTINGS = Set.of("jdbcUrl", "user", "passwordEnv", "schema");
+
+    @Override
+    public String summary() {
+        return "PostgreSQL operational data store: canonical current state in SQL (ADR 0035).";
+    }
+
+    /** What this reads from a definition's settings, key for key (ADR 0037). */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text("jdbcUrl").label("JDBC URL").required()
+                        .describe("jdbc:postgresql://host:port/database").build(),
+                SettingDescriptor.text("user").label("User").build(),
+                SettingDescriptor.text("passwordEnv").label("Password variable").envVarName()
+                        .describe("Name of the environment variable holding the password.").build(),
+                SettingDescriptor.text("schema").label("Schema").defaultsTo(DEFAULT_SCHEMA)
+                        .describe("Where canonical tables live. Operational state goes elsewhere.").build());
+    }
 
     @Override
     public ProjectionType type() {

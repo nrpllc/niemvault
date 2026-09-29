@@ -1,5 +1,6 @@
 package gov.niemplatform.connectors.file;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import gov.niemplatform.connectors.api.ConnectorConfig;
 import gov.niemplatform.connectors.api.ConnectorConfigurationException;
 import gov.niemplatform.connectors.api.ConnectorType;
@@ -67,7 +68,7 @@ public final class FileDropConnector implements SourceConnector {
     static final String SETTING_SKIP_HEADER_LINES = "skipHeaderLines";
     static final String SETTING_CHARSET = "charset";
 
-    private static final Set<String> RECOGNISED_SETTINGS = Set.of(
+    static final Set<String> RECOGNISED_SETTINGS = Set.of(
             SETTING_DIRECTORY, SETTING_FILE_PATTERN, SETTING_RECORD_MODE,
             SETTING_SKIP_HEADER_LINES, SETTING_CHARSET);
 
@@ -107,6 +108,28 @@ public final class FileDropConnector implements SourceConnector {
         // A file an agency placed in its own drop directory is its own data, landed in its own
         // bronze. Nothing here is somebody else's response to hold under somebody else's rules.
         return RetentionPosture.RETAINED;
+    }
+
+    @Override
+    public String summary() {
+        return "Files an agency drops into a directory this platform can read.";
+    }
+
+    /** What configure() reads, key for key. The tests hold this to RECOGNISED_SETTINGS. */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text(SETTING_DIRECTORY).label("Drop directory").required()
+                        .describe("Directory the source writes files into. Files are read, never moved.")
+                        .build(),
+                SettingDescriptor.text(SETTING_FILE_PATTERN).label("File pattern").defaultsTo("*")
+                        .describe("Glob of file names to pick up, e.g. *.csv.").build(),
+                SettingDescriptor.choice(SETTING_RECORD_MODE, "line", "file").label("Record mode")
+                        .defaultsTo("line").describe("One record per line, or one per file.").build(),
+                SettingDescriptor.integer(SETTING_SKIP_HEADER_LINES).label("Header lines to skip")
+                        .defaultsTo("0").describe("Header rows at the top of every file.").build(),
+                SettingDescriptor.text(SETTING_CHARSET).label("Character set").defaultsTo("UTF-8")
+                        .build());
     }
 
     @Override

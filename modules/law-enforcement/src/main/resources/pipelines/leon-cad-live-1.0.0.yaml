@@ -1,0 +1,37 @@
+# Leon County SO CAD, live: the Kafka topic into every store and the state repository (ADR 0037).
+#
+# Names, not copies. Each part below is an artifact with its own version and its own reviewers, and
+# this file only says which ones make up the pipeline. The mapping carries the contract gates and the
+# identity resolution; there is nowhere here to declare a second set.
+#
+# The three projections are deliberately NOT in this module: which database, which cluster and which
+# graph a pipeline writes to is a fact about a deployment, not about content every deployment shares.
+# A deployment supplies them by name, and they shadow anything the module ships under that name:
+#
+#   niem run --module <module> --tenant fl.leon.so --bronze <dir> \
+#       --pipeline pipelines/leon-cad-live-1.0.0.yaml \
+#       --artifacts <directory holding demo-ods, demo-search, demo-graph, and a local
+#                    fdle-cch-incidents-leon pointed at this deployment's CCH>
+#
+# The POC stack generates exactly that directory (poc/.data/<stack>/artifacts), and demo/stores/
+# projections holds the laptop versions of the three stores. `niem validate` reports them as supplied
+# by the deployment rather than as problems.
+
+pipeline: leon-cad-live
+version: "1.0.0"
+description: "Leon County SO CAD from Kafka, into the ODS, search, the graph and FDLE CCH"
+
+origin:
+  source: leon-so-cad
+  instance: leon-cad-kafka-1
+
+processors:
+  mapping: leon-cad-to-canonical@1.0.0
+
+destinations:
+  projections:
+    - demo-ods
+    - demo-search
+    - demo-graph
+  exchanges:
+    - fdle-cch-incidents-leon

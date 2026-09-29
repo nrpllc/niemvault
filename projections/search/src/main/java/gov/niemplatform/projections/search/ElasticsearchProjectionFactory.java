@@ -1,5 +1,6 @@
 package gov.niemplatform.projections.search;
 
+import gov.niemplatform.settings.SettingDescriptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import gov.niemplatform.projections.api.ProjectionContext;
 import gov.niemplatform.projections.api.ProjectionDefinition;
@@ -40,6 +41,28 @@ import java.util.Set;
 public final class ElasticsearchProjectionFactory implements ProjectionFactory {
 
     private static final Set<String> REFRESH = Set.of("wait_for", "true", "false");
+
+    @Override
+    public String summary() {
+        return "Elasticsearch search projection: full text, fuzzy names, facets (ADR 0036).";
+    }
+
+    /** What this reads from a definition's settings, key for key (ADR 0037). */
+    @Override
+    public java.util.List<SettingDescriptor> settings() {
+        return java.util.List.of(
+                SettingDescriptor.text("url").label("Cluster URL").required()
+                        .describe("http(s)://host:port of the cluster.").build(),
+                SettingDescriptor.text("user").label("User").build(),
+                SettingDescriptor.text("passwordEnv").label("Password variable").envVarName().build(),
+                SettingDescriptor.text("indexPrefix").label("Index prefix").defaultsTo("niem").build(),
+                SettingDescriptor.choice("refresh", "wait_for", "true", "false").label("Refresh")
+                        .defaultsTo("wait_for")
+                        .describe("wait_for: searchable when the run returns. false for bulk loads.")
+                        .build(),
+                SettingDescriptor.integer("timeoutSeconds").label("Timeout (seconds)").defaultsTo("30")
+                        .build());
+    }
 
     @Override
     public ProjectionType type() {

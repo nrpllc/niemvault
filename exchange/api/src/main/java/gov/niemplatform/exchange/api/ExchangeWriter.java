@@ -57,6 +57,16 @@ public interface ExchangeWriter extends AutoCloseable {
      */
     ExchangeHealth health();
 
+    /** The settings an exchange of this type carries (ADR 0037). Empty by default. */
+    default java.util.List<gov.niemplatform.settings.SettingDescriptor> settings() {
+        return java.util.List.of();
+    }
+
+    /** One line saying what this wire format is, for a palette. */
+    default String summary() {
+        return "";
+    }
+
     @Override
     void close();
 }
