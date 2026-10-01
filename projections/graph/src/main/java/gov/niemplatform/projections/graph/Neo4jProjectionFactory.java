@@ -26,7 +26,7 @@ public final class Neo4jProjectionFactory implements ProjectionFactory {
 
     @Override
     public String summary() {
-        return "Neo4j graph projection: NIEM associations as edges (ADR 0006).";
+        return "NIEM associations as edges, for who is connected to whom (ADR 0006).";
     }
 
     /** What this reads from a definition's settings, key for key (ADR 0037). */

@@ -32,9 +32,9 @@ const FIT = { 'pl-node-title': 17, 'pl-node-sub': 26, 'pl-node-count': 26, 'pl-n
 /** Titles short enough for a stage box; the palette keeps the long names. */
 const SHORT = {
   'file-drop': 'File drop', kafka: 'Kafka', sftp: 'SFTP', ftps: 'FTPS',
-  ods: 'ODS', search: 'Search', graph: 'Graph', 'cch-http': 'CCH exchange',
+  ods: 'Data warehousing', search: 'Search', graph: 'Graph analytics', 'cch-http': 'CCH exchange',
 };
-const STORE = { ods: 'PostgreSQL', search: 'Elasticsearch', graph: 'Neo4j', 'cch-http': 'HTTP' };
+const STORE = { 'cch-http': 'HTTP' };
 
 const ICONS = {
   folder: 'M3 7h6l2 2h10v10H3z',

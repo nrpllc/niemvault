@@ -36,7 +36,7 @@ public final class PostgresOdsProjectionFactory implements ProjectionFactory {
 
     @Override
     public String summary() {
-        return "PostgreSQL operational data store: canonical current state in SQL (ADR 0035).";
+        return "Canonical current state in SQL, with operational tables beside it (ADR 0035).";
     }
 
     /** What this reads from a definition's settings, key for key (ADR 0037). */

@@ -990,9 +990,9 @@ public final class PipelineDesigner {
             case "kafka" -> "Kafka";
             case "sftp" -> "SFTP";
             case "ftps" -> "FTPS";
-            case "ods" -> "ODS · PostgreSQL";
-            case "search" -> "Search · Elasticsearch";
-            case "graph" -> "Graph · Neo4j";
+            case "ods" -> "Data warehousing";
+            case "search" -> "Search";
+            case "graph" -> "Graph analytics";
             case "cch-http" -> "Criminal history repository";
             default -> Character.toUpperCase(typeId.charAt(0)) + typeId.substring(1).replace('-', ' ');
         };

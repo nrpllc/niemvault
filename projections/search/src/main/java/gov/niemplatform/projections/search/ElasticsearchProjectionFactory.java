@@ -44,7 +44,7 @@ public final class ElasticsearchProjectionFactory implements ProjectionFactory {
 
     @Override
     public String summary() {
-        return "Elasticsearch search projection: full text, fuzzy names, facets (ADR 0036).";
+        return "Full text, fuzzy names, facets (ADR 0036).";
     }
 
     /** What this reads from a definition's settings, key for key (ADR 0037). */
